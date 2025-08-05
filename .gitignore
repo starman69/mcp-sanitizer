@@ -137,3 +137,32 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+coverage/
+.coverage/
+.nyc_output/
+dist/
+build/
+*.tgz
+*.tar.gz
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.plans/
+.claude/
+CLAUDE.md
+
+# Test results
+test-results/
+junit.xml
