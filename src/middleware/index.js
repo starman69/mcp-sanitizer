@@ -69,6 +69,7 @@ const UNIFIED_CONFIG = {
   async: true, // Prefer async where supported
   skipHealthChecks: true,
   skipStaticFiles: true,
+  skipPaths: [], // Array of paths (strings or RegExp) to skip sanitization
 
   // Error handling
   blockStatusCode: 400,

@@ -159,10 +159,15 @@ build/
 *.swp
 *.swo
 *~
+# Development and AI assistant artifacts
 .plans/
 .claude/
 CLAUDE.md
+.swarm/
+.claude-flow/
+.mcp/
 
-# Test results
+# Test artifacts
 test-results/
 junit.xml
+*.test.output

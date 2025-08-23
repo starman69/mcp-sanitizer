@@ -55,6 +55,7 @@ try {
 }
 
 const MCPSanitizer = require('../index')
+const { createOptimizedMatcher } = require('./optimized-skip-matcher')
 
 /**
  * Default configuration for Fastify plugin
@@ -79,6 +80,7 @@ const DEFAULT_CONFIG = {
   // Performance options
   skipHealthChecks: true,
   skipStaticFiles: true,
+  skipPaths: [], // Array of paths (strings or RegExp) to skip sanitization
   usePreHandler: true, // Use preHandler hook vs onRequest
 
   // Sanitizer configuration
@@ -111,6 +113,13 @@ async function mcpSanitizerPlugin (fastify, options) {
     ...config.sanitizerOptions
   })
 
+  // Pre-compile skip path matcher for optimal performance
+  const skipMatcher = createOptimizedMatcher(config.skipPaths)
+
+  // Pre-compile static checks for better performance
+  const healthPaths = config.skipHealthChecks ? new Set(['/health', '/healthcheck', '/ping', '/status']) : null
+  const staticExtensions = config.skipStaticFiles ? new Set(['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2']) : null
+
   // Decorate Fastify instance if requested
   if (config.decorateFastify) {
     fastify.decorate('mcpSanitizer', sanitizer)
@@ -132,8 +141,13 @@ async function mcpSanitizerPlugin (fastify, options) {
   // Choose hook based on configuration
   const hookName = config.usePreHandler ? 'preHandler' : 'onRequest'
 
+  // Create backward-compatible shouldSkipRequest function
+  function shouldSkipRequest (request, config) {
+    return shouldSkipRequestOptimized(request, skipMatcher, healthPaths, staticExtensions)
+  }
+
   fastify.addHook(hookName, async function sanitizationHook (request, reply) {
-    // Skip certain requests if configured
+    // Skip certain requests if configured - OPTIMIZED (backward compatible)
     if (shouldSkipRequest(request, config)) {
       return
     }
@@ -180,43 +194,50 @@ async function mcpSanitizerPlugin (fastify, options) {
 
 /**
  * Check if request should be skipped based on configuration
+ * OPTIMIZED VERSION: Uses pre-compiled matchers for O(1) to O(log n) performance
  * @param {Object} request - Fastify request object
- * @param {Object} config - Plugin configuration
+ * @param {Object} skipMatcher - Pre-compiled skip matcher
+ * @param {Set|null} healthPaths - Pre-compiled health paths set
+ * @param {Set|null} staticExtensions - Pre-compiled static extensions set
  * @returns {boolean} True if request should be skipped
  */
-function shouldSkipRequest (request, config) {
-  // Skip health check endpoints
-  if (config.skipHealthChecks && isHealthCheckRequest(request)) {
+function shouldSkipRequestOptimized (request, skipMatcher, healthPaths, staticExtensions) {
+  // Extract path from URL (remove query string) - do this once
+  const path = request.url.split('?')[0]
+
+  // Priority 1: Check skipPaths using optimized matcher - O(1) to O(log n)
+  if (skipMatcher && skipMatcher.shouldSkip(path)) {
     return true
   }
 
-  // Skip static file requests
-  if (config.skipStaticFiles && isStaticFileRequest(request)) {
-    return true
+  // Priority 2: Skip health check endpoints - O(1) Set lookup
+  if (healthPaths) {
+    if (healthPaths.has(path)) {
+      return true
+    }
+    // Check for path prefixes (e.g., /health/detailed)
+    for (const healthPath of healthPaths) {
+      if (path.startsWith(healthPath + '/')) {
+        return true
+      }
+    }
+  }
+
+  // Priority 3: Skip static file requests - O(1) extension lookup
+  if (staticExtensions) {
+    const lastDotIndex = path.lastIndexOf('.')
+    if (lastDotIndex !== -1) {
+      const extension = path.substring(lastDotIndex)
+      if (staticExtensions.has(extension)) {
+        return true
+      }
+    }
   }
 
   return false
 }
 
-/**
- * Check if request is for health check endpoint
- * @param {Object} request - Fastify request object
- * @returns {boolean} True if health check request
- */
-function isHealthCheckRequest (request) {
-  const healthPaths = ['/health', '/healthcheck', '/ping', '/status']
-  return healthPaths.some(path => request.url === path || request.url.startsWith(path + '/'))
-}
-
-/**
- * Check if request is for static files
- * @param {Object} request - Fastify request object
- * @returns {boolean} True if static file request
- */
-function isStaticFileRequest (request) {
-  const staticExtensions = ['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2']
-  return staticExtensions.some(ext => request.url.endsWith(ext))
-}
+// Helper functions removed - functionality moved to optimized shouldSkipRequestOptimized function
 
 /**
  * Process Fastify request for sanitization
