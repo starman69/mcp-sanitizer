@@ -29,6 +29,7 @@
 
 // Import utility modules
 const { stringUtils, objectUtils, validationUtils } = require('../utils')
+const { securityDecode, addTimingNoise } = require('../utils/security-decoder')
 
 // Import configuration system
 const { createConfig, createConfigFromPolicy } = require('../config')
@@ -124,6 +125,17 @@ class MCPSanitizer {
       result.warnings.push(`Sanitization failed: ${error.message}`)
       result.sanitized = null
       this.stats.blockedCount++
+    }
+
+    // SECURITY: Add timing noise to prevent timing attacks
+    // This adds 0-2ms of random delay to mask processing differences
+    if (this.options.enableTimingProtection !== false) {
+      // Synchronous approximation for backward compatibility
+      const noiseDelay = Math.random() * 2
+      const endTime = Date.now() + noiseDelay
+      while (Date.now() < endTime) {
+        // Busy wait (not ideal but maintains sync API)
+      }
     }
 
     // Update performance stats
@@ -428,38 +440,54 @@ class MCPSanitizer {
   }
 
   /**
-   * Legacy string sanitization method
+   * Secure string sanitization method with security decoder
    * @param {string} str - String to sanitize
    * @param {Object} context - Context information
    * @returns {string} Sanitized string
    * @private
    */
   _sanitizeString (str, context) {
-    // Validate string length
-    stringUtils.validateStringLength(str, this.options.maxStringLength)
+    // SECURITY FIX: Apply security decoding BEFORE any validation
+    const decodeResult = securityDecode(str, {
+      decodeUnicode: true,
+      decodeUrl: true,
+      normalizePath: context.type === 'file_path',
+      stripDangerous: context.type === 'command'
+    })
+    
+    // Use decoded string for all subsequent operations
+    const decodedStr = decodeResult.decoded
+    
+    // Log potential bypass attempts
+    if (decodeResult.wasDecoded && decodeResult.decodingSteps.length > 0) {
+      console.warn(`[MCP-Sanitizer] Potential bypass attempt detected - Decoding steps: ${decodeResult.decodingSteps.join(', ')}`)
+    }
 
-    // Check for blocked patterns
-    stringUtils.validateAgainstBlockedPatterns(str, this.options.blockedPatterns)
+    // Validate string length on decoded content
+    stringUtils.validateStringLength(decodedStr, this.options.maxStringLength)
 
-    // Context-specific sanitization using modular validators (async operations made sync for compatibility)
+    // Check for blocked patterns on decoded content
+    stringUtils.validateAgainstBlockedPatterns(decodedStr, this.options.blockedPatterns)
+
+    // Context-specific sanitization using SECURE validators (not legacy)
     if (context.type === 'file_path') {
-      return this._legacySanitizeFilePath(str)
+      return this._secureSanitizeFilePath(decodedStr)
     }
 
     if (context.type === 'url') {
-      return this._legacySanitizeURL(str)
+      return this._secureSanitizeURL(decodedStr)
     }
 
     if (context.type === 'command') {
-      return this._legacySanitizeCommand(str)
+      return this._secureSanitizeCommand(decodedStr)
     }
 
     if (context.type === 'sql') {
-      return this._legacySanitizeSQL(str)
+      return this._secureSanitizeSQL(decodedStr)
     }
 
     // HTML encode for safety
-    return stringUtils.htmlEncode(str)
+    return stringUtils.htmlEncode(decodedStr)
   }
 
   /**
@@ -528,46 +556,110 @@ class MCPSanitizer {
   }
 
   /**
-   * Legacy file path sanitization (synchronous for backward compatibility)
-   * @param {string} filePath - File path to sanitize
+   * Secure file path sanitization with security decoder (synchronous for backward compatibility)
+   * @param {string} filePath - File path to sanitize (already decoded)
    * @returns {string} Sanitized file path
    * @private
    */
-  _legacySanitizeFilePath (filePath) {
+  _secureSanitizeFilePath (filePath) {
+    // filePath is already decoded by _sanitizeString
     const normalizedPath = validationUtils.validateFilePath(filePath)
     validationUtils.validateFileExtension(normalizedPath, this.options.allowedFileExtensions)
     return normalizedPath
   }
 
   /**
-   * Legacy URL sanitization (synchronous for backward compatibility)
-   * @param {string} url - URL to sanitize
+   * Secure URL sanitization with security decoder (synchronous for backward compatibility)
+   * @param {string} url - URL to sanitize (already decoded)
    * @returns {string} Sanitized URL
    * @private
    */
-  _legacySanitizeURL (url) {
+  _secureSanitizeURL (url) {
+    // url is already decoded by _sanitizeString
     const parsedUrl = validationUtils.validateURL(url, this.options.allowedProtocols)
     validationUtils.validateURLLocation(parsedUrl)
     return parsedUrl.toString()
   }
 
   /**
-   * Legacy command sanitization (synchronous for backward compatibility)
-   * @param {string} command - Command to sanitize
+   * Secure command sanitization with security decoder (synchronous for backward compatibility)
+   * @param {string} command - Command to sanitize (already decoded)
    * @returns {string} Sanitized command
    * @private
    */
-  _legacySanitizeCommand (command) {
+  _secureSanitizeCommand (command) {
+    // command is already decoded and stripped by _sanitizeString
     return validationUtils.validateCommand(command)
   }
 
   /**
-   * Legacy SQL sanitization (synchronous for backward compatibility)
-   * @param {string} query - SQL query to sanitize
+   * Secure SQL sanitization with security decoder (synchronous for backward compatibility)
+   * @param {string} query - SQL query to sanitize (already decoded)
    * @returns {string} Sanitized SQL query
    * @private
    */
+  _secureSanitizeSQL (query) {
+    // query is already decoded by _sanitizeString
+    validationUtils.validateNonEmptyString(query, 'SQL query')
+
+    // Filter out safe SQL keywords for legacy compatibility
+    const dangerousSQLKeywords = this.options.sqlKeywords.filter(keyword =>
+      !['SELECT', 'FROM', 'WHERE', 'ORDER BY', 'GROUP BY', 'HAVING'].includes(keyword.toUpperCase())
+    )
+
+    stringUtils.validateAgainstSQLKeywords(query, dangerousSQLKeywords)
+    return stringUtils.safeTrim(query)
+  }
+
+  /**
+   * Legacy file path sanitization (DEPRECATED - kept for fallback only)
+   * @param {string} filePath - File path to sanitize
+   * @returns {string} Sanitized file path
+   * @private
+   * @deprecated Use _secureSanitizeFilePath instead
+   */
+  _legacySanitizeFilePath (filePath) {
+    console.warn('[MCP-Sanitizer] SECURITY WARNING: Using deprecated legacy file path sanitization without security decoder')
+    const normalizedPath = validationUtils.validateFilePath(filePath)
+    validationUtils.validateFileExtension(normalizedPath, this.options.allowedFileExtensions)
+    return normalizedPath
+  }
+
+  /**
+   * Legacy URL sanitization (DEPRECATED - kept for fallback only)
+   * @param {string} url - URL to sanitize
+   * @returns {string} Sanitized URL
+   * @private
+   * @deprecated Use _secureSanitizeURL instead
+   */
+  _legacySanitizeURL (url) {
+    console.warn('[MCP-Sanitizer] SECURITY WARNING: Using deprecated legacy URL sanitization without security decoder')
+    const parsedUrl = validationUtils.validateURL(url, this.options.allowedProtocols)
+    validationUtils.validateURLLocation(parsedUrl)
+    return parsedUrl.toString()
+  }
+
+  /**
+   * Legacy command sanitization (DEPRECATED - kept for fallback only)
+   * @param {string} command - Command to sanitize
+   * @returns {string} Sanitized command
+   * @private
+   * @deprecated Use _secureSanitizeCommand instead
+   */
+  _legacySanitizeCommand (command) {
+    console.warn('[MCP-Sanitizer] SECURITY WARNING: Using deprecated legacy command sanitization without security decoder')
+    return validationUtils.validateCommand(command)
+  }
+
+  /**
+   * Legacy SQL sanitization (DEPRECATED - kept for fallback only)
+   * @param {string} query - SQL query to sanitize
+   * @returns {string} Sanitized SQL query
+   * @private
+   * @deprecated Use _secureSanitizeSQL instead
+   */
   _legacySanitizeSQL (query) {
+    console.warn('[MCP-Sanitizer] SECURITY WARNING: Using deprecated legacy SQL sanitization without security decoder')
     validationUtils.validateNonEmptyString(query, 'SQL query')
 
     // Filter out safe SQL keywords for legacy compatibility
