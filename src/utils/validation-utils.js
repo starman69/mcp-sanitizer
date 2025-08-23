@@ -81,31 +81,109 @@ function validateRegExp (value, paramName = 'value') {
 }
 
 /**
- * Validate file path for security issues
+ * Validate file path for security issues using path-is-inside library
  * @param {string} filePath - The file path to validate
  * @returns {string} - Normalized file path
  * @throws {Error} - If file path is unsafe
  */
 function validateFilePath (filePath) {
   validateNonEmptyString(filePath, 'filePath')
-
-  // Normalize the path for security checks
+  
+  // SECURITY FIX 2: Use path-is-inside for proper path validation
+  const pathIsInside = require('path-is-inside')
+  
+  // Normalize the path for security checks (handles ./ ../ and mixed separators)
   const normalizedPath = path.normalize(filePath)
 
   // Check for directory traversal attempts
   if (normalizedPath.includes('..')) {
     throw new Error('Directory traversal detected in file path')
   }
+  
+  // SECURITY FIX 3: Detect and block UNC paths
+  if (filePath.startsWith('\\\\') || filePath.match(/^\\\\[^\\]+\\[^\\]+/)) {
+    throw new Error('UNC paths are not allowed')
+  }
+  
+  // SECURITY FIX 4: Enhanced Windows system path detection
+  const windowsSystemPaths = [
+    'C:\\Windows\\',
+    'C:\\System32\\',
+    'C:\\Program Files\\',
+    'C:\\Windows\\System32\\',
+    'C:\\Windows\\SysWOW64\\',
+    '%SystemRoot%\\',
+    '%WINDIR%\\',
+    // Also check normalized versions (forward slashes)
+    'C:/Windows/',
+    'C:/System32/',
+    'C:/Program Files/',
+    'C:/Windows/System32/',
+    'C:/Windows/SysWOW64/'
+  ]
 
   // Check for access to system directories (Unix/Linux)
-  const dangerousUnixPaths = ['/etc/', '/proc/', '/sys/', '/dev/', '/root/']
-  const dangerousWindowsPaths = ['C:\\Windows\\', 'C:\\System32\\', 'C:\\Program Files\\']
-
+  const dangerousUnixPaths = ['/etc/', '/proc/', '/sys/', '/dev/', '/root/', '/boot/', '/usr/bin/', '/sbin/']
+  
   const lowerPath = normalizedPath.toLowerCase()
+  const lowerOriginal = filePath.toLowerCase()
 
-  for (const dangerousPath of [...dangerousUnixPaths, ...dangerousWindowsPaths]) {
-    if (lowerPath.startsWith(dangerousPath.toLowerCase())) {
+  // Check against all dangerous paths (both normalized and original)
+  for (const dangerousPath of [...dangerousUnixPaths, ...windowsSystemPaths]) {
+    const lowerDangerous = dangerousPath.toLowerCase()
+    if (lowerPath.startsWith(lowerDangerous) || 
+        lowerOriginal.startsWith(lowerDangerous) ||
+        // Also check with backslashes converted to forward slashes
+        lowerOriginal.replace(/\\/g, '/').startsWith(lowerDangerous)) {
       throw new Error(`Access to system directory not allowed: ${dangerousPath}`)
+    }
+  }
+  
+  // Use path-is-inside to check if the path tries to escape a safe directory
+  // Define safe root directories
+  const safeRoots = ['/tmp', '/var/tmp', './uploads', './data', process.cwd()]
+  
+  let isInSafeLocation = false
+  for (const safeRoot of safeRoots) {
+    try {
+      if (path.isAbsolute(normalizedPath)) {
+        // For absolute paths, check if they're inside safe directories
+        if (pathIsInside(normalizedPath, safeRoot)) {
+          isInSafeLocation = true
+          break
+        }
+      } else {
+        // For relative paths, they're generally safer but check they don't escape
+        const resolvedPath = path.resolve(process.cwd(), normalizedPath)
+        if (pathIsInside(resolvedPath, process.cwd()) || pathIsInside(resolvedPath, safeRoot)) {
+          isInSafeLocation = true
+          break
+        }
+      }
+    } catch (err) {
+      // Continue checking other safe roots
+      continue
+    }
+  }
+  
+  // For development/testing, allow relative paths within current directory
+  if (!isInSafeLocation && !path.isAbsolute(normalizedPath)) {
+    const resolvedPath = path.resolve(process.cwd(), normalizedPath)
+    if (pathIsInside(resolvedPath, process.cwd())) {
+      isInSafeLocation = true
+    }
+  }
+  
+  // If path is not in a safe location and is absolute, be more restrictive
+  if (!isInSafeLocation && path.isAbsolute(normalizedPath)) {
+    // Allow some common safe absolute paths for legitimate use
+    const allowedAbsolutePaths = ['/tmp/', '/var/tmp/', '/home/', '/Users/']
+    const isAllowedAbsolute = allowedAbsolutePaths.some(allowed => 
+      normalizedPath.toLowerCase().startsWith(allowed.toLowerCase())
+    )
+    
+    if (!isAllowedAbsolute) {
+      throw new Error('Absolute path not in allowed safe directory')
     }
   }
 
@@ -205,26 +283,58 @@ function validateURLLocation (url) {
 }
 
 /**
- * Validate command string for injection patterns
+ * Validate command string for injection patterns using shell-quote library
  * @param {string} command - The command string to validate
  * @returns {string} - Trimmed command string
  * @throws {Error} - If command contains dangerous patterns
  */
 function validateCommand (command) {
   validateNonEmptyString(command, 'command')
-
-  // Check for command injection patterns - based on original logic
-  const dangerousPatterns = [
-    /[;&|`$(){}[\]]/, // Shell metacharacters
-    /(^|\s+)(rm|del|format|mkfs[\w.]*|dd)\s+/i, // Dangerous commands
-    />\s*\/dev\/|<\s*\/dev\//, // Device redirection
-    /\|\s*nc\s+|\|\s*netcat\s+/i // Network tools
-  ]
-
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(command)) {
-      throw new Error('Command contains dangerous patterns')
+  
+  // SECURITY FIX 1: Use shell-quote to properly parse and validate commands
+  const shellQuote = require('shell-quote')
+  
+  try {
+    // Parse the command to detect injection attempts
+    const parsed = shellQuote.parse(command)
+    
+    // Check for command injection by examining parsed tokens
+    for (const token of parsed) {
+      if (typeof token === 'object') {
+        // Objects indicate shell operators, redirections, or expansions - potential injection
+        throw new Error('Command contains shell injection patterns')
+      }
+      
+      if (typeof token === 'string') {
+        // Check each command token against dangerous patterns
+        const dangerousCommands = [
+          /^(rm|del|format|mkfs[\w.]*|dd)$/i,
+          /^(nc|netcat|telnet|ssh)$/i,
+          /^(curl|wget|python|node|bash|sh|powershell|cmd)$/i,
+          /^(sudo|su|chmod|chown)$/i
+        ]
+        
+        for (const pattern of dangerousCommands) {
+          if (pattern.test(token.trim())) {
+            throw new Error(`Dangerous command detected: ${token}`)
+          }
+        }
+        
+        // Check for sensitive file access
+        if (token.includes('/etc/') || token.includes('/proc/') || token.includes('/sys/') ||
+            token.toLowerCase().includes('c:\\windows\\') || token.includes('.ssh') ||
+            token.includes('passwd') || token.includes('shadow')) {
+          throw new Error('Access to sensitive files/directories blocked')
+        }
+      }
     }
+  } catch (error) {
+    if (error.message.includes('Dangerous command') || error.message.includes('injection') || 
+        error.message.includes('sensitive files')) {
+      throw error
+    }
+    // If shell-quote parsing fails, treat as suspicious
+    throw new Error('Invalid or malicious command syntax')
   }
 
   return command.trim()
