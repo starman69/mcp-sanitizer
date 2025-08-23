@@ -30,6 +30,7 @@ const path = require('path')
 const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns')
 const sanitizeFilename = require('sanitize-filename')
 const pathIsInside = require('path-is-inside')
+const { securityDecode, hasEncoding } = require('../../utils/security-decoder')
 
 /**
  * File path validation severity levels
@@ -119,7 +120,9 @@ class FilePathValidator {
         normalizedPath: null,
         extension: null,
         isAbsolute: false,
-        detectedPatterns: []
+        detectedPatterns: [],
+        wasDecoded: false,
+        decodingSteps: []
       }
     }
 
@@ -144,10 +147,25 @@ class FilePathValidator {
         return result
       }
 
+      // SECURITY: Decode and normalize the path first
+      const decodedResult = securityDecode(filePath, {
+        decodeUnicode: true,
+        decodeUrl: true,
+        normalizePath: true,
+        stripDangerous: false // Don't strip for paths, we want to detect them
+      })
+      
+      if (decodedResult.wasDecoded) {
+        result.metadata.wasDecoded = true
+        result.metadata.decodingSteps = decodedResult.decodingSteps
+        result.warnings.push(`Encoded sequences detected and decoded: ${decodedResult.decodingSteps.join(', ')}`)
+      }
+      
+      let normalizedPath = decodedResult.decoded
+      
       // Normalize path if configured
-      let normalizedPath = filePath
       if (this.config.normalizeBeforeValidation) {
-        normalizedPath = path.normalize(filePath)
+        normalizedPath = path.normalize(normalizedPath)
         result.metadata.normalizedPath = normalizedPath
       }
 
@@ -304,15 +322,37 @@ class FilePathValidator {
       warnings: []
     }
 
+    // SECURITY: First check if it's an absolute path (common bypass)
+    if (path.isAbsolute(filePath)) {
+      // Check if it's trying to access system directories
+      const lowerPath = filePath.toLowerCase()
+      const systemPaths = [
+        '/etc/', '/proc/', '/sys/', '/dev/', '/root/', '/boot/',
+        '/var/log/', '/usr/bin/', '/usr/sbin/', '/sbin/', '/bin/',
+        'c:\\windows\\', 'c:\\system32\\', 'c:\\program files\\'
+      ]
+      
+      for (const sysPath of systemPaths) {
+        if (lowerPath.startsWith(sysPath)) {
+          result.isValid = false
+          result.warnings.push(`Absolute path to system directory detected: ${sysPath}`)
+          return result
+        }
+      }
+    }
+
     // Check for various directory traversal patterns
+    // Note: These should already be decoded by securityDecode
     const traversalPatterns = [
       /\.\./, // Standard directory traversal
-      /%2e%2e/i, // URL encoded ..
-      /%252e%252e/i, // Double URL encoded ..
-      /\.%2e/i, // Mixed encoding
-      /%2e\./i, // Mixed encoding
-      /\.\\\.\./, // Windows specific
-      /\.\/%2e%2e/i // Mixed path separators
+      /\.{2,}/, // Multiple dots
+      /%2e%2e/i, // URL encoded .. (should be decoded)
+      /%252e%252e/i, // Double URL encoded .. (should be decoded)
+      /\.%2e/i, // Mixed encoding (should be decoded)
+      /%2e\./i, // Mixed encoding (should be decoded)
+      /\.\\/i, // Windows traversal with backslash
+      /\\\./, // Windows traversal
+      /\.\/%2e%2e/i // Mixed path separators (should be decoded)
     ]
 
     for (const pattern of traversalPatterns) {
@@ -326,6 +366,12 @@ class FilePathValidator {
     if (filePath.includes('..')) {
       result.isValid = false
       result.warnings.push('Directory traversal detected in normalized path')
+    }
+
+    // Check for UNC paths (Windows network paths)
+    if (/^\\\\/.test(filePath)) {
+      result.isValid = false
+      result.warnings.push('UNC path detected - network paths not allowed')
     }
 
     return result
