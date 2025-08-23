@@ -29,7 +29,7 @@
 // const { validationUtils, stringUtils } = require('../../utils') // Unused - commented to fix ESLint
 const { commandInjection, detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns')
 const shellQuote = require('shell-quote')
-const { securityDecode, stripDangerousChars } = require('../../utils/security-decoder')
+const { securityDecode } = require('../../utils/security-decoder')
 
 /**
  * Command validation severity levels
@@ -179,21 +179,21 @@ class CommandValidator {
         normalizePath: false, // Not a path
         stripDangerous: true // Strip null bytes and newlines
       })
-      
+
       if (decodedResult.wasDecoded) {
         result.metadata.wasDecoded = true
         result.metadata.decodingSteps = decodedResult.decodingSteps
         result.warnings.push(`Encoded/dangerous sequences detected and processed: ${decodedResult.decodingSteps.join(', ')}`)
         result.severity = SEVERITY.HIGH // Encoding in commands is suspicious
       }
-      
+
       // Check for newlines and null bytes before processing
       if (command.includes('\n') || command.includes('\r') || command.includes('\0')) {
         result.warnings.push('Command contains dangerous control characters (newlines or null bytes)')
         result.severity = SEVERITY.CRITICAL
         return result
       }
-      
+
       const trimmedCommand = decodedResult.decoded.trim()
 
       // Check for security patterns using command injection detector

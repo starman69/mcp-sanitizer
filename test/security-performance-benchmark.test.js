@@ -1,6 +1,6 @@
 /**
  * Security Performance Benchmark Tests
- * 
+ *
  * These tests measure the performance impact of the security decoder integration
  * and ensure that the fixes don't significantly impact system performance.
  */
@@ -29,7 +29,7 @@ describe('Security Performance Benchmark', () => {
       ]
 
       const startTime = Date.now()
-      
+
       for (let i = 0; i < ITERATION_COUNT; i++) {
         const input = safeInputs[i % safeInputs.length]
         const result = sanitizer.sanitize(input, { type: 'file_path' })
@@ -39,7 +39,7 @@ describe('Security Performance Benchmark', () => {
 
       const endTime = Date.now()
       const avgTime = (endTime - startTime) / ITERATION_COUNT
-      
+
       console.log(`Safe file paths: ${avgTime.toFixed(3)}ms per operation`)
       expect(avgTime).toBeLessThan(2) // Should be under 2ms for safe inputs
     })
@@ -54,7 +54,7 @@ describe('Security Performance Benchmark', () => {
       ]
 
       const startTime = Date.now()
-      
+
       for (let i = 0; i < ITERATION_COUNT; i++) {
         const input = safeInputs[i % safeInputs.length]
         const result = sanitizer.sanitize(input, { type: 'url' })
@@ -63,7 +63,7 @@ describe('Security Performance Benchmark', () => {
 
       const endTime = Date.now()
       const avgTime = (endTime - startTime) / ITERATION_COUNT
-      
+
       console.log(`Safe URLs: ${avgTime.toFixed(3)}ms per operation`)
       expect(avgTime).toBeLessThan(3) // URLs are more complex to parse
     })
@@ -81,12 +81,12 @@ describe('Security Performance Benchmark', () => {
       const types = ['file_path', 'url', 'command', 'sql']
       const startTime = Date.now()
       let blockedCount = 0
-      
+
       for (let i = 0; i < ITERATION_COUNT; i++) {
         const input = encodedInputs[i % encodedInputs.length]
         const type = types[i % types.length]
         const result = sanitizer.sanitize(input, { type })
-        
+
         if (result.blocked) {
           blockedCount++
         }
@@ -94,10 +94,10 @@ describe('Security Performance Benchmark', () => {
 
       const endTime = Date.now()
       const avgTime = (endTime - startTime) / ITERATION_COUNT
-      
+
       console.log(`Encoded inputs: ${avgTime.toFixed(3)}ms per operation`)
       console.log(`Blocked ${blockedCount}/${ITERATION_COUNT} inputs as expected`)
-      
+
       expect(avgTime).toBeLessThan(5) // Should handle decoding within reasonable time
       expect(blockedCount).toBeGreaterThan(ITERATION_COUNT * 0.8) // Should block most malicious inputs
     })
@@ -113,12 +113,12 @@ describe('Security Performance Benchmark', () => {
       const types = ['file_path', 'url', 'command', 'sql']
       const startTime = Date.now()
       let blockedCount = 0
-      
+
       for (let i = 0; i < ITERATION_COUNT; i++) {
         const input = unicodeInputs[i % unicodeInputs.length]
         const type = types[i % types.length]
         const result = sanitizer.sanitize(input, { type })
-        
+
         if (result.blocked) {
           blockedCount++
         }
@@ -126,10 +126,10 @@ describe('Security Performance Benchmark', () => {
 
       const endTime = Date.now()
       const avgTime = (endTime - startTime) / ITERATION_COUNT
-      
+
       console.log(`Unicode inputs: ${avgTime.toFixed(3)}ms per operation`)
       console.log(`Blocked ${blockedCount}/${ITERATION_COUNT} inputs as expected`)
-      
+
       expect(avgTime).toBeLessThan(5)
       expect(blockedCount).toBeGreaterThan(ITERATION_COUNT * 0.8)
     })
@@ -145,12 +145,12 @@ describe('Security Performance Benchmark', () => {
       const types = ['file_path', 'file_path', 'sql', 'url']
       const startTime = Date.now()
       let blockedCount = 0
-      
+
       for (let i = 0; i < ITERATION_COUNT / 4; i++) { // Fewer iterations for complex cases
         const input = deeplyEncoded[i % deeplyEncoded.length]
         const type = types[i % types.length]
         const result = sanitizer.sanitize(input, { type })
-        
+
         if (result.blocked) {
           blockedCount++
         }
@@ -158,10 +158,10 @@ describe('Security Performance Benchmark', () => {
 
       const endTime = Date.now()
       const avgTime = (endTime - startTime) / (ITERATION_COUNT / 4)
-      
+
       console.log(`Deeply encoded inputs: ${avgTime.toFixed(3)}ms per operation`)
       console.log(`Blocked ${blockedCount}/${ITERATION_COUNT / 4} inputs as expected`)
-      
+
       expect(avgTime).toBeLessThan(10) // More complex decoding may take longer
       expect(blockedCount).toBeGreaterThan((ITERATION_COUNT / 4) * 0.7)
     })
@@ -183,14 +183,14 @@ describe('Security Performance Benchmark', () => {
       ]
 
       const types = ['file_path', 'url', 'command', 'sql', 'file_path', 'url', 'command', 'sql']
-      
+
       const initialMemory = process.memoryUsage()
-      
+
       for (let i = 0; i < ITERATION_COUNT * 2; i++) {
         const input = mixedInputs[i % mixedInputs.length]
         const type = types[i % types.length]
         sanitizer.sanitize(input, { type })
-        
+
         // Force garbage collection occasionally if available
         if (i % 100 === 0 && global.gc) {
           global.gc()
@@ -199,9 +199,9 @@ describe('Security Performance Benchmark', () => {
 
       const finalMemory = process.memoryUsage()
       const heapGrowth = finalMemory.heapUsed - initialMemory.heapUsed
-      
+
       console.log(`Memory growth: ${(heapGrowth / 1024 / 1024).toFixed(2)}MB`)
-      
+
       // Memory growth should be reasonable (less than 50MB for this test)
       expect(heapGrowth).toBeLessThan(50 * 1024 * 1024)
     })
@@ -222,7 +222,7 @@ describe('Security Performance Benchmark', () => {
 
       testCases.forEach(testCase => {
         const times = []
-        
+
         for (let i = 0; i < 100; i++) {
           const startTime = Date.now()
           sanitizer.sanitize(testCase.input, { type: testCase.type })
@@ -259,12 +259,12 @@ describe('Security Performance Benchmark', () => {
     it('should maintain performance standards', () => {
       // These benchmarks represent acceptable performance thresholds
       const performanceStandards = {
-        safe_file_path: 2.0,      // 2ms max average for safe file paths
-        safe_url: 3.0,            // 3ms max average for safe URLs
-        safe_command: 2.0,        // 2ms max average for safe commands
-        encoded_file_path: 8.0,   // 8ms max average for encoded file paths
-        encoded_url: 10.0,        // 10ms max average for encoded URLs
-        encoded_command: 8.0      // 8ms max average for encoded commands
+        safe_file_path: 2.0, // 2ms max average for safe file paths
+        safe_url: 3.0, // 3ms max average for safe URLs
+        safe_command: 2.0, // 2ms max average for safe commands
+        encoded_file_path: 8.0, // 8ms max average for encoded file paths
+        encoded_url: 10.0, // 10ms max average for encoded URLs
+        encoded_command: 8.0 // 8ms max average for encoded commands
       }
 
       const testResults = {}
@@ -272,7 +272,7 @@ describe('Security Performance Benchmark', () => {
       // Test each category
       Object.keys(performanceStandards).forEach(category => {
         const [safety, type] = category.split('_')
-        const input = safety === 'safe' 
+        const input = safety === 'safe'
           ? { file_path: 'test.txt', url: 'https://api.example.com/data', command: 'ls test' }[type]
           : { file_path: '%2E%2E%2Fetc%2Fpasswd', url: 'javascript%3Aalert%281%29', command: 'ls%3B%20rm%20-rf%20%2F' }[type]
 

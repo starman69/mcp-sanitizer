@@ -1,12 +1,12 @@
 /**
  * Test suite for skipPaths functionality across all middleware implementations
- * 
+ *
  * This comprehensive test suite ensures the skipPaths feature works correctly
  * across Express, Fastify, and Koa middleware with various path patterns.
  */
 
 const { describe, it, expect, beforeEach } = require('@jest/globals')
-const { 
+const {
   createExpressMiddleware,
   createMCPToolMiddleware
 } = require('../../src/middleware/express')
@@ -69,7 +69,7 @@ describe('skipPaths Feature', () => {
           mode: 'sanitize' // Use sanitize mode instead of block
         })
 
-        mockReq = { 
+        mockReq = {
           path: '/api/users',
           body: { command: 'ls; rm -rf /' },
           ip: '127.0.0.1',
@@ -79,7 +79,7 @@ describe('skipPaths Feature', () => {
           query: {},
           get: jest.fn()
         }
-        
+
         middleware(mockReq, mockRes, mockNext)
         // Should process the request (not skip) and sanitize
         expect(mockNext).toHaveBeenCalled()
@@ -150,8 +150,8 @@ describe('skipPaths Feature', () => {
       it('should handle complex RegExp patterns', () => {
         const middleware = createExpressMiddleware({
           skipPaths: [
-            /^\/webhooks?\//,  // Match /webhook/ or /webhooks/
-            /^\/api\/.*\/raw$/  // Match /api/anything/raw
+            /^\/webhooks?\//, // Match /webhook/ or /webhooks/
+            /^\/api\/.*\/raw$/ // Match /api/anything/raw
           ]
         })
 
@@ -214,7 +214,7 @@ describe('skipPaths Feature', () => {
           mode: 'block'
         })
 
-        mockReq = { 
+        mockReq = {
           path: '/health',
           body: {},
           ip: '127.0.0.1',
@@ -235,7 +235,7 @@ describe('skipPaths Feature', () => {
           // skipPaths not defined
         })
 
-        mockReq = { 
+        mockReq = {
           path: '/health',
           body: {},
           ip: '127.0.0.1',
@@ -253,9 +253,9 @@ describe('skipPaths Feature', () => {
         const middleware = createExpressMiddleware({
           skipPaths: [
             '/valid',
-            123,  // Invalid
+            123, // Invalid
             null, // Invalid
-            {},   // Invalid
+            {}, // Invalid
             '/another-valid',
             undefined // Invalid
           ]
@@ -274,7 +274,7 @@ describe('skipPaths Feature', () => {
 
         // Invalid entries should be ignored
         mockNext.mockClear()
-        mockReq = { 
+        mockReq = {
           path: '/not-skipped',
           body: {},
           ip: '127.0.0.1',
@@ -300,7 +300,7 @@ describe('skipPaths Feature', () => {
 
         // Should not match different case
         mockNext.mockClear()
-        mockReq = { 
+        mockReq = {
           path: '/health',
           body: {},
           ip: '127.0.0.1',
@@ -378,7 +378,7 @@ describe('skipPaths Feature', () => {
       }
 
       await fastifyPlugin(fastifyInstance, options)
-      
+
       // Get the registered hook function
       const hookCall = fastifyInstance.addHook.mock.calls.find(
         call => call[0] === 'preHandler' || call[0] === 'onRequest'
@@ -412,7 +412,7 @@ describe('skipPaths Feature', () => {
       }
 
       await fastifyPlugin(fastifyInstance, options)
-      
+
       const hookCall = fastifyInstance.addHook.mock.calls.find(
         call => call[0] === 'preHandler' || call[0] === 'onRequest'
       )
@@ -471,7 +471,7 @@ describe('skipPaths Feature', () => {
       mockCtx.get = jest.fn() // Add get method mock
       mockCtx.ip = '127.0.0.1'
       mockCtx.method = 'POST'
-      
+
       await middleware(mockCtx, mockNext)
       expect(mockNext).toHaveBeenCalled()
       expect(mockCtx.sanitizationWarnings).toBeDefined()
@@ -482,7 +482,7 @@ describe('skipPaths Feature', () => {
     it('should handle large skipPaths arrays efficiently', () => {
       // Create a large array of paths
       const largePaths = Array.from({ length: 1000 }, (_, i) => `/path${i}`)
-      
+
       const middleware = createExpressMiddleware({
         skipPaths: largePaths
       })

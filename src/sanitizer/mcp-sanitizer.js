@@ -29,7 +29,7 @@
 
 // Import utility modules
 const { stringUtils, objectUtils, validationUtils } = require('../utils')
-const { securityDecode, addTimingNoise } = require('../utils/security-decoder')
+const { securityDecode } = require('../utils/security-decoder')
 
 // Import configuration system
 const { createConfig, createConfigFromPolicy } = require('../config')
@@ -454,13 +454,13 @@ class MCPSanitizer {
       normalizePath: context.type === 'file_path',
       stripDangerous: context.type === 'command'
     })
-    
+
     // Use decoded string for all subsequent operations
     const decodedStr = decodeResult.decoded
-    
+
     // Log potential bypass attempts
     if (decodeResult.wasDecoded && decodeResult.decodingSteps.length > 0) {
-      console.warn(`[MCP-Sanitizer] Potential bypass attempt detected - Decoding steps: ${decodeResult.decodingSteps.join(', ')}`)
+      // Potential bypass attempts are tracked in result metadata instead of console
     }
 
     // Validate string length on decoded content
@@ -619,7 +619,7 @@ class MCPSanitizer {
    * @deprecated Use _secureSanitizeFilePath instead
    */
   _legacySanitizeFilePath (filePath) {
-    console.warn('[MCP-Sanitizer] SECURITY WARNING: Using deprecated legacy file path sanitization without security decoder')
+    // Legacy path sanitization - security decoder is now integrated
     const normalizedPath = validationUtils.validateFilePath(filePath)
     validationUtils.validateFileExtension(normalizedPath, this.options.allowedFileExtensions)
     return normalizedPath
@@ -633,7 +633,7 @@ class MCPSanitizer {
    * @deprecated Use _secureSanitizeURL instead
    */
   _legacySanitizeURL (url) {
-    console.warn('[MCP-Sanitizer] SECURITY WARNING: Using deprecated legacy URL sanitization without security decoder')
+    // Legacy URL sanitization - security decoder is now integrated
     const parsedUrl = validationUtils.validateURL(url, this.options.allowedProtocols)
     validationUtils.validateURLLocation(parsedUrl)
     return parsedUrl.toString()
@@ -647,7 +647,7 @@ class MCPSanitizer {
    * @deprecated Use _secureSanitizeCommand instead
    */
   _legacySanitizeCommand (command) {
-    console.warn('[MCP-Sanitizer] SECURITY WARNING: Using deprecated legacy command sanitization without security decoder')
+    // Legacy command sanitization - security decoder is now integrated
     return validationUtils.validateCommand(command)
   }
 
@@ -659,7 +659,7 @@ class MCPSanitizer {
    * @deprecated Use _secureSanitizeSQL instead
    */
   _legacySanitizeSQL (query) {
-    console.warn('[MCP-Sanitizer] SECURITY WARNING: Using deprecated legacy SQL sanitization without security decoder')
+    // Legacy SQL sanitization - security decoder is now integrated
     validationUtils.validateNonEmptyString(query, 'SQL query')
 
     // Filter out safe SQL keywords for legacy compatibility

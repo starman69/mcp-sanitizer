@@ -98,13 +98,13 @@ function createExpressMiddleware (options = {}) {
 
   // Pre-compile skip path matcher for optimal performance
   const skipMatcher = createOptimizedMatcher(config.skipPaths)
-  
+
   // Pre-compile static checks for better performance
   const healthPaths = config.skipHealthChecks ? new Set(['/health', '/healthcheck', '/ping', '/status']) : null
   const staticExtensions = config.skipStaticFiles ? new Set(['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2']) : null
 
   // Create backward-compatible shouldSkipRequest function
-  function shouldSkipRequest(req, config) {
+  function shouldSkipRequest (req, config) {
     return shouldSkipRequestOptimized(req, skipMatcher, healthPaths, staticExtensions)
   }
 

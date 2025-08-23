@@ -30,7 +30,7 @@ const path = require('path')
 const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns')
 const sanitizeFilename = require('sanitize-filename')
 const pathIsInside = require('path-is-inside')
-const { securityDecode, hasEncoding } = require('../../utils/security-decoder')
+const { securityDecode } = require('../../utils/security-decoder')
 
 /**
  * File path validation severity levels
@@ -154,15 +154,15 @@ class FilePathValidator {
         normalizePath: true,
         stripDangerous: false // Don't strip for paths, we want to detect them
       })
-      
+
       if (decodedResult.wasDecoded) {
         result.metadata.wasDecoded = true
         result.metadata.decodingSteps = decodedResult.decodingSteps
         result.warnings.push(`Encoded sequences detected and decoded: ${decodedResult.decodingSteps.join(', ')}`)
       }
-      
+
       let normalizedPath = decodedResult.decoded
-      
+
       // Normalize path if configured
       if (this.config.normalizeBeforeValidation) {
         normalizedPath = path.normalize(normalizedPath)
@@ -331,7 +331,7 @@ class FilePathValidator {
         '/var/log/', '/usr/bin/', '/usr/sbin/', '/sbin/', '/bin/',
         'c:\\windows\\', 'c:\\system32\\', 'c:\\program files\\'
       ]
-      
+
       for (const sysPath of systemPaths) {
         if (lowerPath.startsWith(sysPath)) {
           result.isValid = false

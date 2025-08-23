@@ -115,7 +115,7 @@ async function mcpSanitizerPlugin (fastify, options) {
 
   // Pre-compile skip path matcher for optimal performance
   const skipMatcher = createOptimizedMatcher(config.skipPaths)
-  
+
   // Pre-compile static checks for better performance
   const healthPaths = config.skipHealthChecks ? new Set(['/health', '/healthcheck', '/ping', '/status']) : null
   const staticExtensions = config.skipStaticFiles ? new Set(['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2']) : null
@@ -142,7 +142,7 @@ async function mcpSanitizerPlugin (fastify, options) {
   const hookName = config.usePreHandler ? 'preHandler' : 'onRequest'
 
   // Create backward-compatible shouldSkipRequest function
-  function shouldSkipRequest(request, config) {
+  function shouldSkipRequest (request, config) {
     return shouldSkipRequestOptimized(request, skipMatcher, healthPaths, staticExtensions)
   }
 
@@ -204,7 +204,7 @@ async function mcpSanitizerPlugin (fastify, options) {
 function shouldSkipRequestOptimized (request, skipMatcher, healthPaths, staticExtensions) {
   // Extract path from URL (remove query string) - do this once
   const path = request.url.split('?')[0]
-  
+
   // Priority 1: Check skipPaths using optimized matcher - O(1) to O(log n)
   if (skipMatcher && skipMatcher.shouldSkip(path)) {
     return true

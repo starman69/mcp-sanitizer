@@ -1,25 +1,25 @@
 /**
  * Optimized Skip Path Matcher
- * 
+ *
  * High-performance path matching system that achieves O(1) to O(log n) complexity
  * through pre-compilation and optimized data structures.
  */
 
 class OptimizedSkipMatcher {
-  constructor(skipPaths = []) {
-    this.exactMatches = new Set()      // O(1) exact path lookups
-    this.prefixTrie = new PrefixTrie()  // O(log n) prefix matching
-    this.regexPatterns = []             // Pre-compiled regex patterns
-    this.cache = new Map()              // LRU cache for recent paths
-    this.cacheSize = 1000               // Configurable cache size
-    
+  constructor (skipPaths = []) {
+    this.exactMatches = new Set() // O(1) exact path lookups
+    this.prefixTrie = new PrefixTrie() // O(log n) prefix matching
+    this.regexPatterns = [] // Pre-compiled regex patterns
+    this.cache = new Map() // LRU cache for recent paths
+    this.cacheSize = 1000 // Configurable cache size
+
     this._compile(skipPaths)
   }
 
   /**
    * Pre-compile skip paths into optimized data structures
    */
-  _compile(skipPaths) {
+  _compile (skipPaths) {
     if (!Array.isArray(skipPaths)) return
 
     for (const path of skipPaths) {
@@ -58,7 +58,7 @@ class OptimizedSkipMatcher {
   /**
    * Check if path should be skipped - optimized to O(1) or O(log n)
    */
-  shouldSkip(path) {
+  shouldSkip (path) {
     // Check cache first - O(1)
     if (this.cache.has(path)) {
       return this.cache.get(path)
@@ -69,26 +69,24 @@ class OptimizedSkipMatcher {
     // 1. Exact match check - O(1)
     if (this.exactMatches.has(path)) {
       result = true
-    }
-    // 2. Prefix trie check - O(log n)
-    else if (this.prefixTrie.hasPrefix(path)) {
+    } else if (this.prefixTrie.hasPrefix(path)) {
+      // 2. Prefix trie check - O(log n)
       result = true
-    }
-    // 3. Regex patterns - O(m) where m is number of regex patterns
-    else {
+    } else {
+      // 3. Regex patterns - O(m) where m is number of regex patterns
       result = this.regexPatterns.some(pattern => pattern.regex.test(path))
     }
 
     // Cache result with LRU eviction
     this._cacheResult(path, result)
-    
+
     return result
   }
 
   /**
    * Cache result with LRU eviction
    */
-  _cacheResult(path, result) {
+  _cacheResult (path, result) {
     if (this.cache.size >= this.cacheSize) {
       // Remove oldest entry
       const firstKey = this.cache.keys().next().value
@@ -100,14 +98,14 @@ class OptimizedSkipMatcher {
   /**
    * Clear cache (useful for testing or memory management)
    */
-  clearCache() {
+  clearCache () {
     this.cache.clear()
   }
 
   /**
    * Get performance statistics
    */
-  getStats() {
+  getStats () {
     return {
       exactMatches: this.exactMatches.size,
       prefixNodes: this.prefixTrie.size(),
@@ -122,50 +120,50 @@ class OptimizedSkipMatcher {
  * Prefix Trie for efficient prefix matching
  */
 class PrefixTrie {
-  constructor() {
+  constructor () {
     this.root = {}
     this._size = 0
   }
 
-  insert(path) {
+  insert (path) {
     let node = this.root
     const normalizedPath = path.endsWith('/') ? path.slice(0, -1) : path
-    
+
     // Handle empty path (root)
     if (normalizedPath === '') {
       this.root.isEndOfPath = true
       this._size++
       return
     }
-    
+
     for (const char of normalizedPath) {
       if (!node[char]) {
         node[char] = {}
       }
       node = node[char]
     }
-    
+
     node.isEndOfPath = true
     this._size++
   }
 
-  hasPrefix(path) {
+  hasPrefix (path) {
     let node = this.root
     let currentPath = ''
-    
+
     // Check if root is an endpoint (handles '/' pattern)
     if (node.isEndOfPath && path !== '') {
       return true
     }
-    
+
     for (const char of path) {
       currentPath += char
-      
+
       if (!node[char]) {
         return false
       }
       node = node[char]
-      
+
       // If we hit an endpoint, check if it's a valid prefix
       // This matches the original logic: path.startsWith(skipPath + '/')
       if (node.isEndOfPath) {
@@ -180,12 +178,12 @@ class PrefixTrie {
         }
       }
     }
-    
+
     // Check if we ended at a valid endpoint
     return node.isEndOfPath || false
   }
 
-  size() {
+  size () {
     return this._size
   }
 }
@@ -193,22 +191,22 @@ class PrefixTrie {
 /**
  * Factory function for creating optimized matchers
  */
-function createOptimizedMatcher(skipPaths) {
+function createOptimizedMatcher (skipPaths) {
   return new OptimizedSkipMatcher(skipPaths)
 }
 
 /**
  * Benchmark the matcher performance
  */
-function benchmarkMatcher(matcher, testPaths, iterations = 10000) {
+function benchmarkMatcher (matcher, testPaths, iterations = 10000) {
   const start = performance.now()
-  
+
   for (let i = 0; i < iterations; i++) {
     for (const path of testPaths) {
       matcher.shouldSkip(path)
     }
   }
-  
+
   const end = performance.now()
   return {
     totalTime: end - start,
