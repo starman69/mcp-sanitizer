@@ -455,7 +455,7 @@ See [Security Status](./docs/SECURITY_STATUS.md) for detailed vulnerability anal
 
 ## Security Reporting
 
-If you discover a security vulnerability, please email security@mcp-sanitizer.org instead of using the public issue tracker. We follow responsible disclosure practices and will credit researchers.
+If you discover a security vulnerability, please email me instead of using the public issue tracker. We follow responsible disclosure practices and will credit researchers.
 
 ## License
 
@@ -480,7 +480,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - Middleware support for Express, Fastify, and Koa
 - Fluent configuration builder API
 - High performance (sub-millisecond operations)
-- Comprehensive test suite (230+ tests)
+- Comprehensive test suite (116+ tests)
 - Support for all major attack vector prevention
 
 ## Related Projects
