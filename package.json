@@ -8,9 +8,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src/ test/",
-    "security-audit": "npm audit && snyk test",
-    "server": "node server.js",
-    "start": "node server.js"
+    "security-audit": "npm audit && snyk test"
   },
   "keywords": [
     "mcp",
