@@ -46,6 +46,7 @@
  */
 
 const MCPSanitizer = require('../index')
+const { createOptimizedMatcher } = require('./optimized-skip-matcher')
 
 /**
  * Default configuration for Koa middleware
@@ -70,6 +71,7 @@ const DEFAULT_CONFIG = {
   // Performance options
   skipHealthChecks: true,
   skipStaticFiles: true,
+  skipPaths: [], // Array of paths (strings or RegExp) to skip sanitization
 
   // Sanitizer configuration
   policy: 'PRODUCTION',
@@ -100,9 +102,21 @@ function createKoaMiddleware (options = {}) {
     ...config.sanitizerOptions
   })
 
+  // Pre-compile skip path matcher for optimal performance
+  const skipMatcher = createOptimizedMatcher(config.skipPaths)
+  
+  // Pre-compile static checks for better performance
+  const healthPaths = config.skipHealthChecks ? new Set(['/health', '/healthcheck', '/ping', '/status']) : null
+  const staticExtensions = config.skipStaticFiles ? new Set(['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2']) : null
+
+  // Create backward-compatible shouldSkipRequest function
+  function shouldSkipRequest(ctx, config) {
+    return shouldSkipRequestOptimized(ctx, skipMatcher, healthPaths, staticExtensions)
+  }
+
   // Return the middleware function
   return async function mcpSanitizationMiddleware (ctx, next) {
-    // Skip certain requests if configured
+    // Skip certain requests if configured - OPTIMIZED (backward compatible)
     if (shouldSkipRequest(ctx, config)) {
       return next()
     }
@@ -125,43 +139,47 @@ function createKoaMiddleware (options = {}) {
 
 /**
  * Check if request should be skipped based on configuration
+ * OPTIMIZED VERSION: Uses pre-compiled matchers for O(1) to O(log n) performance
  * @param {Object} ctx - Koa context object
- * @param {Object} config - Middleware configuration
+ * @param {Object} skipMatcher - Pre-compiled skip matcher
+ * @param {Set|null} healthPaths - Pre-compiled health paths set
+ * @param {Set|null} staticExtensions - Pre-compiled static extensions set
  * @returns {boolean} True if request should be skipped
  */
-function shouldSkipRequest (ctx, config) {
-  // Skip health check endpoints
-  if (config.skipHealthChecks && isHealthCheckRequest(ctx)) {
+function shouldSkipRequestOptimized (ctx, skipMatcher, healthPaths, staticExtensions) {
+  // Priority 1: Check skipPaths using optimized matcher - O(1) to O(log n)
+  if (skipMatcher && skipMatcher.shouldSkip(ctx.path)) {
     return true
   }
 
-  // Skip static file requests
-  if (config.skipStaticFiles && isStaticFileRequest(ctx)) {
-    return true
+  // Priority 2: Skip health check endpoints - O(1) Set lookup
+  if (healthPaths) {
+    if (healthPaths.has(ctx.path)) {
+      return true
+    }
+    // Check for path prefixes (e.g., /health/detailed)
+    for (const healthPath of healthPaths) {
+      if (ctx.path.startsWith(healthPath + '/')) {
+        return true
+      }
+    }
+  }
+
+  // Priority 3: Skip static file requests - O(1) extension lookup
+  if (staticExtensions) {
+    const lastDotIndex = ctx.path.lastIndexOf('.')
+    if (lastDotIndex !== -1) {
+      const extension = ctx.path.substring(lastDotIndex)
+      if (staticExtensions.has(extension)) {
+        return true
+      }
+    }
   }
 
   return false
 }
 
-/**
- * Check if request is for health check endpoint
- * @param {Object} ctx - Koa context object
- * @returns {boolean} True if health check request
- */
-function isHealthCheckRequest (ctx) {
-  const healthPaths = ['/health', '/healthcheck', '/ping', '/status']
-  return healthPaths.some(path => ctx.path === path || ctx.path.startsWith(path + '/'))
-}
-
-/**
- * Check if request is for static files
- * @param {Object} ctx - Koa context object
- * @returns {boolean} True if static file request
- */
-function isStaticFileRequest (ctx) {
-  const staticExtensions = ['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2']
-  return staticExtensions.some(ext => ctx.path.endsWith(ext))
-}
+// Helper functions removed - functionality moved to optimized shouldSkipRequestOptimized function
 
 /**
  * Process Koa request for sanitization
