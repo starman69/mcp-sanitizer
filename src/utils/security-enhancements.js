@@ -14,7 +14,7 @@
  * Security priority: Zero false positives on legitimate input
  */
 
-const { constantTimeCompare, addTimingNoise } = require('./security-decoder');
+// Timing attack prevention removed - not needed for middleware sanitization
 
 /**
  * Unicode directional control characters that can be used for attacks
@@ -635,55 +635,7 @@ function handleEmptyStrings(input, context = {}) {
   return result;
 }
 
-/**
- * Ensure timing consistency for security operations to prevent timing attacks
- * @param {Function} operation - Async operation to execute
- * @param {number} baselineMs - Baseline time in milliseconds (default: 50ms)
- * @returns {Promise<*>} Operation result with consistent timing
- */
-async function ensureTimingConsistency(operation, baselineMs = 50) {
-  const startTime = process.hrtime.bigint();
-  let result;
-  let error;
-
-  try {
-    result = await operation();
-  } catch (e) {
-    error = e;
-  }
-
-  const endTime = process.hrtime.bigint();
-  const elapsedMs = Number(endTime - startTime) / 1_000_000;
-
-  // Calculate delay needed to reach baseline
-  const delayMs = Math.max(0, baselineMs - elapsedMs);
-
-  if (delayMs > 0) {
-    await new Promise(resolve => setTimeout(resolve, delayMs));
-  }
-
-  // Add random noise to prevent statistical timing analysis
-  await addTimingNoise();
-
-  if (error) {
-    throw error;
-  }
-
-  return result;
-}
-
-/**
- * Secure string comparison with timing consistency
- * @param {string} input - Input string to compare
- * @param {string} expected - Expected string value
- * @param {number} baselineMs - Baseline timing in milliseconds
- * @returns {Promise<boolean>} True if strings match
- */
-async function secureStringCompare(input, expected, baselineMs = 10) {
-  return ensureTimingConsistency(() => {
-    return constantTimeCompare(input, expected);
-  }, baselineMs);
-}
+// Timing attack prevention functions removed - not applicable for middleware sanitization
 
 /**
  * Comprehensive security enhancement analysis
@@ -699,7 +651,6 @@ async function comprehensiveSecurityAnalysis(input, options = {}) {
     checkPostgresDollarQuotes = true,
     checkCyrillicHomographs = true,
     handleEmptyStrings = true,
-    ensureTimingConsistency: shouldEnsureTimingConsistency = true,
     emptyStringContext = {},
     maxEncodingDepth = 4
   } = options;
@@ -782,12 +733,6 @@ async function comprehensiveSecurityAnalysis(input, options = {}) {
   results.metadata.checksPerformed = checks.length;
   results.checkResults = checkResults;
 
-  // Apply timing consistency if requested
-  if (shouldEnsureTimingConsistency) {
-    const baselineMs = Math.max(10, checks.length * 2); // Scale with complexity
-    return ensureTimingConsistency(() => Promise.resolve(results), baselineMs);
-  }
-
   return results;
 }
 
@@ -799,10 +744,6 @@ module.exports = {
   detectPostgresDollarQuotes,
   detectCyrillicHomographs,
   handleEmptyStrings,
-  
-  // Timing security functions
-  ensureTimingConsistency,
-  secureStringCompare,
   
   // Comprehensive analysis
   comprehensiveSecurityAnalysis,

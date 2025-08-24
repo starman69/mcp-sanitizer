@@ -11,6 +11,7 @@ const securityEnhancements = require('./security-enhancements')
 const securityDecoder = require('./security-decoder')
 // CVE-TBD-001 FIX: Import unified parser
 const unifiedParser = require('./unified-parser')
+// DoS protection removed - handled at infrastructure layer
 
 module.exports = {
   stringUtils,
@@ -42,8 +43,7 @@ module.exports = {
   detectPostgresDollarQuotes: securityEnhancements.detectPostgresDollarQuotes,
   detectCyrillicHomographs: securityEnhancements.detectCyrillicHomographs,
   handleEmptyStrings: securityEnhancements.handleEmptyStrings,
-  ensureTimingConsistency: securityEnhancements.ensureTimingConsistency,
-  secureStringCompare: securityEnhancements.secureStringCompare,
+  // Timing attack prevention removed - not applicable for sanitization
   comprehensiveSecurityAnalysis: securityEnhancements.comprehensiveSecurityAnalysis,
 
   // Security decoder functions
@@ -54,5 +54,6 @@ module.exports = {
   parseUnified: unifiedParser.parseUnified,
   extractNormalized: unifiedParser.extractNormalized,
   isNormalizedString: unifiedParser.isNormalizedString,
-  wrapValidator: unifiedParser.wrapValidator
+  wrapValidator: unifiedParser.wrapValidator,
+  // DoS protection removed - infrastructure concern
 }

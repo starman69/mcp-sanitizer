@@ -182,14 +182,10 @@ claude-flow.config.json
 .hive-mind/
 memory/claude-flow-data.json
 memory/sessions/*
-!memory/sessions/README.md
 memory/agents/*
-!memory/agents/README.md
-coordination/memory_bank/*
-coordination/subtasks/*
-coordination/orchestration/*
-scans/*
+coordination/*
 memory/*
+scans/*
 *.db
 *.db-journal
 *.db-wal

@@ -330,38 +330,7 @@ function hasEncoding (input) {
   return encodingPatterns.some(pattern => pattern.test(input))
 }
 
-/**
- * Constant-time string comparison to prevent timing attacks
- * @param {string} a - First string
- * @param {string} b - Second string
- * @returns {boolean} True if strings are equal
- */
-function constantTimeCompare (a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string') {
-    return a === b
-  }
-
-  if (a.length !== b.length) {
-    return false
-  }
-
-  let result = 0
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  }
-
-  return result === 0
-}
-
-/**
- * Add random micro-delay to mask processing time
- * Used for timing attack mitigation
- * @returns {Promise<void>}
- */
-async function addTimingNoise () {
-  const delay = Math.random() * 2 // 0-2ms random delay
-  return new Promise(resolve => setTimeout(resolve, delay))
-}
+// Timing attack prevention functions removed - not applicable for middleware sanitization
 
 // Lazy load security enhancements to avoid circular dependency
 function getSecurityEnhancements() {
@@ -389,17 +358,11 @@ async function enhancedSecurityDecode (input, options = {}) {
     checkNullBytes = true,
     checkMultipleEncoding = true,
     checkCyrillicHomographs = true,
-    ensureTimingConsistency = true,
+    // Timing consistency removed - not applicable for middleware
     maxEncodingDepth = 4
   } = options
 
-  if (ensureTimingConsistency) {
-    const { ensureTimingConsistency: ensureTimingFunction } = require('./security-enhancements')
-    return ensureTimingFunction(async () => {
-      return performEnhancedDecode()
-    }, 100) // 100ms baseline for comprehensive decode
-  }
-
+  // Timing consistency removed - execute directly
   return performEnhancedDecode()
 
   async function performEnhancedDecode () {
@@ -481,7 +444,5 @@ module.exports = {
   stripDangerousChars,
   securityDecode,
   hasEncoding,
-  constantTimeCompare,
-  addTimingNoise,
   enhancedSecurityDecode
 }

@@ -9,8 +9,6 @@ const {
   detectPostgresDollarQuotes,
   detectCyrillicHomographs,
   handleEmptyStrings,
-  ensureTimingConsistency,
-  secureStringCompare,
   DIRECTIONAL_OVERRIDES,
   CYRILLIC_HOMOGRAPHS
 } = require('../src/utils/security-enhancements');
@@ -69,24 +67,7 @@ describe('Security Enhancements - Core Functions', () => {
     expect(result.warnings[0].type).toBe('REQUIRED_FIELD_EMPTY');
   });
 
-  test('should ensure timing consistency', async () => {
-    const fastOp = () => Promise.resolve('result');
-    const start = Date.now();
-    
-    const result = await ensureTimingConsistency(fastOp, 50);
-    const elapsed = Date.now() - start;
-    
-    expect(elapsed).toBeGreaterThanOrEqual(50);
-    expect(result).toBe('result');
-  });
-
-  test('should perform secure string comparison', async () => {
-    const result1 = await secureStringCompare('test', 'test');
-    const result2 = await secureStringCompare('test', 'wrong');
-    
-    expect(result1).toBe(true);
-    expect(result2).toBe(false);
-  });
+  // Timing attack prevention tests removed - not applicable for middleware sanitization
 
   test('should integrate with existing validators', () => {
     const { enhancedStringValidation } = require('../src/utils/string-utils');

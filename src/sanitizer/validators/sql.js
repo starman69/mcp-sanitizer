@@ -32,7 +32,7 @@ const sqlstring = require('sqlstring')
 const {
   detectPostgresDollarQuotes,
   detectNullBytes,
-  ensureTimingConsistency
+  // Timing functions removed
 } = require('../../utils/security-enhancements')
 
 /**
@@ -161,12 +161,7 @@ class SQLValidator {
    * @returns {Promise<Object>} Validation result
    */
   async validate (query, options = {}) {
-    const { ensureTimingConsistency: useTimingConsistency = true } = options
-    
-    if (useTimingConsistency) {
-      return ensureTimingConsistency(() => this._performValidation(query, options), 75)
-    }
-    
+    // Timing consistency removed - not applicable for middleware sanitization
     return this._performValidation(query, options)
   }
 

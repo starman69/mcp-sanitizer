@@ -33,6 +33,7 @@ const { securityDecode } = require('../utils/security-decoder')
 const enterpriseSecurity = require('../utils/enterprise-security')
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified, extractNormalized, isNormalizedString } = require('../utils/unified-parser')
+// DoS protection removed - handled at infrastructure layer
 
 // Import configuration system
 const { createConfig, createConfigFromPolicy } = require('../config')
@@ -441,7 +442,7 @@ class MCPSanitizer {
    */
 
   /**
-   * Legacy value sanitization method (maintains backward compatibility)
+   * CVE-TBD-004 FIX: Stack-safe value sanitization with early depth checking
    * @param {*} value - Value to sanitize
    * @param {Object} context - Context information
    * @param {number} depth - Current recursion depth
@@ -449,27 +450,32 @@ class MCPSanitizer {
    * @private
    */
   _sanitizeValue (value, context, depth) {
+    // CVE-TBD-004 FIX: Check depth BEFORE any recursion setup
+    // Use sanitizer's configured maxDepth
     if (depth > this.options.maxDepth) {
-      throw new Error(`Maximum object depth exceeded (limit: ${this.options.maxDepth})`)
+      throw new Error(`DoS Protection: Maximum recursion depth ${this.options.maxDepth} exceeded at depth ${depth}`)
     }
-
+    
+    // Simple depth check to prevent stack exhaustion
+    const maxAllowedDepth = this.options.maxDepth || 100;
+    
     if (typeof value === 'string') {
       return this._sanitizeString(value, context)
     }
 
     if (Array.isArray(value)) {
-      // Check array length limit
-      if (this.options.maxArrayLength && value.length > this.options.maxArrayLength) {
-        throw new Error(`Array length exceeds maximum allowed (${value.length} > ${this.options.maxArrayLength})`)
+        // Check array length limit
+        if (this.options.maxArrayLength && value.length > this.options.maxArrayLength) {
+          throw new Error(`Array length exceeds maximum allowed (${value.length} > ${this.options.maxArrayLength})`)
+        }
+        return value.map(item => this._sanitizeValue(item, context, depth + 1))
       }
-      return value.map(item => this._sanitizeValue(item, context, depth + 1))
-    }
 
-    if (typeof value === 'object' && value !== null) {
-      return this._sanitizeObject(value, context, depth)
-    }
+      if (typeof value === 'object' && value !== null) {
+        return this._sanitizeObject(value, context, depth)
+      }
 
-    return value
+      return value
   }
 
   /**
@@ -544,7 +550,7 @@ class MCPSanitizer {
   }
 
   /**
-   * Legacy object sanitization method
+   * CVE-TBD-004 FIX: Stack-safe object sanitization with early depth checking
    * @param {Object} obj - Object to sanitize
    * @param {Object} context - Context information
    * @param {number} depth - Current recursion depth
@@ -552,59 +558,68 @@ class MCPSanitizer {
    * @private
    */
   _sanitizeObject (obj, context, depth) {
+    // CVE-TBD-004 FIX: Early depth check for nested objects
+    // Use sanitizer's configured maxDepth
+    if (depth > this.options.maxDepth) {
+      throw new Error(`DoS Protection: Maximum recursion depth ${this.options.maxDepth} exceeded at depth ${depth}`)
+    }
+    
+    // Simple depth check to prevent stack exhaustion
+    const maxAllowedDepth = this.options.maxDepth || 100;
+    
     // Check object key count limit
     const keys = Object.keys(obj)
     if (this.options.maxObjectKeys && keys.length > this.options.maxObjectKeys) {
       throw new Error(`Object has too many keys (${keys.length} > ${this.options.maxObjectKeys})`)
     }
 
-    // Check for NoSQL injection in objects (especially for query context)
-    if (context.type === 'nosql' || context.type === 'query') {
-      const { detectNoSQLInjection } = require('../patterns/nosql-injection')
-      const nosqlCheck = detectNoSQLInjection(obj)
-      if (nosqlCheck.detected) {
-        const vulnerabilityMessages = nosqlCheck.vulnerabilities.map(vuln => {
-          let message = `${vuln.type}: ${vuln.description}`
-          if (vuln.operator) {
-            message += ` (operator: ${vuln.operator})`
-          }
-          if (vuln.codeExecution) {
-            message += ' [CODE EXECUTION RISK]'
-          }
-          return message
-        })
-        
-        const errorMessage = `NoSQL injection in object detected (severity: ${nosqlCheck.severity}): ${vulnerabilityMessages.join(', ')}`
-        throw new Error(errorMessage)
-      }
-    }
-
-    // Check for prototype pollution
-    if (typeof obj === 'object' && obj !== null) {
-      const proto = Object.getPrototypeOf(obj)
-      if (proto !== Object.prototype && proto !== null) {
-        const protoKeys = Object.keys(proto)
-        const suspiciousKeys = ['isAdmin', 'polluted', 'evil']
-        if (protoKeys.some(key => suspiciousKeys.includes(key) ||
-            ['admin', 'user', 'auth', 'login', 'permission'].some(sus => key.toLowerCase().includes(sus)))) {
-          throw new Error('Prototype pollution detected in object')
+      // Check for NoSQL injection in objects (especially for query context)
+      if (context.type === 'nosql' || context.type === 'query') {
+        const { detectNoSQLInjection } = require('../patterns/nosql-injection')
+        const nosqlCheck = detectNoSQLInjection(obj)
+        if (nosqlCheck.detected) {
+          const vulnerabilityMessages = nosqlCheck.vulnerabilities.map(vuln => {
+            let message = `${vuln.type}: ${vuln.description}`
+            if (vuln.operator) {
+              message += ` (operator: ${vuln.operator})`
+            }
+            if (vuln.codeExecution) {
+              message += ' [CODE EXECUTION RISK]'
+            }
+            return message
+          })
+          
+          const errorMessage = `NoSQL injection in object detected (severity: ${nosqlCheck.severity}): ${vulnerabilityMessages.join(', ')}`
+          throw new Error(errorMessage)
         }
       }
-    }
 
-    const sanitized = {}
+      // Check for prototype pollution
+      if (typeof obj === 'object' && obj !== null) {
+        const proto = Object.getPrototypeOf(obj)
+        if (proto !== Object.prototype && proto !== null) {
+          const protoKeys = Object.keys(proto)
+          const suspiciousKeys = ['isAdmin', 'polluted', 'evil']
+          if (protoKeys.some(key => suspiciousKeys.includes(key) ||
+              ['admin', 'user', 'auth', 'login', 'permission'].some(sus => key.toLowerCase().includes(sus)))) {
+            throw new Error('Prototype pollution detected in object')
+          }
+        }
+      }
 
-    for (const [key, value] of Object.entries(obj)) {
-      // Check for dangerous object keys
-      objectUtils.validateObjectKey(key)
+      const sanitized = {}
 
-      // Determine context for this field
-      const fieldContext = this._getFieldContext(key, context)
+      for (const [key, value] of Object.entries(obj)) {
+        // Check for dangerous object keys
+        objectUtils.validateObjectKey(key)
 
-      sanitized[key] = this._sanitizeValue(value, fieldContext, depth + 1)
-    }
+        // Determine context for this field
+        const fieldContext = this._getFieldContext(key, context)
 
-    return sanitized
+        sanitized[key] = this._sanitizeValue(value, fieldContext, depth + 1)
+      }
+
+      return sanitized
   }
 
   /**

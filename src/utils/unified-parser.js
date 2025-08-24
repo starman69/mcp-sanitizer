@@ -211,7 +211,7 @@ function parseUnified(input, options = {}) {
     checkNullBytes: true,
     checkMultipleEncoding: true,
     checkCyrillicHomographs: true,
-    ensureTimingConsistency: true,
+    // Timing consistency removed
     maxEncodingDepth: 6
   }
   

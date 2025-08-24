@@ -254,10 +254,17 @@ const CONFUSABLE_MAPPINGS = {
   '𝑌': 'Y', '𝑍': 'Z',
 
   // Mathematical script/calligraphic symbols
-  '𝒂': 'a', '𝒃': 'b', '𝒸': 'c', '𝒹': 'd', '𝒆': 'e', '𝒇': 'f', '𝒈': 'g', '𝒉': 'h',
+  '𝒂': 'a', '𝒃': 'b', '𝒸': 'c', '𝒹': 'd', '𝒅': 'd', '𝒆': 'e', '𝒇': 'f', '𝒈': 'g', '𝒉': 'h',
   '𝒊': 'i', '𝒋': 'j', '𝒌': 'k', '𝒍': 'l', '𝒎': 'm', '𝒏': 'n', '𝒐': 'o', '𝒑': 'p',
   '𝒒': 'q', '𝒓': 'r', '𝒔': 's', '𝒕': 't', '𝒖': 'u', '𝒗': 'v', '𝒘': 'w', '𝒙': 'x',
-  '𝒚': 'y', '𝒛': 'z', '𝓐': 'A', '𝓑': 'B', '𝓒': 'C', '𝓓': 'D', '𝓔': 'E', '𝓕': 'F',
+  '𝒚': 'y', '𝒛': 'z', 
+  // Mathematical bold script lowercase
+  '𝓪': 'a', '𝓫': 'b', '𝓬': 'c', '𝓭': 'd', '𝓮': 'e', '𝓯': 'f', '𝓰': 'g', '𝓱': 'h',
+  '𝓲': 'i', '𝓳': 'j', '𝓴': 'k', '𝓵': 'l', '𝓶': 'm', '𝓷': 'n', '𝓸': 'o', '𝓹': 'p',
+  '𝓺': 'q', '𝓻': 'r', '𝓼': 's', '𝓽': 't', '𝓾': 'u', '𝓿': 'v', '𝔀': 'w', '𝔁': 'x',
+  '𝔂': 'y', '𝔃': 'z',
+  // Mathematical bold script uppercase
+  '𝓐': 'A', '𝓑': 'B', '𝓒': 'C', '𝓓': 'D', '𝓔': 'E', '𝓕': 'F',
   '𝓖': 'G', '𝓗': 'H', '𝓘': 'I', '𝓙': 'J', '𝓚': 'K', '𝓛': 'L', '𝓜': 'M', '𝓝': 'N',
   '𝓞': 'O', '𝓟': 'P', '𝓠': 'Q', '𝓡': 'R', '𝓢': 'S', '𝓣': 'T', '𝓤': 'U', '𝓥': 'V',
   '𝓦': 'W', '𝓧': 'X', '𝓨': 'Y', '𝓩': 'Z',
@@ -302,7 +309,7 @@ const CHARACTER_PATTERNS = {
   hebrew: /[\u0590-\u05FF]/,
   // Emoji and symbol ranges (to exclude from homograph detection)
   emoji: /[\u{1F000}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F300}-\u{1F5FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]/u,
-  cjk: /[\u4E00-\u9FFF]|[\u3400-\u4DBF]|[\u20000-\u2A6DF]|[\u2A700-\u2B73F]|[\u2B740-\u2B81F]|[\u2B820-\u2CEAF]|[\u2CEB0-\u2EBEF]|[\u30000-\u3134F]/u
+  cjk: /[\u4E00-\u9FFF]|[\u3400-\u4DBF]|[\u{20000}-\u{2A6DF}]|[\u{2A700}-\u{2B73F}]|[\u{2B740}-\u{2B81F}]|[\u{2B820}-\u{2CEAF}]|[\u{2CEB0}-\u{2EBEF}]|[\u{30000}-\u{3134F}]/u
 };
 
 /**
@@ -448,7 +455,8 @@ function detectHomographs(input, options = {}) {
     characterTypes: [],
     confusableChars: [],
     zeroWidthChars: [],
-    suspiciousPatterns: []
+    suspiciousPatterns: [],
+    normalizationPasses: 0
   };
 
   // Perform multi-pass normalization
@@ -457,6 +465,9 @@ function detectHomographs(input, options = {}) {
   
   const normalized = normResult.normalized;
   let detected = input !== normalized;
+  
+  // Track normalization passes
+  metadata.normalizationPasses = normResult.passes;
 
   // Skip detection for legitimate Unicode content
   const isLegitimateUnicode = CHARACTER_PATTERNS.emoji.test(input) || 
@@ -601,40 +612,6 @@ function handleEmptyInput(input, context = {}) {
   };
 }
 
-/**
- * Add consistent timing to prevent timing attacks
- * Uses crypto-safe randomization
- * @param {Function} operation - Operation to time-normalize
- * @param {number} targetTime - Target execution time in ms
- * @returns {*} Operation result
- */
-function constantTimeWrapper(operation, targetTime = 10) {
-  const startTime = process.hrtime.bigint();
-  
-  // Execute the operation
-  const result = operation();
-  
-  // Calculate elapsed time
-  const elapsedNs = Number(process.hrtime.bigint() - startTime);
-  const elapsedMs = elapsedNs / 1000000;
-  
-  // Add padding time if needed
-  if (elapsedMs < targetTime) {
-    const paddingMs = targetTime - elapsedMs;
-    // Add random variance (±20% of padding)
-    const variance = (Math.random() - 0.5) * 0.4 * paddingMs;
-    const finalPadding = Math.max(0, paddingMs + variance);
-    
-    // Busy wait with some CPU work
-    const endTime = Date.now() + finalPadding;
-    while (Date.now() < endTime) {
-      // Do some work to prevent optimization
-      Math.sqrt(Math.random());
-    }
-  }
-  
-  return result;
-}
 
 /**
  * Comprehensive security check combining all detections
@@ -720,7 +697,6 @@ module.exports = {
   detectPostgreSQLDollarQuoting,
   detectHomographs,
   handleEmptyInput,
-  constantTimeWrapper,
   
   // Enhanced Unicode detection functions
   normalizeConfusableChars,

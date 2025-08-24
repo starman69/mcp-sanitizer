@@ -32,8 +32,8 @@ const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns')
 const validator = require('validator')
 const {
   detectMultipleUrlEncoding,
-  detectCyrillicHomographs,
-  ensureTimingConsistency
+  detectCyrillicHomographs
+  // Timing functions removed
 } = require('../../utils/security-enhancements')
 
 /**

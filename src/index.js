@@ -124,8 +124,8 @@ module.exports.detectMultipleUrlEncoding = utils.detectMultipleUrlEncoding
 module.exports.detectPostgresDollarQuotes = utils.detectPostgresDollarQuotes
 module.exports.detectCyrillicHomographs = utils.detectCyrillicHomographs
 module.exports.handleEmptyStrings = utils.handleEmptyStrings
-module.exports.ensureTimingConsistency = utils.ensureTimingConsistency
-module.exports.secureStringCompare = utils.secureStringCompare
+// Timing consistency removed - not applicable for middleware
+// Secure string compare removed - timing attack prevention not applicable
 module.exports.comprehensiveSecurityAnalysis = utils.comprehensiveSecurityAnalysis
 module.exports.enhancedStringValidation = utils.enhancedStringValidation
 
