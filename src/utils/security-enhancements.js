@@ -1,6 +1,6 @@
 /**
  * Security Enhancements for MCP Sanitizer
- * 
+ *
  * This module implements enterprise-grade security enhancements for inline sanitization:
  * 1. Directional override detection (RTL/LTR)
  * 2. Null byte warning messages
@@ -9,7 +9,7 @@
  * 5. Cyrillic homograph warnings
  * 6. Empty string handling
  * 7. Timing consistency
- * 
+ *
  * Performance target: <10ms latency for inline operations
  * Security priority: Zero false positives on legitimate input
  */
@@ -23,42 +23,42 @@ const DIRECTIONAL_OVERRIDES = {
   // Right-to-left and left-to-right overrides
   RLO: '\u202E', // RIGHT-TO-LEFT OVERRIDE
   LRO: '\u202D', // LEFT-TO-RIGHT OVERRIDE
-  RLE: '\u202B', // RIGHT-TO-LEFT EMBEDDING  
+  RLE: '\u202B', // RIGHT-TO-LEFT EMBEDDING
   LRE: '\u202A', // LEFT-TO-RIGHT EMBEDDING
   PDF: '\u202C', // POP DIRECTIONAL FORMATTING
   RLI: '\u2067', // RIGHT-TO-LEFT ISOLATE
   LRI: '\u2066', // LEFT-TO-RIGHT ISOLATE
   FSI: '\u2068', // FIRST STRONG ISOLATE
   PDI: '\u2069', // POP DIRECTIONAL ISOLATE
-  
+
   // Zero-width characters often used in combination
   ZWNJ: '\u200C', // ZERO WIDTH NON-JOINER
-  ZWJ: '\u200D',  // ZERO WIDTH JOINER
-  ZWSP: '\u200B', // ZERO WIDTH SPACE
+  ZWJ: '\u200D', // ZERO WIDTH JOINER
+  ZWSP: '\u200B' // ZERO WIDTH SPACE
 };
 
 /**
  * Cyrillic characters that look like Latin characters (homographs)
  */
 const CYRILLIC_HOMOGRAPHS = {
-  'а': 'a', // U+0430 CYRILLIC SMALL LETTER A
-  'е': 'e', // U+0435 CYRILLIC SMALL LETTER IE  
-  'о': 'o', // U+043E CYRILLIC SMALL LETTER O
-  'р': 'p', // U+0440 CYRILLIC SMALL LETTER ER
-  'с': 'c', // U+0441 CYRILLIC SMALL LETTER ES
-  'у': 'y', // U+0443 CYRILLIC SMALL LETTER U
-  'х': 'x', // U+0445 CYRILLIC SMALL LETTER HA
-  'А': 'A', // U+0410 CYRILLIC CAPITAL LETTER A
-  'В': 'B', // U+0412 CYRILLIC CAPITAL LETTER VE
-  'Е': 'E', // U+0415 CYRILLIC CAPITAL LETTER IE
-  'К': 'K', // U+041A CYRILLIC CAPITAL LETTER KA
-  'М': 'M', // U+041C CYRILLIC CAPITAL LETTER EM
-  'Н': 'H', // U+041D CYRILLIC CAPITAL LETTER EN
-  'О': 'O', // U+041E CYRILLIC CAPITAL LETTER O
-  'Р': 'P', // U+0420 CYRILLIC CAPITAL LETTER ER
-  'С': 'C', // U+0421 CYRILLIC CAPITAL LETTER ES
-  'Т': 'T', // U+0422 CYRILLIC CAPITAL LETTER TE
-  'Х': 'X', // U+0425 CYRILLIC CAPITAL LETTER HA
+  а: 'a', // U+0430 CYRILLIC SMALL LETTER A
+  е: 'e', // U+0435 CYRILLIC SMALL LETTER IE
+  о: 'o', // U+043E CYRILLIC SMALL LETTER O
+  р: 'p', // U+0440 CYRILLIC SMALL LETTER ER
+  с: 'c', // U+0441 CYRILLIC SMALL LETTER ES
+  у: 'y', // U+0443 CYRILLIC SMALL LETTER U
+  х: 'x', // U+0445 CYRILLIC SMALL LETTER HA
+  А: 'A', // U+0410 CYRILLIC CAPITAL LETTER A
+  В: 'B', // U+0412 CYRILLIC CAPITAL LETTER VE
+  Е: 'E', // U+0415 CYRILLIC CAPITAL LETTER IE
+  К: 'K', // U+041A CYRILLIC CAPITAL LETTER KA
+  М: 'M', // U+041C CYRILLIC CAPITAL LETTER EM
+  Н: 'H', // U+041D CYRILLIC CAPITAL LETTER EN
+  О: 'O', // U+041E CYRILLIC CAPITAL LETTER O
+  Р: 'P', // U+0420 CYRILLIC CAPITAL LETTER ER
+  С: 'C', // U+0421 CYRILLIC CAPITAL LETTER ES
+  Т: 'T', // U+0422 CYRILLIC CAPITAL LETTER TE
+  Х: 'X' // U+0425 CYRILLIC CAPITAL LETTER HA
 };
 
 /**
@@ -67,7 +67,7 @@ const CYRILLIC_HOMOGRAPHS = {
 const POSTGRES_DOLLAR_QUOTE_PATTERNS = [
   /\$[a-zA-Z_][a-zA-Z0-9_]*\$/g, // $tag$
   /\$\$/g, // $$
-  /\$[0-9]+\$/g, // $1$, $2$, etc.
+  /\$[0-9]+\$/g // $1$, $2$, etc.
 ];
 
 /**
@@ -75,7 +75,7 @@ const POSTGRES_DOLLAR_QUOTE_PATTERNS = [
  * @param {string} input - Input text to analyze
  * @returns {Object} Detection result with warnings and sanitized text
  */
-function detectDirectionalOverrides(input) {
+function detectDirectionalOverrides (input) {
   if (typeof input !== 'string') {
     return {
       detected: false,
@@ -91,14 +91,14 @@ function detectDirectionalOverrides(input) {
   const originalLength = input.length;
 
   // Check for directional override characters
-  const overrideChars = Object.values(DIRECTIONAL_OVERRIDES);
+  // const overrideChars = Object.values(DIRECTIONAL_OVERRIDES) // Unused
   const foundOverrides = [];
 
   for (const [name, char] of Object.entries(DIRECTIONAL_OVERRIDES)) {
     if (input.includes(char)) {
       detected = true;
       foundOverrides.push(name);
-      
+
       // Remove the directional override character
       sanitized = sanitized.replace(new RegExp(char, 'g'), '');
     }
@@ -118,7 +118,7 @@ function detectDirectionalOverrides(input) {
   // Check for suspicious patterns: mixed directional text
   const rtlPattern = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
   const ltrPattern = /[A-Za-z]/;
-  
+
   if (rtlPattern.test(sanitized) && ltrPattern.test(sanitized)) {
     warnings.push({
       type: 'MIXED_DIRECTIONAL_TEXT',
@@ -150,7 +150,7 @@ function detectDirectionalOverrides(input) {
  * @param {string} input - Input to analyze
  * @returns {Object} Detection result with detailed warnings
  */
-function detectNullBytes(input) {
+function detectNullBytes (input) {
   if (typeof input !== 'string') {
     return {
       detected: false,
@@ -160,6 +160,7 @@ function detectNullBytes(input) {
     };
   }
 
+  // eslint-disable-next-line no-control-regex
   const nullBytePattern = /\x00/g;
   const matches = [...input.matchAll(nullBytePattern)];
   const detected = matches.length > 0;
@@ -168,7 +169,7 @@ function detectNullBytes(input) {
 
   if (detected) {
     const positions = matches.map(match => match.index);
-    
+
     warnings.push({
       type: 'NULL_BYTE_DETECTED',
       message: `Null bytes (0x00) detected at positions: ${positions.join(', ')}. Null bytes can terminate strings in C/C++ and cause data truncation.`,
@@ -203,7 +204,7 @@ function detectNullBytes(input) {
  * @param {number} maxDepth - Maximum encoding depth to check (default: 4)
  * @returns {Object} Detection result with encoding analysis
  */
-function detectMultipleUrlEncoding(input, maxDepth = 4) {
+function detectMultipleUrlEncoding (input, maxDepth = 4) {
   if (typeof input !== 'string') {
     return {
       detected: false,
@@ -224,7 +225,7 @@ function detectMultipleUrlEncoding(input, maxDepth = 4) {
 
   while (depth < maxDepth && decoded !== previousDecoded) {
     previousDecoded = decoded;
-    
+
     const encodedChars = decoded.match(urlEncodingPattern);
     if (!encodedChars || encodedChars.length === 0) {
       break;
@@ -275,6 +276,7 @@ function detectMultipleUrlEncoding(input, maxDepth = 4) {
   const suspiciousPatterns = [
     { pattern: /[<>'"&]/, name: 'HTML/XSS characters' },
     { pattern: /[;&|`$()]/, name: 'Command injection characters' },
+    // eslint-disable-next-line no-useless-escape
     { pattern: /\.\.[\/\\]/, name: 'Path traversal' },
     { pattern: /\/etc\/|\/proc\/|\/sys\//, name: 'System directory access' }
   ];
@@ -311,7 +313,7 @@ function detectMultipleUrlEncoding(input, maxDepth = 4) {
  * @param {string} input - Input SQL or text to analyze
  * @returns {Object} Detection result with PostgreSQL-specific warnings
  */
-function detectPostgresDollarQuotes(input) {
+function detectPostgresDollarQuotes (input) {
   if (typeof input !== 'string') {
     return {
       detected: false,
@@ -331,7 +333,7 @@ function detectPostgresDollarQuotes(input) {
     const matches = [...input.matchAll(pattern)];
     if (matches.length > 0) {
       detected = true;
-      
+
       for (const match of matches) {
         detectedQuotes.push({
           quote: match[0],
@@ -345,7 +347,7 @@ function detectPostgresDollarQuotes(input) {
   if (detected) {
     // Analyze quote pairs for potential SQL injection
     const dollarQuoteMap = new Map();
-    
+
     for (const quote of detectedQuotes) {
       if (!dollarQuoteMap.has(quote.quote)) {
         dollarQuoteMap.set(quote.quote, []);
@@ -372,8 +374,8 @@ function detectPostgresDollarQuotes(input) {
       type: 'POSTGRES_DOLLAR_QUOTES',
       message: `PostgreSQL dollar quotes detected: ${detectedQuotes.map(q => q.quote).join(', ')}. These can be used to bypass SQL injection filters.`,
       severity: hasUnpairedQuotes ? 'HIGH' : 'MEDIUM',
-      recommendation: hasPairedQuotes 
-        ? 'Verify that dollar-quoted strings are legitimate. Ensure SQL parameterization is used.' 
+      recommendation: hasPairedQuotes
+        ? 'Verify that dollar-quoted strings are legitimate. Ensure SQL parameterization is used.'
         : 'Unpaired dollar quotes detected - potential SQL injection attempt. Block or sanitize input.',
       securityImpact: 'Dollar quotes allow multi-line strings and can bypass quote-based SQL injection filters.',
       dollarQuotes: detectedQuotes.map(q => q.quote),
@@ -415,7 +417,7 @@ function detectPostgresDollarQuotes(input) {
  * @param {string} input - Input text or domain to analyze
  * @returns {Object} Detection result with homograph warnings
  */
-function detectCyrillicHomographs(input) {
+function detectCyrillicHomographs (input) {
   if (typeof input !== 'string') {
     return {
       detected: false,
@@ -436,7 +438,7 @@ function detectCyrillicHomographs(input) {
     if (input.includes(cyrillic)) {
       detected = true;
       foundHomographs.push({ cyrillic, latin, codePoint: `U+${cyrillic.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}` });
-      
+
       // Replace with Latin equivalent for normalization
       normalized = normalized.replace(new RegExp(cyrillic, 'g'), latin);
     }
@@ -446,18 +448,18 @@ function detectCyrillicHomographs(input) {
     // Special analysis for domain names
     const domainPattern = /(?:^|\s|[^\w.-])((?:[a-zA-Zа-яё0-9](?:[a-zA-Zа-яё0-9-]*[a-zA-Zа-яё0-9])?\.)+[a-zA-Zа-яё]{2,})(?:\s|[^\w.-]|$)/gi;
     const domains = [...input.matchAll(domainPattern)];
-    
+
     for (const domainMatch of domains) {
       const domain = domainMatch[1];
       let hasCyrillic = false;
-      
+
       for (const cyrillic of Object.keys(CYRILLIC_HOMOGRAPHS)) {
         if (domain.includes(cyrillic)) {
           hasCyrillic = true;
           break;
         }
       }
-      
+
       if (hasCyrillic) {
         suspiciousDomains.push({
           original: domain,
@@ -468,13 +470,13 @@ function detectCyrillicHomographs(input) {
     }
 
     const homographChars = foundHomographs.map(h => `${h.cyrillic} (${h.codePoint}) -> ${h.latin}`).join(', ');
-    
+
     warnings.push({
       type: 'CYRILLIC_HOMOGRAPH_ATTACK',
       message: `Cyrillic homograph characters detected: ${homographChars}. These can be used for domain spoofing attacks.`,
       severity: suspiciousDomains.length > 0 ? 'HIGH' : 'MEDIUM',
-      recommendation: suspiciousDomains.length > 0 
-        ? 'Suspicious domains detected. Verify domain authenticity before accessing.' 
+      recommendation: suspiciousDomains.length > 0
+        ? 'Suspicious domains detected. Verify domain authenticity before accessing.'
         : 'Mixed scripts detected. Verify text content is from expected language.',
       securityImpact: 'Homograph attacks can make malicious domains appear legitimate to users.',
       homographs: foundHomographs,
@@ -522,7 +524,7 @@ function detectCyrillicHomographs(input) {
  * @param {Object} context - Context information for appropriate handling
  * @returns {Object} Handling result with recommendations
  */
-function handleEmptyStrings(input, context = {}) {
+function handleEmptyStrings (input, context = {}) {
   const {
     allowEmpty = false,
     defaultValue = null,
@@ -546,8 +548,8 @@ function handleEmptyStrings(input, context = {}) {
 
   // Type conversion to string for analysis
   let stringValue = '';
-  let typeConverted = false;
-  
+  // let typeConverted = false // Unused variable
+
   if (input === null || input === undefined) {
     result.isEmpty = true;
     result.metadata.wasEmpty = true;
@@ -558,7 +560,7 @@ function handleEmptyStrings(input, context = {}) {
   } else {
     // Convert to string for analysis
     stringValue = String(input);
-    typeConverted = true;
+    // typeConverted = true // Variable not used directly, but tracked in metadata
     result.isEmpty = stringValue.trim().length === 0;
     result.metadata.wasEmpty = result.isEmpty;
     result.metadata.typeConverted = true;
@@ -599,7 +601,7 @@ function handleEmptyStrings(input, context = {}) {
         message: `Applied default value for empty field '${fieldName}'.`,
         severity: 'LOW',
         recommendation: 'Verify that the default value is appropriate for your use case.',
-        defaultValue: defaultValue,
+        defaultValue,
         field: fieldName
       });
     }
@@ -643,7 +645,7 @@ function handleEmptyStrings(input, context = {}) {
  * @param {Object} options - Configuration options
  * @returns {Promise<Object>} Complete analysis result
  */
-async function comprehensiveSecurityAnalysis(input, options = {}) {
+async function comprehensiveSecurityAnalysis (input, options = {}) {
   const {
     checkDirectionalOverrides = true,
     checkNullBytes = true,
@@ -700,11 +702,11 @@ async function comprehensiveSecurityAnalysis(input, options = {}) {
   for (const check of checks) {
     const checkResult = check.fn();
     checkResults[check.name] = checkResult;
-    
+
     if (checkResult.warnings) {
       results.allWarnings.push(...checkResult.warnings);
     }
-    
+
     // Update sanitized value if changed
     if (checkResult.sanitized && checkResult.sanitized !== results.sanitized) {
       results.sanitized = checkResult.sanitized;
@@ -744,10 +746,10 @@ module.exports = {
   detectPostgresDollarQuotes,
   detectCyrillicHomographs,
   handleEmptyStrings,
-  
+
   // Comprehensive analysis
   comprehensiveSecurityAnalysis,
-  
+
   // Constants for external use
   DIRECTIONAL_OVERRIDES,
   CYRILLIC_HOMOGRAPHS,

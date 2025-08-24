@@ -1,10 +1,10 @@
 /**
  * Coverage Gaps Test Suite
- * 
+ *
  * This test suite specifically targets uncovered lines and security-critical paths
  * identified in the coverage analysis. Focus areas:
  * - mcp-sanitizer.js: lines 188-342 (async methods), 418-425 (stats)
- * - string-utils.js: error handling and edge cases (61.95% -> 80%+)  
+ * - string-utils.js: error handling and edge cases (61.95% -> 80%+)
  * - validation-utils.js: validation scenarios (58.2% -> 80%+)
  */
 
@@ -41,7 +41,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
         const result = await sanitizer.sanitizeFilePath('fallback/path.txt');
         expect(typeof result).toBe('string');
-        
+
         sanitizer.validatorManager = originalManager;
       });
     });
@@ -55,6 +55,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
       it('should handle URL validation failure with severity', async () => {
         // Test actual URL that will fail validation
+        // eslint-disable-next-line no-script-url
         await expect(sanitizer.sanitizeURL('javascript:alert(1)'))
           .rejects.toThrow();
       });
@@ -68,7 +69,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
         const result = await sanitizer.sanitizeURL('https://fallback.com');
         expect(result).toContain('https://');
-        
+
         sanitizer.validatorManager = originalManager;
       });
     });
@@ -80,7 +81,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
       });
 
       it('should handle command validation failure with severity', async () => {
-        // Test actual command that will fail validation  
+        // Test actual command that will fail validation
         await expect(sanitizer.sanitizeCommand('rm -rf /'))
           .rejects.toThrow();
       });
@@ -94,7 +95,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
         const result = await sanitizer.sanitizeCommand('echo safe');
         expect(typeof result).toBe('string');
-        
+
         sanitizer.validatorManager = originalManager;
       });
     });
@@ -120,7 +121,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
         const result = await sanitizer.sanitizeSQL('SELECT name FROM users');
         expect(typeof result).toBe('string');
-        
+
         sanitizer.validatorManager = originalManager;
       });
     });
@@ -129,12 +130,12 @@ describe('Coverage Gaps - Security Critical Paths', () => {
       it('should handle successful validation with stats update', async () => {
         // Test lines 283-301
         const initialStats = sanitizer.getStats();
-        
+
         const result = await sanitizer.validate('safe input', 'file_path');
-        
+
         expect(result).toBeDefined();
         expect(result.metadata.processingTime).toBeGreaterThanOrEqual(0);
-        
+
         const newStats = sanitizer.getStats();
         expect(newStats.validationCount).toBeGreaterThan(initialStats.validationCount);
       });
@@ -152,10 +153,10 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
         const initialStats = sanitizer.getStats();
         await sanitizer.validate('bad input', 'command');
-        
+
         const newStats = sanitizer.getStats();
         expect(newStats.blockedCount).toBeGreaterThan(initialStats.blockedCount);
-        
+
         sanitizer.validatorManager = originalManager;
       });
 
@@ -172,17 +173,17 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
         const initialStats = sanitizer.getStats();
         await sanitizer.validate('suspicious input', 'url');
-        
+
         const newStats = sanitizer.getStats();
         expect(newStats.warningCount).toBeGreaterThan(initialStats.warningCount);
-        
+
         sanitizer.validatorManager = originalManager;
       });
 
       it('should handle validator manager error and return error result', async () => {
         // Test with invalid input type to trigger error path
         const result = await sanitizer.validate('any input', 'invalid_type');
-        
+
         expect(result.isValid).toBe(false);
         expect(result.sanitized).toBe(null);
         expect(result.warnings.length).toBeGreaterThan(0);
@@ -194,7 +195,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
       it('should analyze string input successfully', async () => {
         // Test lines 325-340
         const result = await sanitizer.analyzeInput('test input string');
-        
+
         expect(result).toBeDefined();
         expect(result.metadata).toBeDefined();
         expect(result.metadata.inputType).toBe('string');
@@ -206,7 +207,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
         // Test line 327 (JSON.stringify path)
         const inputObj = { test: 'value', nested: { key: 'data' } };
         const result = await sanitizer.analyzeInput(inputObj);
-        
+
         expect(result).toBeDefined();
         expect(result.metadata.inputType).toBe('object');
         expect(result.metadata.inputLength).toBe(JSON.stringify(inputObj).length);
@@ -214,7 +215,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
       it('should handle analysis error and return error result', async () => {
         // Skip this test for now as mocking patterns module is complex
-        // The error path is tested through integration 
+        // The error path is tested through integration
         const result = await sanitizer.analyzeInput('test input');
         expect(result).toBeDefined();
         expect(result.metadata).toBeDefined();
@@ -236,13 +237,13 @@ describe('Coverage Gaps - Security Critical Paths', () => {
     it('should reset statistics to zero', () => {
       // First do some operations to change stats
       sanitizer.sanitize('test input');
-      
+
       let stats = sanitizer.getStats();
       expect(stats.sanitizationCount).toBeGreaterThan(0);
-      
-      // Test lines 424-432 
+
+      // Test lines 424-432
       sanitizer.resetStats();
-      
+
       stats = sanitizer.getStats();
       expect(stats.validationCount).toBe(0);
       expect(stats.sanitizationCount).toBe(0);
@@ -451,7 +452,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
           checkMultipleEncoding: true,
           handleEmpty: true
         });
-        
+
         expect(result).toHaveProperty('isValid');
         expect(result).toHaveProperty('warnings');
         expect(result).toHaveProperty('sanitized');
@@ -465,7 +466,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
           checkMultipleEncoding: false,
           handleEmpty: false
         });
-        
+
         expect(result.sanitized).toBe('test');
         expect(result.warnings).toHaveLength(0);
       });
@@ -623,7 +624,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
         });
 
         expect(() => validationUtils.validateCommand('malformed " command')).toThrow('Invalid or malicious command syntax');
-        
+
         // Restore original
         shellQuote.parse = originalParse;
       });
@@ -639,7 +640,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
         ]);
 
         expect(() => validationUtils.validateCommand('echo test | grep pattern')).toThrow('Command contains shell injection patterns');
-        
+
         // Restore original
         shellQuote.parse = originalParse;
       });
@@ -651,7 +652,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
         shellQuote.parse = jest.fn().mockReturnValue(['rm', '-rf', '/']);
 
         expect(() => validationUtils.validateCommand('rm -rf /')).toThrow('Dangerous command detected: rm');
-        
+
         // Restore original
         shellQuote.parse = originalParse;
       });
@@ -663,7 +664,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
         shellQuote.parse = jest.fn().mockReturnValue(['cat', '/etc/passwd']);
 
         expect(() => validationUtils.validateCommand('cat /etc/passwd')).toThrow('Access to sensitive files/directories blocked');
-        
+
         // Restore original
         shellQuote.parse = originalParse;
       });
@@ -718,14 +719,14 @@ describe('Coverage Gaps - Security Critical Paths', () => {
       it('should handle RegExp type validation specially', () => {
         const regexArray = [/test/, /pattern/];
         expect(() => validationUtils.validateArrayOfType(regexArray, 'regexp')).not.toThrow();
-        
+
         const mixedArray = [/test/, 'string'];
-        expect(() => validationUtils.validateArrayOfType(mixedArray, 'regexp')).toThrow("array[1] must be of type regexp, got string");
+        expect(() => validationUtils.validateArrayOfType(mixedArray, 'regexp')).toThrow('array[1] must be of type regexp, got string');
       });
 
       it('should validate each element type with detailed error messages', () => {
-        expect(() => validationUtils.validateArrayOfType([1, 'two', 3], 'number', 'numbers')).toThrow("numbers[1] must be of type number, got string");
-        expect(() => validationUtils.validateArrayOfType(['one', 2, 'three'], 'string', 'strings')).toThrow("strings[1] must be of type string, got number");
+        expect(() => validationUtils.validateArrayOfType([1, 'two', 3], 'number', 'numbers')).toThrow('numbers[1] must be of type number, got string');
+        expect(() => validationUtils.validateArrayOfType(['one', 2, 'three'], 'string', 'strings')).toThrow('strings[1] must be of type string, got number');
       });
     });
 
@@ -734,11 +735,11 @@ describe('Coverage Gaps - Security Critical Paths', () => {
         const validator1 = jest.fn();
         const validator2 = jest.fn();
         const validator3 = jest.fn();
-        
+
         const combined = validationUtils.combineValidators(validator1, validator2, validator3);
-        
+
         combined('test', 'param');
-        
+
         expect(validator1).toHaveBeenCalledWith('test', 'param');
         expect(validator2).toHaveBeenCalledWith('test', 'param');
         expect(validator3).toHaveBeenCalledWith('test', 'param');
@@ -750,9 +751,9 @@ describe('Coverage Gaps - Security Critical Paths', () => {
           throw new Error('Second validator failed');
         });
         const validator3 = jest.fn();
-        
+
         const combined = validationUtils.combineValidators(validator1, validator2, validator3);
-        
+
         expect(() => combined('test', 'param')).toThrow('Second validator failed');
         expect(validator1).toHaveBeenCalled();
         expect(validator2).toHaveBeenCalled();
@@ -765,6 +766,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
     it('should handle complex nested validation scenarios', async () => {
       const complexInput = {
         file_path: '../../../etc/passwd',
+        // eslint-disable-next-line no-script-url
         url: 'javascript:alert(1)',
         command: 'rm -rf /',
         sql: "'; DROP TABLE users; --",
@@ -781,6 +783,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
     it('should maintain performance while handling malicious payloads', async () => {
       const maliciousPayloads = [
+        // eslint-disable-next-line no-script-url
         'javascript:alert(document.cookie)',
         '../../../etc/passwd',
         'rm -rf / --no-preserve-root',
@@ -789,19 +792,19 @@ describe('Coverage Gaps - Security Critical Paths', () => {
       ];
 
       const startTime = Date.now();
-      
+
       for (const payload of maliciousPayloads) {
         const result = await sanitizer.validate(payload, 'command');
         expect(result.isValid).toBe(false);
       }
-      
+
       const totalTime = Date.now() - startTime;
       expect(totalTime).toBeLessThan(1000); // Should complete within 1 second
     });
 
     it('should provide detailed metadata for security analysis', async () => {
       const result = await sanitizer.analyzeInput('test\u202eevil');
-      
+
       expect(result.metadata).toBeDefined();
       expect(result.metadata.processingTime).toBeGreaterThan(0);
       expect(result.metadata.inputType).toBe('string');

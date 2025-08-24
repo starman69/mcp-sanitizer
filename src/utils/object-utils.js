@@ -3,7 +3,7 @@
  *
  * This module provides reusable functions for object manipulation,
  * traversal, and validation used throughout the MCP Sanitizer.
- * 
+ *
  * CVE-TBD-004 FIX: All recursive functions now use early depth checking
  * to prevent stack exhaustion attacks.
  */
@@ -13,7 +13,7 @@
 /**
  * Dangerous object keys that should be blocked to prevent prototype pollution
  */
-const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
+const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
 
 /**
  * Check if an object key is dangerous (could lead to prototype pollution)
@@ -23,10 +23,10 @@ const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
  */
 function isDangerousKey (key) {
   if (typeof key !== 'string') {
-    throw new Error('Key must be a string')
+    throw new Error('Key must be a string');
   }
 
-  return DANGEROUS_KEYS.includes(key)
+  return DANGEROUS_KEYS.includes(key);
 }
 
 /**
@@ -36,7 +36,7 @@ function isDangerousKey (key) {
  */
 function validateObjectKey (key) {
   if (isDangerousKey(key)) {
-    throw new Error(`Dangerous object key detected: ${key}`)
+    throw new Error(`Dangerous object key detected: ${key}`);
   }
 }
 
@@ -49,31 +49,31 @@ function validateObjectKey (key) {
 function getObjectDepth (obj, currentDepth = 0) {
   // Simple depth check to prevent stack exhaustion
   const maxAllowedDepth = 100; // Reasonable limit for object depth
-  
+
   if (currentDepth > maxAllowedDepth) {
-    return currentDepth
+    return currentDepth;
   }
-  
-    if (obj === null || typeof obj !== 'object') {
-      return currentDepth
-    }
 
-    if (Array.isArray(obj)) {
-      let maxDepth = currentDepth
-      for (const item of obj) {
-        const itemDepth = getObjectDepth(item, currentDepth + 1)
-        maxDepth = Math.max(maxDepth, itemDepth)
-      }
-      return maxDepth
-    }
+  if (obj === null || typeof obj !== 'object') {
+    return currentDepth;
+  }
 
-    let maxDepth = currentDepth
-    for (const value of Object.values(obj)) {
-      const valueDepth = getObjectDepth(value, currentDepth + 1)
-      maxDepth = Math.max(maxDepth, valueDepth)
+  if (Array.isArray(obj)) {
+    let maxDepth = currentDepth;
+    for (const item of obj) {
+      const itemDepth = getObjectDepth(item, currentDepth + 1);
+      maxDepth = Math.max(maxDepth, itemDepth);
     }
+    return maxDepth;
+  }
 
-    return maxDepth
+  let maxDepth = currentDepth;
+  for (const value of Object.values(obj)) {
+    const valueDepth = getObjectDepth(value, currentDepth + 1);
+    maxDepth = Math.max(maxDepth, valueDepth);
+  }
+
+  return maxDepth;
 }
 
 /**
@@ -85,10 +85,10 @@ function getObjectDepth (obj, currentDepth = 0) {
  */
 function isWithinDepthLimit (obj, maxDepth) {
   if (typeof maxDepth !== 'number' || maxDepth < 0) {
-    throw new Error('Max depth must be a non-negative number')
+    throw new Error('Max depth must be a non-negative number');
   }
 
-  return getObjectDepth(obj) <= maxDepth
+  return getObjectDepth(obj) <= maxDepth;
 }
 
 /**
@@ -99,7 +99,7 @@ function isWithinDepthLimit (obj, maxDepth) {
  */
 function validateObjectDepth (obj, maxDepth) {
   if (!isWithinDepthLimit(obj, maxDepth)) {
-    throw new Error(`Object exceeds maximum depth of ${maxDepth}`)
+    throw new Error(`Object exceeds maximum depth of ${maxDepth}`);
   }
 }
 
@@ -110,21 +110,21 @@ function validateObjectDepth (obj, maxDepth) {
  */
 function isPlainObject (value) {
   if (value === null || typeof value !== 'object') {
-    return false
+    return false;
   }
 
   if (Array.isArray(value)) {
-    return false
+    return false;
   }
 
   // Check if it's a built-in object type
   if (value instanceof Date || value instanceof RegExp || value instanceof Error) {
-    return false
+    return false;
   }
 
   // Check if it has a custom constructor
-  const proto = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 /**
@@ -136,16 +136,16 @@ function isPlainObject (value) {
  */
 function getSafeObjectKeys (obj, allowDangerous = false) {
   if (typeof obj !== 'object' || obj === null) {
-    throw new Error('Input must be an object')
+    throw new Error('Input must be an object');
   }
 
-  const keys = Object.keys(obj)
+  const keys = Object.keys(obj);
 
   if (allowDangerous) {
-    return keys
+    return keys;
   }
 
-  return keys.filter(key => !isDangerousKey(key))
+  return keys.filter(key => !isDangerousKey(key));
 }
 
 /**
@@ -159,41 +159,41 @@ function getSafeObjectKeys (obj, allowDangerous = false) {
  */
 function traverseObject (obj, callback, currentPath = '', currentDepth = 0, maxDepth = 10) {
   if (typeof callback !== 'function') {
-    throw new Error('Callback must be a function')
+    throw new Error('Callback must be a function');
   }
 
   // Simple depth check to prevent stack exhaustion
   const maxAllowedDepth = Math.min(maxDepth, 100);
-  
+
   if (currentDepth > maxAllowedDepth) {
-    return
+    return;
   }
-  
-    if (obj === null || typeof obj !== 'object') {
-      callback(obj, null, currentPath)
-      return
-    }
 
-    if (Array.isArray(obj)) {
-      obj.forEach((item, index) => {
-        const itemPath = currentPath ? `${currentPath}[${index}]` : `[${index}]`
-        callback(item, index, itemPath)
+  if (obj === null || typeof obj !== 'object') {
+    callback(obj, null, currentPath);
+    return;
+  }
 
-        if (typeof item === 'object' && item !== null) {
-          traverseObject(item, callback, itemPath, currentDepth + 1, maxDepth)
-        }
-      })
-      return
-    }
+  if (Array.isArray(obj)) {
+    obj.forEach((item, index) => {
+      const itemPath = currentPath ? `${currentPath}[${index}]` : `[${index}]`;
+      callback(item, index, itemPath);
 
-    for (const [key, value] of Object.entries(obj)) {
-      const valuePath = currentPath ? `${currentPath}.${key}` : key
-      callback(value, key, valuePath)
-
-      if (typeof value === 'object' && value !== null) {
-        traverseObject(value, callback, valuePath, currentDepth + 1, maxDepth)
+      if (typeof item === 'object' && item !== null) {
+        traverseObject(item, callback, itemPath, currentDepth + 1, maxDepth);
       }
+    });
+    return;
+  }
+
+  for (const [key, value] of Object.entries(obj)) {
+    const valuePath = currentPath ? `${currentPath}.${key}` : key;
+    callback(value, key, valuePath);
+
+    if (typeof value === 'object' && value !== null) {
+      traverseObject(value, callback, valuePath, currentDepth + 1, maxDepth);
     }
+  }
 }
 
 /**
@@ -207,43 +207,43 @@ function safeDeepCopy (obj, maxDepth = 10) {
   function copyRecursive (value, currentDepth = 0) {
     // Simple depth check to prevent stack exhaustion
     const maxAllowedDepth = Math.min(maxDepth, 100);
-    
+
     if (currentDepth > maxAllowedDepth) {
-      throw new Error(`Maximum copy depth (${maxDepth}) exceeded`)
+      throw new Error(`Maximum copy depth (${maxDepth}) exceeded`);
     }
-    
+
     if (value === null || typeof value !== 'object') {
-      return value
+      return value;
     }
 
     if (Array.isArray(value)) {
-      return value.map(item => copyRecursive(item, currentDepth + 1))
+      return value.map(item => copyRecursive(item, currentDepth + 1));
     }
 
     if (value instanceof Date) {
-      return new Date(value.getTime())
+      return new Date(value.getTime());
     }
 
     if (value instanceof RegExp) {
-      return new RegExp(value.source, value.flags)
+      return new RegExp(value.source, value.flags);
     }
 
     if (!isPlainObject(value)) {
       // For non-plain objects, return as-is to avoid issues
-      return value
+      return value;
     }
 
-    const copy = {}
+    const copy = {};
     for (const [key, val] of Object.entries(value)) {
       if (!isDangerousKey(key)) {
-        copy[key] = copyRecursive(val, currentDepth + 1)
+        copy[key] = copyRecursive(val, currentDepth + 1);
       }
     }
 
-    return copy
+    return copy;
   }
 
-  return copyRecursive(obj)
+  return copyRecursive(obj);
 }
 
 /**
@@ -254,15 +254,15 @@ function safeDeepCopy (obj, maxDepth = 10) {
  * @throws {Error} - If maximum depth is exceeded
  */
 function countObjectProperties (obj, maxDepth = 10) {
-  let count = 0
+  let count = 0;
 
   traverseObject(obj, (value, key) => {
     if (key !== null) {
-      count++
+      count++;
     }
-  }, '', 0, maxDepth)
+  }, '', 0, maxDepth);
 
-  return count
+  return count;
 }
 
 /**
@@ -273,34 +273,34 @@ function countObjectProperties (obj, maxDepth = 10) {
  */
 function hasCircularReferences (obj, visited = new Set()) {
   if (obj === null || typeof obj !== 'object') {
-    return false
+    return false;
   }
 
   if (visited.has(obj)) {
-    return true
+    return true;
   }
 
-  visited.add(obj)
+  visited.add(obj);
 
   try {
     if (Array.isArray(obj)) {
       for (const item of obj) {
         if (hasCircularReferences(item, visited)) {
-          return true
+          return true;
         }
       }
     } else {
       for (const value of Object.values(obj)) {
         if (hasCircularReferences(value, visited)) {
-          return true
+          return true;
         }
       }
     }
   } finally {
-    visited.delete(obj)
+    visited.delete(obj);
   }
 
-  return false
+  return false;
 }
 
 /**
@@ -313,35 +313,35 @@ function hasCircularReferences (obj, visited = new Set()) {
  */
 function flattenObject (obj, prefix = '', maxDepth = 10) {
   if (typeof obj !== 'object' || obj === null) {
-    throw new Error('Input must be an object')
+    throw new Error('Input must be an object');
   }
 
-  const result = {}
+  const result = {};
 
   function flattenRecursive (current, currentPrefix, depth) {
     if (depth > maxDepth) {
-      throw new Error(`Maximum flatten depth of ${maxDepth} exceeded`)
+      throw new Error(`Maximum flatten depth of ${maxDepth} exceeded`);
     }
 
     for (const [key, value] of Object.entries(current)) {
       if (isDangerousKey(key)) {
-        continue // Skip dangerous keys
+        continue; // Skip dangerous keys
       }
 
-      const newKey = currentPrefix ? `${currentPrefix}.${key}` : key
+      const newKey = currentPrefix ? `${currentPrefix}.${key}` : key;
 
       if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-        result[newKey] = value
+        result[newKey] = value;
       } else if (isPlainObject(value)) {
-        flattenRecursive(value, newKey, depth + 1)
+        flattenRecursive(value, newKey, depth + 1);
       } else {
-        result[newKey] = value
+        result[newKey] = value;
       }
     }
   }
 
-  flattenRecursive(obj, prefix, 0)
-  return result
+  flattenRecursive(obj, prefix, 0);
+  return result;
 }
 
 module.exports = {
@@ -358,4 +358,4 @@ module.exports = {
   countObjectProperties,
   hasCircularReferences,
   flattenObject
-}
+};

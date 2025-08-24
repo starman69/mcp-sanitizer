@@ -5,7 +5,7 @@
  * validation, and manipulation used throughout the MCP Sanitizer.
  */
 
-const escapeHtml = require('escape-html')
+const escapeHtml = require('escape-html');
 
 /**
  * HTML encode a string to prevent XSS attacks
@@ -15,11 +15,11 @@ const escapeHtml = require('escape-html')
  */
 function htmlEncode (str) {
   if (typeof str !== 'string') {
-    throw new Error('Input must be a string')
+    throw new Error('Input must be a string');
   }
 
   // Use escape-html library for better security and performance
-  return escapeHtml(str)
+  return escapeHtml(str);
 }
 
 /**
@@ -31,14 +31,14 @@ function htmlEncode (str) {
  */
 function isWithinLengthLimit (str, maxLength) {
   if (typeof str !== 'string') {
-    throw new Error('String parameter must be a string')
+    throw new Error('String parameter must be a string');
   }
 
   if (typeof maxLength !== 'number' || maxLength < 0) {
-    throw new Error('Max length must be a non-negative number')
+    throw new Error('Max length must be a non-negative number');
   }
 
-  return str.length <= maxLength
+  return str.length <= maxLength;
 }
 
 /**
@@ -49,7 +49,7 @@ function isWithinLengthLimit (str, maxLength) {
  */
 function validateStringLength (str, maxLength) {
   if (!isWithinLengthLimit(str, maxLength)) {
-    throw new Error(`String exceeds maximum length of ${maxLength} characters`)
+    throw new Error(`String exceeds maximum length of ${maxLength} characters`);
   }
 }
 
@@ -62,24 +62,24 @@ function validateStringLength (str, maxLength) {
  */
 function findBlockedPattern (str, patterns) {
   if (typeof str !== 'string') {
-    throw new Error('String parameter must be a string')
+    throw new Error('String parameter must be a string');
   }
 
   if (!Array.isArray(patterns)) {
-    throw new Error('Patterns must be an array')
+    throw new Error('Patterns must be an array');
   }
 
   for (const pattern of patterns) {
     if (!(pattern instanceof RegExp)) {
-      throw new Error('All patterns must be RegExp objects')
+      throw new Error('All patterns must be RegExp objects');
     }
 
     if (pattern.test(str)) {
-      return pattern
+      return pattern;
     }
   }
 
-  return null
+  return null;
 }
 
 /**
@@ -89,17 +89,17 @@ function findBlockedPattern (str, patterns) {
  * @throws {Error} - If string contains blocked patterns
  */
 function validateAgainstBlockedPatterns (str, patterns, context = {}) {
-  const matchedPattern = findBlockedPattern(str, patterns)
+  const matchedPattern = findBlockedPattern(str, patterns);
   if (matchedPattern) {
     // For SQL context with PostgreSQL dollar quotes, provide specific message
     if (context.type === 'sql' && str.includes('$$')) {
       // Check if it's actually PostgreSQL dollar quoting
-      const dollarQuotePattern = /\$\$.*?\$\$/
+      const dollarQuotePattern = /\$\$.*?\$\$/;
       if (dollarQuotePattern.test(str)) {
-        throw new Error('PostgreSQL dollar quoting detected')
+        throw new Error('PostgreSQL dollar quoting detected');
       }
     }
-    throw new Error(`String contains blocked pattern: ${matchedPattern}`)
+    throw new Error(`String contains blocked pattern: ${matchedPattern}`);
   }
 }
 
@@ -112,35 +112,35 @@ function validateAgainstBlockedPatterns (str, patterns, context = {}) {
  */
 function findSQLKeyword (str, keywords) {
   if (typeof str !== 'string') {
-    throw new Error('String parameter must be a string')
+    throw new Error('String parameter must be a string');
   }
 
   if (!Array.isArray(keywords)) {
-    throw new Error('Keywords must be an array')
+    throw new Error('Keywords must be an array');
   }
 
-  const upperStr = str.toUpperCase()
+  const upperStr = str.toUpperCase();
 
   for (const keyword of keywords) {
     if (typeof keyword !== 'string') {
-      throw new Error('All keywords must be strings')
+      throw new Error('All keywords must be strings');
     }
 
     // Handle pattern keywords like 'SELECT.*FROM'
     if (keyword.includes('.*')) {
-      const pattern = new RegExp(keyword.replace(/\.\*/g, '.*'), 'i')
+      const pattern = new RegExp(keyword.replace(/\.\*/g, '.*'), 'i');
       if (pattern.test(str)) {
-        return keyword
+        return keyword;
       }
     } else {
       // Simple keyword matching
       if (upperStr.includes(keyword.toUpperCase())) {
-        return keyword
+        return keyword;
       }
     }
   }
 
-  return null
+  return null;
 }
 
 /**
@@ -150,9 +150,9 @@ function findSQLKeyword (str, keywords) {
  * @throws {Error} - If string contains SQL keywords
  */
 function validateAgainstSQLKeywords (str, keywords) {
-  const matchedKeyword = findSQLKeyword(str, keywords)
+  const matchedKeyword = findSQLKeyword(str, keywords);
   if (matchedKeyword) {
-    throw new Error(`String contains potentially dangerous SQL keyword: ${matchedKeyword}`)
+    throw new Error(`String contains potentially dangerous SQL keyword: ${matchedKeyword}`);
   }
 }
 
@@ -164,18 +164,18 @@ function validateAgainstSQLKeywords (str, keywords) {
  */
 function safeTrim (input) {
   if (input === null || input === undefined) {
-    return ''
+    return '';
   }
 
   if (typeof input !== 'string') {
     if (typeof input.toString === 'function') {
-      input = input.toString()
+      input = input.toString();
     } else {
-      throw new Error('Input cannot be converted to string')
+      throw new Error('Input cannot be converted to string');
     }
   }
 
-  return input.trim()
+  return input.trim();
 }
 
 /**
@@ -185,10 +185,10 @@ function safeTrim (input) {
  */
 function isEmpty (str) {
   if (typeof str !== 'string') {
-    return false
+    return false;
   }
 
-  return str.trim().length === 0
+  return str.trim().length === 0;
 }
 
 /**
@@ -199,10 +199,10 @@ function isEmpty (str) {
  */
 function normalizeLineEndings (str) {
   if (typeof str !== 'string') {
-    throw new Error('Input must be a string')
+    throw new Error('Input must be a string');
   }
 
-  return str.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  return str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }
 
 /**
@@ -213,10 +213,10 @@ function normalizeLineEndings (str) {
  */
 function escapeRegex (str) {
   if (typeof str !== 'string') {
-    throw new Error('Input must be a string')
+    throw new Error('Input must be a string');
   }
 
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
@@ -228,23 +228,22 @@ function escapeRegex (str) {
  */
 function containsOnlySafeChars (str, allowedCharsPattern = /^[a-zA-Z0-9\s\-_.,!?()[\]{}:;"'@#$%^&*+=~`|\\/<>]*$/) {
   if (typeof str !== 'string') {
-    throw new Error('Input must be a string')
+    throw new Error('Input must be a string');
   }
 
   if (!(allowedCharsPattern instanceof RegExp)) {
-    throw new Error('Allowed characters pattern must be a RegExp')
+    throw new Error('Allowed characters pattern must be a RegExp');
   }
 
-  return allowedCharsPattern.test(str)
+  return allowedCharsPattern.test(str);
 }
 
 // Import security enhancements
 const {
   detectDirectionalOverrides,
   detectNullBytes,
-  detectMultipleUrlEncoding,
   handleEmptyStrings
-} = require('./security-enhancements')
+} = require('./security-enhancements');
 
 /**
  * Enhanced string validation with security enhancements
@@ -256,52 +255,52 @@ function enhancedStringValidation (str, options = {}) {
   const {
     checkDirectionalOverrides = true,
     checkNullBytes = true,
-    checkMultipleEncoding = false, // Only for URLs
+    // checkMultipleEncoding = false, // Only for URLs - Unused
     handleEmpty = true,
     emptyContext = {}
-  } = options
+  } = options;
 
   const results = {
     isValid: true,
     warnings: [],
     sanitized: str,
     metadata: {}
-  }
+  };
 
   // Check for directional overrides
   if (checkDirectionalOverrides) {
-    const dirResult = detectDirectionalOverrides(str)
+    const dirResult = detectDirectionalOverrides(str);
     if (dirResult.detected) {
-      results.warnings.push(...dirResult.warnings)
-      results.sanitized = dirResult.sanitized
-      results.metadata.directionalOverrides = dirResult.metadata
+      results.warnings.push(...dirResult.warnings);
+      results.sanitized = dirResult.sanitized;
+      results.metadata.directionalOverrides = dirResult.metadata;
     }
   }
 
   // Check for null bytes
   if (checkNullBytes) {
-    const nullResult = detectNullBytes(results.sanitized)
+    const nullResult = detectNullBytes(results.sanitized);
     if (nullResult.detected) {
-      results.warnings.push(...nullResult.warnings)
-      results.sanitized = nullResult.sanitized
-      results.metadata.nullBytes = nullResult.metadata
+      results.warnings.push(...nullResult.warnings);
+      results.sanitized = nullResult.sanitized;
+      results.metadata.nullBytes = nullResult.metadata;
     }
   }
 
   // Handle empty strings
   if (handleEmpty) {
-    const emptyResult = handleEmptyStrings(results.sanitized, emptyContext)
+    const emptyResult = handleEmptyStrings(results.sanitized, emptyContext);
     if (!emptyResult.isValid) {
-      results.isValid = false
-      results.warnings.push(...emptyResult.warnings)
+      results.isValid = false;
+      results.warnings.push(...emptyResult.warnings);
     }
     if (emptyResult.processed !== results.sanitized) {
-      results.sanitized = emptyResult.processed
+      results.sanitized = emptyResult.processed;
     }
-    results.metadata.emptyString = emptyResult.metadata
+    results.metadata.emptyString = emptyResult.metadata;
   }
 
-  return results
+  return results;
 }
 
 module.exports = {
@@ -318,4 +317,4 @@ module.exports = {
   escapeRegex,
   containsOnlySafeChars,
   enhancedStringValidation
-}
+};

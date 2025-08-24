@@ -1,10 +1,10 @@
 /**
  * Comprehensive Security Test Suite
- * 
+ *
  * This test suite validates protection against all known attack vectors
  * discovered during security audits. Originally created to address v1.1.0
  * security gaps, it now serves as the primary security regression test suite.
- * 
+ *
  * Test Categories:
  * 1. Unicode Normalization & Homograph Attacks
  * 2. Null Bytes & Control Characters
@@ -12,7 +12,7 @@
  * 4. Case-Sensitive Pattern Bypasses
  * 5. Database-Specific SQL Injection
  * 6. Edge Cases & Combined Attacks
- * 
+ *
  * All tests in this file MUST pass for production readiness.
  */
 
@@ -20,11 +20,11 @@ const MCPSanitizer = require('../src/index');
 
 describe('Comprehensive Security Test Suite', () => {
   let strictSanitizer;
-  let moderateSanitizer;
+  // moderateSanitizer removed - only using strict
 
   beforeEach(() => {
     strictSanitizer = new MCPSanitizer({ strictMode: true });
-    moderateSanitizer = new MCPSanitizer();
+    // Only strict sanitizer needed
   });
 
   describe('1. Unicode Normalization & Homograph Attacks', () => {
@@ -288,7 +288,7 @@ describe('Comprehensive Security Test Suite', () => {
   describe('5. Database-Specific SQL Injection', () => {
     describe('PostgreSQL Specific', () => {
       it('should block PostgreSQL dollar quoting', () => {
-        const payload = "SELECT $$; DROP TABLE users; --$$";
+        const payload = 'SELECT $$; DROP TABLE users; --$$';
         const result = strictSanitizer.sanitize(payload, { type: 'sql' });
         expect(result.blocked).toBe(true);
         expect(result.warnings).toEqual(expect.arrayContaining([
@@ -297,7 +297,7 @@ describe('Comprehensive Security Test Suite', () => {
       });
 
       it('should block tagged dollar quotes', () => {
-        const payload = "SELECT $tag$; DROP TABLE users; --$tag$";
+        const payload = 'SELECT $tag$; DROP TABLE users; --$tag$';
         const result = strictSanitizer.sanitize(payload, { type: 'sql' });
         expect(result.blocked).toBe(true);
       });
@@ -311,13 +311,13 @@ describe('Comprehensive Security Test Suite', () => {
 
     describe('MySQL Specific', () => {
       it('should block MySQL backtick identifiers with injection', () => {
-        const payload = "SELECT * FROM `users`; DROP TABLE `accounts`";
+        const payload = 'SELECT * FROM `users`; DROP TABLE `accounts`';
         const result = strictSanitizer.sanitize(payload, { type: 'sql' });
         expect(result.blocked).toBe(true);
       });
 
       it('should detect MySQL comment syntax', () => {
-        const payload = "SELECT * FROM users WHERE id = 1 /*! OR 1=1 */";
+        const payload = 'SELECT * FROM users WHERE id = 1 /*! OR 1=1 */';
         const result = strictSanitizer.sanitize(payload, { type: 'sql' });
         expect(result.blocked).toBe(true);
       });
@@ -331,7 +331,7 @@ describe('Comprehensive Security Test Suite', () => {
       });
 
       it('should block MSSQL bracket identifiers', () => {
-        const payload = "SELECT * FROM [users]; DROP TABLE [accounts]";
+        const payload = 'SELECT * FROM [users]; DROP TABLE [accounts]';
         const result = strictSanitizer.sanitize(payload, { type: 'sql' });
         expect(result.blocked).toBe(true);
       });
@@ -351,7 +351,7 @@ describe('Comprehensive Security Test Suite', () => {
       });
 
       it('should detect Oracle CHR function abuse', () => {
-        const payload = "SELECT CHR(39)||CHR(59)||CHR(32)||CHR(68)||CHR(82)||CHR(79)||CHR(80)";
+        const payload = 'SELECT CHR(39)||CHR(59)||CHR(32)||CHR(68)||CHR(82)||CHR(79)||CHR(80)';
         const result = strictSanitizer.sanitize(payload, { type: 'sql' });
         expect(result.blocked).toBe(true);
       });
@@ -398,24 +398,24 @@ describe('Comprehensive Security Test Suite', () => {
     it('should have consistent timing for blocked vs allowed inputs', () => {
       const safe = 'hello world';
       const malicious = 'cat /etc/passwd';
-      
+
       const timings = { safe: [], malicious: [] };
-      
+
       // Collect timing samples
       for (let i = 0; i < 100; i++) {
         let start = process.hrtime.bigint();
         strictSanitizer.sanitize(safe, { type: 'command' });
         timings.safe.push(Number(process.hrtime.bigint() - start));
-        
+
         start = process.hrtime.bigint();
         strictSanitizer.sanitize(malicious, { type: 'command' });
         timings.malicious.push(Number(process.hrtime.bigint() - start));
       }
-      
+
       const avgSafe = timings.safe.reduce((a, b) => a + b, 0) / timings.safe.length;
       const avgMalicious = timings.malicious.reduce((a, b) => a + b, 0) / timings.malicious.length;
       const variance = Math.abs(avgSafe - avgMalicious) / Math.max(avgSafe, avgMalicious);
-      
+
       // Timing variance should be less than 5%
       expect(variance).toBeLessThan(0.05);
     });
@@ -424,7 +424,7 @@ describe('Comprehensive Security Test Suite', () => {
 
 // Export test utilities for reuse
 module.exports = {
-  getUnicodeTestVectors() {
+  getUnicodeTestVectors () {
     return [
       { input: 'сat /etc/passwd', description: 'Cyrillic homograph' },
       { input: 'c̀át̂ /etc/passwd', description: 'Combining diacritics' },
@@ -433,8 +433,8 @@ module.exports = {
       { input: 'cat‮/dwssap/cte/‬', description: 'RTL override' }
     ];
   },
-  
-  getEncodingTestVectors() {
+
+  getEncodingTestVectors () {
     return [
       { input: 'c\\x61t /etc/passwd', description: 'Hex encoding' },
       { input: '\\143\\141\\164 /etc/passwd', description: 'Octal encoding' },
@@ -442,13 +442,13 @@ module.exports = {
       { input: '%63%61%74 /etc/passwd', description: 'URL encoding' }
     ];
   },
-  
-  getSQLTestVectors() {
+
+  getSQLTestVectors () {
     return [
-      { input: "SELECT $$; DROP TABLE users; --$$", description: 'PostgreSQL dollar quote' },
+      { input: 'SELECT $$; DROP TABLE users; --$$', description: 'PostgreSQL dollar quote' },
       { input: "SELECT N'; DROP TABLE users; --'", description: 'MSSQL Unicode' },
       { input: "SELECT q'['; DROP TABLE users; --]'", description: 'Oracle alt quote' },
-      { input: "SELECT `users`; DROP TABLE `accounts`", description: 'MySQL backticks' }
+      { input: 'SELECT `users`; DROP TABLE `accounts`', description: 'MySQL backticks' }
     ];
   }
 };

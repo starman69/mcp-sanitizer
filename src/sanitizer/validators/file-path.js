@@ -25,14 +25,14 @@
  * }
  */
 
-const path = require('path')
+const path = require('path');
 // const { validationUtils } = require('../../utils') // Unused - commented to fix ESLint
-const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns')
-const sanitizeFilename = require('sanitize-filename')
-const pathIsInside = require('path-is-inside')
-const { securityDecode } = require('../../utils/security-decoder')
+const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
+const sanitizeFilename = require('sanitize-filename');
+const pathIsInside = require('path-is-inside');
+// const { securityDecode } = require('../../utils/security-decoder') // Unused
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
-const { parseUnified, extractNormalized } = require('../../utils/unified-parser')
+const { parseUnified } = require('../../utils/unified-parser');
 
 /**
  * File path validation severity levels
@@ -42,7 +42,7 @@ const SEVERITY = {
   MEDIUM: 'medium',
   HIGH: 'high',
   CRITICAL: 'critical'
-}
+};
 
 /**
  * Default configuration for file path validation
@@ -57,7 +57,7 @@ const DEFAULT_CONFIG = {
   customDangerousPaths: [],
   normalizeBeforeValidation: true,
   strictMode: false
-}
+};
 
 /**
  * System directories that are typically restricted
@@ -86,7 +86,7 @@ const DANGEROUS_PATHS = {
     'C:\\Boot\\',
     'C:\\System Volume Information\\'
   ]
-}
+};
 
 /**
  * File Path Validator Class
@@ -97,12 +97,12 @@ class FilePathValidator {
    * @param {Object} config - Validation configuration
    */
   constructor (config = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config }
+    this.config = { ...DEFAULT_CONFIG, ...config };
     this.dangerousPaths = [
       ...DANGEROUS_PATHS.unix,
       ...DANGEROUS_PATHS.windows,
       ...this.config.customDangerousPaths
-    ]
+    ];
   }
 
   /**
@@ -126,130 +126,130 @@ class FilePathValidator {
         wasDecoded: false,
         decodingSteps: []
       }
-    }
+    };
 
     try {
       // Basic input validation
       if (typeof filePath !== 'string') {
-        result.warnings.push('File path must be a string')
-        result.severity = SEVERITY.HIGH
-        return result
+        result.warnings.push('File path must be a string');
+        result.severity = SEVERITY.HIGH;
+        return result;
       }
 
       if (!filePath || filePath.trim().length === 0) {
-        result.warnings.push('File path cannot be empty')
-        result.severity = SEVERITY.HIGH
-        return result
+        result.warnings.push('File path cannot be empty');
+        result.severity = SEVERITY.HIGH;
+        return result;
       }
 
       // Check path length
       if (filePath.length > this.config.maxPathLength) {
-        result.warnings.push(`File path exceeds maximum length of ${this.config.maxPathLength} characters`)
-        result.severity = SEVERITY.MEDIUM
-        return result
+        result.warnings.push(`File path exceeds maximum length of ${this.config.maxPathLength} characters`);
+        result.severity = SEVERITY.MEDIUM;
+        return result;
       }
 
       // CVE-TBD-001 FIX: Use unified parser for consistent normalization
-      const normalizedStr = parseUnified(filePath, { 
+      const normalizedStr = parseUnified(filePath, {
         type: 'file_path',
         strictMode: this.config.strictMode || false
-      })
+      });
 
-      const metadata = normalizedStr.getMetadata()
-      let normalizedPath = normalizedStr.getNormalized()
+      const metadata = normalizedStr.getMetadata();
+      let normalizedPath = normalizedStr.getNormalized();
 
       // Update result metadata with parsing information
       if (metadata.wasDecoded) {
-        result.metadata.wasDecoded = true
-        result.metadata.decodingSteps = metadata.decodingSteps
-        result.warnings.push(`Encoded sequences detected and decoded: ${metadata.decodingSteps.join(', ')}`)
+        result.metadata.wasDecoded = true;
+        result.metadata.decodingSteps = metadata.decodingSteps;
+        result.warnings.push(`Encoded sequences detected and decoded: ${metadata.decodingSteps.join(', ')}`);
       }
 
       // Check for security warnings from unified parser
       if (metadata.warnings && metadata.warnings.length > 0) {
-        result.warnings.push(...metadata.warnings)
+        result.warnings.push(...metadata.warnings);
       }
 
       // Normalize path if configured (unified parser already did basic normalization)
       if (this.config.normalizeBeforeValidation) {
-        normalizedPath = path.normalize(normalizedPath)
-        result.metadata.normalizedPath = normalizedPath
+        normalizedPath = path.normalize(normalizedPath);
+        result.metadata.normalizedPath = normalizedPath;
       }
 
       // Check for security patterns
-      const patternResult = detectAllPatterns(normalizedPath)
+      const patternResult = detectAllPatterns(normalizedPath);
       if (patternResult.detected) {
-        result.metadata.detectedPatterns = patternResult.patterns
-        result.warnings.push(`Security patterns detected: ${patternResult.patterns.join(', ')}`)
-        result.severity = this._mapSeverity(patternResult.severity)
+        result.metadata.detectedPatterns = patternResult.patterns;
+        result.warnings.push(`Security patterns detected: ${patternResult.patterns.join(', ')}`);
+        result.severity = this._mapSeverity(patternResult.severity);
 
         if (patternResult.severity === SEVERITY_LEVELS.CRITICAL) {
-          return result
+          return result;
         }
       }
 
       // Check for directory traversal
-      const traversalResult = this._checkDirectoryTraversal(normalizedPath)
+      const traversalResult = this._checkDirectoryTraversal(normalizedPath);
       if (!traversalResult.isValid) {
-        result.warnings.push(...traversalResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, SEVERITY.CRITICAL)
-        return result
+        result.warnings.push(...traversalResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.CRITICAL);
+        return result;
       }
 
       // Check absolute/relative path restrictions
-      const isAbsolute = path.isAbsolute(normalizedPath)
-      result.metadata.isAbsolute = isAbsolute
+      const isAbsolute = path.isAbsolute(normalizedPath);
+      result.metadata.isAbsolute = isAbsolute;
 
       if (isAbsolute && !this.config.allowAbsolutePaths) {
-        result.warnings.push('Absolute paths are not allowed')
-        result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH)
-        return result
+        result.warnings.push('Absolute paths are not allowed');
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH);
+        return result;
       }
 
       if (!isAbsolute && !this.config.allowRelativePaths) {
-        result.warnings.push('Relative paths are not allowed')
-        result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH)
-        return result
+        result.warnings.push('Relative paths are not allowed');
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH);
+        return result;
       }
 
       // Check for access to dangerous system directories
-      const systemDirResult = this._checkSystemDirectories(normalizedPath)
+      const systemDirResult = this._checkSystemDirectories(normalizedPath);
       if (!systemDirResult.isValid) {
-        result.warnings.push(...systemDirResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, SEVERITY.CRITICAL)
-        return result
+        result.warnings.push(...systemDirResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.CRITICAL);
+        return result;
       }
 
       // Check file extension
-      const extension = path.extname(normalizedPath).toLowerCase()
-      result.metadata.extension = extension
+      const extension = path.extname(normalizedPath).toLowerCase();
+      result.metadata.extension = extension;
 
-      const extensionResult = this._checkFileExtension(extension)
+      const extensionResult = this._checkFileExtension(extension);
       if (!extensionResult.isValid) {
-        result.warnings.push(...extensionResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, extensionResult.severity)
+        result.warnings.push(...extensionResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, extensionResult.severity);
 
         if (extensionResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
 
       // If we get here, the path is valid
-      result.isValid = true
-      result.sanitized = normalizedPath
+      result.isValid = true;
+      result.sanitized = normalizedPath;
 
       // Set severity to lowest if there were warnings but path is still valid
       if (result.warnings.length === 0) {
-        result.severity = null
+        result.severity = null;
       } else if (!result.severity) {
-        result.severity = SEVERITY.LOW
+        result.severity = SEVERITY.LOW;
       }
     } catch (error) {
-      result.warnings.push(`Validation error: ${error.message}`)
-      result.severity = SEVERITY.HIGH
+      result.warnings.push(`Validation error: ${error.message}`);
+      result.severity = SEVERITY.HIGH;
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -259,37 +259,37 @@ class FilePathValidator {
    * @returns {Promise<Object>} Sanitization result
    */
   async sanitize (filePath, options = {}) {
-    const validationResult = await this.validate(filePath, options)
+    const validationResult = await this.validate(filePath, options);
 
     if (validationResult.isValid) {
-      return validationResult
+      return validationResult;
     }
 
     // Attempt to sanitize the path
-    let sanitized = filePath
-    const warnings = [...validationResult.warnings]
+    let sanitized = filePath;
+    const warnings = [...validationResult.warnings];
 
     try {
       // Remove dangerous characters
-      sanitized = sanitized.replace(/[<>:"|?*]/g, '')
+      sanitized = sanitized.replace(/[<>:"|?*]/g, '');
 
       // Handle directory traversal by removing ../ patterns
-      sanitized = sanitized.replace(/\.\./g, '')
+      sanitized = sanitized.replace(/\.\./g, '');
 
       // Normalize path separators
-      sanitized = sanitized.replace(/[/\\]+/g, path.sep)
+      sanitized = sanitized.replace(/[/\\]+/g, path.sep);
 
       // Remove leading/trailing whitespace
-      sanitized = sanitized.trim()
+      sanitized = sanitized.trim();
 
       // If path becomes empty after sanitization, use a safe default
       if (!sanitized) {
-        sanitized = 'sanitized_file.txt'
-        warnings.push('Path was empty after sanitization, using default filename')
+        sanitized = 'sanitized_file.txt';
+        warnings.push('Path was empty after sanitization, using default filename');
       }
 
       // Re-validate the sanitized path
-      const revalidationResult = await this.validate(sanitized, options)
+      const revalidationResult = await this.validate(sanitized, options);
 
       return {
         isValid: revalidationResult.isValid,
@@ -301,7 +301,7 @@ class FilePathValidator {
           wasSanitized: true,
           sanitizationApplied: true
         }
-      }
+      };
     } catch (error) {
       return {
         isValid: false,
@@ -313,7 +313,7 @@ class FilePathValidator {
           wasSanitized: false,
           sanitizationError: error.message
         }
-      }
+      };
     }
   }
 
@@ -327,23 +327,23 @@ class FilePathValidator {
     const result = {
       isValid: true,
       warnings: []
-    }
+    };
 
     // SECURITY: First check if it's an absolute path (common bypass)
     if (path.isAbsolute(filePath)) {
       // Check if it's trying to access system directories
-      const lowerPath = filePath.toLowerCase()
+      const lowerPath = filePath.toLowerCase();
       const systemPaths = [
         '/etc/', '/proc/', '/sys/', '/dev/', '/root/', '/boot/',
         '/var/log/', '/usr/bin/', '/usr/sbin/', '/sbin/', '/bin/',
         'c:\\windows\\', 'c:\\system32\\', 'c:\\program files\\'
-      ]
+      ];
 
       for (const sysPath of systemPaths) {
         if (lowerPath.startsWith(sysPath)) {
-          result.isValid = false
-          result.warnings.push(`Absolute path to system directory detected: ${sysPath}`)
-          return result
+          result.isValid = false;
+          result.warnings.push(`Absolute path to system directory detected: ${sysPath}`);
+          return result;
         }
       }
     }
@@ -360,28 +360,28 @@ class FilePathValidator {
       /\.\\/i, // Windows traversal with backslash
       /\\\./, // Windows traversal
       /\.\/%2e%2e/i // Mixed path separators (should be decoded)
-    ]
+    ];
 
     for (const pattern of traversalPatterns) {
       if (pattern.test(filePath)) {
-        result.isValid = false
-        result.warnings.push(`Directory traversal pattern detected: ${pattern.source}`)
+        result.isValid = false;
+        result.warnings.push(`Directory traversal pattern detected: ${pattern.source}`);
       }
     }
 
     // Additional check for normalized path containing ..
     if (filePath.includes('..')) {
-      result.isValid = false
-      result.warnings.push('Directory traversal detected in normalized path')
+      result.isValid = false;
+      result.warnings.push('Directory traversal detected in normalized path');
     }
 
     // Check for UNC paths (Windows network paths)
     if (/^\\\\/.test(filePath)) {
-      result.isValid = false
-      result.warnings.push('UNC path detected - network paths not allowed')
+      result.isValid = false;
+      result.warnings.push('UNC path detected - network paths not allowed');
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -394,24 +394,24 @@ class FilePathValidator {
     const result = {
       isValid: true,
       warnings: []
-    }
+    };
 
     if (this.config.allowSystemDirectories) {
-      return result
+      return result;
     }
 
-    const lowerPath = filePath.toLowerCase()
+    const lowerPath = filePath.toLowerCase();
 
     for (const dangerousPath of this.dangerousPaths) {
-      const lowerDangerousPath = dangerousPath.toLowerCase()
+      const lowerDangerousPath = dangerousPath.toLowerCase();
 
       if (lowerPath.startsWith(lowerDangerousPath)) {
-        result.isValid = false
-        result.warnings.push(`Access to system directory not allowed: ${dangerousPath}`)
+        result.isValid = false;
+        result.warnings.push(`Access to system directory not allowed: ${dangerousPath}`);
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -425,30 +425,30 @@ class FilePathValidator {
       isValid: true,
       warnings: [],
       severity: null
-    }
+    };
 
     if (!extension) {
-      return result // No extension is generally allowed
+      return result; // No extension is generally allowed
     }
 
     // Check blocked extensions first (higher priority)
     if (this.config.blockedExtensions.includes(extension)) {
-      result.isValid = false
-      result.warnings.push(`File extension ${extension} is blocked for security reasons`)
-      result.severity = SEVERITY.CRITICAL
-      return result
+      result.isValid = false;
+      result.warnings.push(`File extension ${extension} is blocked for security reasons`);
+      result.severity = SEVERITY.CRITICAL;
+      return result;
     }
 
     // Check allowed extensions if specified
     if (this.config.allowedExtensions && this.config.allowedExtensions.length > 0) {
       if (!this.config.allowedExtensions.includes(extension)) {
-        result.isValid = false
-        result.warnings.push(`File extension ${extension} is not in the allowed list: ${this.config.allowedExtensions.join(', ')}`)
-        result.severity = SEVERITY.MEDIUM
+        result.isValid = false;
+        result.warnings.push(`File extension ${extension} is not in the allowed list: ${this.config.allowedExtensions.join(', ')}`);
+        result.severity = SEVERITY.MEDIUM;
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -463,8 +463,8 @@ class FilePathValidator {
       [SEVERITY_LEVELS.MEDIUM]: SEVERITY.MEDIUM,
       [SEVERITY_LEVELS.HIGH]: SEVERITY.HIGH,
       [SEVERITY_LEVELS.CRITICAL]: SEVERITY.CRITICAL
-    }
-    return mapping[patternSeverity] || SEVERITY.MEDIUM
+    };
+    return mapping[patternSeverity] || SEVERITY.MEDIUM;
   }
 
   /**
@@ -475,14 +475,14 @@ class FilePathValidator {
    * @private
    */
   _getHigherSeverity (current, newSeverity) {
-    if (!current) return newSeverity
-    if (!newSeverity) return current
+    if (!current) return newSeverity;
+    if (!newSeverity) return current;
 
-    const severityOrder = [SEVERITY.LOW, SEVERITY.MEDIUM, SEVERITY.HIGH, SEVERITY.CRITICAL]
-    const currentIndex = severityOrder.indexOf(current)
-    const newIndex = severityOrder.indexOf(newSeverity)
+    const severityOrder = [SEVERITY.LOW, SEVERITY.MEDIUM, SEVERITY.HIGH, SEVERITY.CRITICAL];
+    const currentIndex = severityOrder.indexOf(current);
+    const newIndex = severityOrder.indexOf(newSeverity);
 
-    return newIndex > currentIndex ? newSeverity : current
+    return newIndex > currentIndex ? newSeverity : current;
   }
 
   /**
@@ -490,12 +490,12 @@ class FilePathValidator {
    * @param {Object} newConfig - New configuration to merge
    */
   updateConfig (newConfig) {
-    this.config = { ...this.config, ...newConfig }
+    this.config = { ...this.config, ...newConfig };
     this.dangerousPaths = [
       ...DANGEROUS_PATHS.unix,
       ...DANGEROUS_PATHS.windows,
       ...this.config.customDangerousPaths
-    ]
+    ];
   }
 
   /**
@@ -503,7 +503,7 @@ class FilePathValidator {
    * @returns {Object} Current configuration
    */
   getConfig () {
-    return { ...this.config }
+    return { ...this.config };
   }
 
   /**
@@ -515,8 +515,8 @@ class FilePathValidator {
   sanitizeFilename (filename, options = {}) {
     const defaultOptions = {
       replacement: '_'
-    }
-    return sanitizeFilename(filename, { ...defaultOptions, ...options })
+    };
+    return sanitizeFilename(filename, { ...defaultOptions, ...options });
   }
 
   /**
@@ -528,12 +528,12 @@ class FilePathValidator {
   isPathInside (childPath, parentPath) {
     try {
       // Resolve paths to handle relative paths
-      const resolvedChild = path.resolve(childPath)
-      const resolvedParent = path.resolve(parentPath)
-      return pathIsInside(resolvedChild, resolvedParent)
+      const resolvedChild = path.resolve(childPath);
+      const resolvedParent = path.resolve(parentPath);
+      return pathIsInside(resolvedChild, resolvedParent);
     } catch (error) {
       // If paths cannot be resolved, consider it unsafe
-      return false
+      return false;
     }
   }
 
@@ -546,13 +546,13 @@ class FilePathValidator {
   isPathSafe (filePath, allowedPaths = []) {
     if (!allowedPaths.length) {
       // If no allowed paths specified, check if it's not in dangerous paths
-      return !this._isInDangerousPaths(filePath)
+      return !this._isInDangerousPaths(filePath);
     }
 
     // Check if path is inside any allowed path
     return allowedPaths.some(allowedPath => {
-      return this.isPathInside(filePath, allowedPath)
-    })
+      return this.isPathInside(filePath, allowedPath);
+    });
   }
 
   /**
@@ -561,8 +561,8 @@ class FilePathValidator {
    * @returns {string} Sanitized filename
    */
   extractSafeFilename (filePath) {
-    const filename = path.basename(filePath)
-    return this.sanitizeFilename(filename)
+    const filename = path.basename(filePath);
+    return this.sanitizeFilename(filename);
   }
 }
 
@@ -572,7 +572,7 @@ class FilePathValidator {
  * @returns {FilePathValidator} New validator instance
  */
 function createFilePathValidator (config = {}) {
-  return new FilePathValidator(config)
+  return new FilePathValidator(config);
 }
 
 /**
@@ -582,8 +582,8 @@ function createFilePathValidator (config = {}) {
  * @returns {Promise<Object>} Validation result
  */
 async function validateFilePath (filePath, config = {}) {
-  const validator = new FilePathValidator(config)
-  return await validator.validate(filePath)
+  const validator = new FilePathValidator(config);
+  return await validator.validate(filePath);
 }
 
 /**
@@ -593,8 +593,8 @@ async function validateFilePath (filePath, config = {}) {
  * @returns {Promise<Object>} Sanitization result
  */
 async function sanitizeFilePath (filePath, config = {}) {
-  const validator = new FilePathValidator(config)
-  return await validator.sanitize(filePath)
+  const validator = new FilePathValidator(config);
+  return await validator.sanitize(filePath);
 }
 
 module.exports = {
@@ -605,4 +605,4 @@ module.exports = {
   SEVERITY,
   DEFAULT_CONFIG,
   DANGEROUS_PATHS
-}
+};

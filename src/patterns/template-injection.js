@@ -14,7 +14,7 @@ const SEVERITY_LEVELS = {
   HIGH: 'high',
   MEDIUM: 'medium',
   LOW: 'low'
-}
+};
 
 /**
  * Generic template injection patterns
@@ -36,7 +36,7 @@ const GENERIC_TEMPLATE_PATTERNS = [
   /\{\{[^}]*[+\-*/=<>!&|][^}]*\}\}/g, // Expressions in templates
   /\{%[^%]*[+\-*/=<>!&|][^%]*%\}/g,
   /<%[^%]*[+\-*/=<>!&|][^%]*%>/g
-]
+];
 
 /**
  * Template engine specific patterns
@@ -138,7 +138,7 @@ const TEMPLATE_ENGINE_PATTERNS = {
     /\{\{@.*?\}\}/g, // Data variables
     /\{\{.*?\.\.\/.*?\}\}/g // Parent context
   ]
-}
+};
 
 /**
  * Server-Side Template Injection (SSTI) payload patterns
@@ -188,7 +188,7 @@ const SSTI_PAYLOAD_PATTERNS = [
   /Function\(/gi,
   /setTimeout\(/gi,
   /setInterval\(/gi
-]
+];
 
 /**
  * Expression language injection patterns
@@ -216,7 +216,7 @@ const EXPRESSION_LANGUAGE_PATTERNS = [
   /#this/gi,
   /systemProperties/gi,
   /systemEnvironment/gi
-]
+];
 
 /**
  * Template code execution patterns
@@ -246,7 +246,7 @@ const CODE_EXECUTION_PATTERNS = [
   /file_get_contents\s*\(\s*['"]\s*https?:/gi,
   /fsockopen\s*\(/gi,
   /stream_context_create\s*\(/gi
-]
+];
 
 /**
  * Main detection function for template injection patterns
@@ -256,45 +256,45 @@ const CODE_EXECUTION_PATTERNS = [
  */
 function detectTemplateInjection (input, options = {}) {
   if (typeof input !== 'string') {
-    return { detected: false, severity: null, patterns: [] }
+    return { detected: false, severity: null, patterns: [] };
   }
 
-  const detectedPatterns = []
-  let maxSeverity = null
+  const detectedPatterns = [];
+  let maxSeverity = null;
 
   // Check generic template patterns
-  const genericResult = checkGenericTemplatePatterns(input)
+  const genericResult = checkGenericTemplatePatterns(input);
   if (genericResult.detected) {
-    detectedPatterns.push(...genericResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, genericResult.severity)
+    detectedPatterns.push(...genericResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, genericResult.severity);
   }
 
   // Check template engine specific patterns
-  const engineResult = checkTemplateEnginePatterns(input)
+  const engineResult = checkTemplateEnginePatterns(input);
   if (engineResult.detected) {
-    detectedPatterns.push(...engineResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, engineResult.severity)
+    detectedPatterns.push(...engineResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, engineResult.severity);
   }
 
   // Check SSTI payload patterns
-  const sstiResult = checkSSTIPayloadPatterns(input)
+  const sstiResult = checkSSTIPayloadPatterns(input);
   if (sstiResult.detected) {
-    detectedPatterns.push(...sstiResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, sstiResult.severity)
+    detectedPatterns.push(...sstiResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, sstiResult.severity);
   }
 
   // Check expression language patterns
-  const expressionResult = checkExpressionLanguagePatterns(input)
+  const expressionResult = checkExpressionLanguagePatterns(input);
   if (expressionResult.detected) {
-    detectedPatterns.push(...expressionResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, expressionResult.severity)
+    detectedPatterns.push(...expressionResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, expressionResult.severity);
   }
 
   // Check code execution patterns
-  const codeExecResult = checkCodeExecutionPatterns(input)
+  const codeExecResult = checkCodeExecutionPatterns(input);
   if (codeExecResult.detected) {
-    detectedPatterns.push(...codeExecResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, codeExecResult.severity)
+    detectedPatterns.push(...codeExecResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, codeExecResult.severity);
   }
 
   return {
@@ -304,18 +304,18 @@ function detectTemplateInjection (input, options = {}) {
     message: detectedPatterns.length > 0
       ? `Template injection patterns detected: ${detectedPatterns.join(', ')}`
       : null
-  }
+  };
 }
 
 /**
  * Check for generic template patterns
  */
 function checkGenericTemplatePatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of GENERIC_TEMPLATE_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`generic_template:${pattern.source}`)
+      detected.push(`generic_template:${pattern.source}`);
     }
   }
 
@@ -323,19 +323,19 @@ function checkGenericTemplatePatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.MEDIUM : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for template engine specific patterns
  */
 function checkTemplateEnginePatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const [engine, patterns] of Object.entries(TEMPLATE_ENGINE_PATTERNS)) {
     for (const pattern of patterns) {
       if (pattern.test(input)) {
-        detected.push(`${engine}_template:${pattern.source}`)
+        detected.push(`${engine}_template:${pattern.source}`);
       }
     }
   }
@@ -344,18 +344,18 @@ function checkTemplateEnginePatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.HIGH : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for SSTI payload patterns
  */
 function checkSSTIPayloadPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of SSTI_PAYLOAD_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`ssti_payload:${pattern.source}`)
+      detected.push(`ssti_payload:${pattern.source}`);
     }
   }
 
@@ -363,18 +363,18 @@ function checkSSTIPayloadPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.CRITICAL : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for expression language patterns
  */
 function checkExpressionLanguagePatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of EXPRESSION_LANGUAGE_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`expression_language:${pattern.source}`)
+      detected.push(`expression_language:${pattern.source}`);
     }
   }
 
@@ -382,18 +382,18 @@ function checkExpressionLanguagePatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.HIGH : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for code execution patterns
  */
 function checkCodeExecutionPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of CODE_EXECUTION_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`code_execution:${pattern.source}`)
+      detected.push(`code_execution:${pattern.source}`);
     }
   }
 
@@ -401,27 +401,27 @@ function checkCodeExecutionPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.CRITICAL : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Get the higher severity between two severity levels
  */
 function getHigherSeverity (current, newSeverity) {
-  if (!current) return newSeverity
-  if (!newSeverity) return current
+  if (!current) return newSeverity;
+  if (!newSeverity) return current;
 
   const severityOrder = [
     SEVERITY_LEVELS.LOW,
     SEVERITY_LEVELS.MEDIUM,
     SEVERITY_LEVELS.HIGH,
     SEVERITY_LEVELS.CRITICAL
-  ]
+  ];
 
-  const currentIndex = severityOrder.indexOf(current)
-  const newIndex = severityOrder.indexOf(newSeverity)
+  const currentIndex = severityOrder.indexOf(current);
+  const newIndex = severityOrder.indexOf(newSeverity);
 
-  return newIndex > currentIndex ? newSeverity : current
+  return newIndex > currentIndex ? newSeverity : current;
 }
 
 /**
@@ -430,7 +430,7 @@ function getHigherSeverity (current, newSeverity) {
  * @returns {boolean} True if template injection patterns are detected
  */
 function isTemplateInjection (input) {
-  return detectTemplateInjection(input).detected
+  return detectTemplateInjection(input).detected;
 }
 
 module.exports = {
@@ -454,4 +454,4 @@ module.exports = {
 
   // Constants
   SEVERITY_LEVELS
-}
+};

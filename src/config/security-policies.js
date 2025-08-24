@@ -123,7 +123,7 @@ const STRICT_POLICY = {
     maxConcurrentRequests: 10,
     enableCaching: false
   }
-}
+};
 
 /**
  * MODERATE Security Policy
@@ -211,7 +211,7 @@ const MODERATE_POLICY = {
     maxConcurrentRequests: 50,
     enableCaching: false
   }
-}
+};
 
 /**
  * PERMISSIVE Security Policy
@@ -294,7 +294,7 @@ const PERMISSIVE_POLICY = {
     maxConcurrentRequests: 200,
     enableCaching: true
   }
-}
+};
 
 /**
  * DEVELOPMENT Security Policy
@@ -355,7 +355,7 @@ const DEVELOPMENT_POLICY = {
     maxConcurrentRequests: 100,
     enableCaching: false // Disabled for fresh results during development
   }
-}
+};
 
 /**
  * PRODUCTION Security Policy
@@ -429,7 +429,7 @@ const PRODUCTION_POLICY = {
     maxConcurrentRequests: 100,
     enableCaching: true // Enable for production performance
   }
-}
+};
 
 /**
  * Available security policies
@@ -440,12 +440,12 @@ const SECURITY_POLICIES = {
   PERMISSIVE: PERMISSIVE_POLICY,
   DEVELOPMENT: DEVELOPMENT_POLICY,
   PRODUCTION: PRODUCTION_POLICY
-}
+};
 
 /**
  * Policy names for validation
  */
-const POLICY_NAMES = Object.keys(SECURITY_POLICIES)
+const POLICY_NAMES = Object.keys(SECURITY_POLICIES);
 
 /**
  * Get a security policy by name
@@ -455,40 +455,40 @@ const POLICY_NAMES = Object.keys(SECURITY_POLICIES)
  */
 function getSecurityPolicy (policyName) {
   if (typeof policyName !== 'string') {
-    throw new Error('Policy name must be a string')
+    throw new Error('Policy name must be a string');
   }
 
-  const upperPolicyName = policyName.toUpperCase()
+  const upperPolicyName = policyName.toUpperCase();
 
   if (!SECURITY_POLICIES[upperPolicyName]) {
-    throw new Error(`Invalid security policy: ${policyName}. Available policies: ${POLICY_NAMES.join(', ')}`)
+    throw new Error(`Invalid security policy: ${policyName}. Available policies: ${POLICY_NAMES.join(', ')}`);
   }
 
   // Deep clone function that preserves RegExp objects
   function deepClone (obj) {
     if (obj === null || typeof obj !== 'object') {
-      return obj
+      return obj;
     }
 
     if (obj instanceof RegExp) {
-      return new RegExp(obj.source, obj.flags)
+      return new RegExp(obj.source, obj.flags);
     }
 
     if (Array.isArray(obj)) {
-      return obj.map(item => deepClone(item))
+      return obj.map(item => deepClone(item));
     }
 
-    const cloned = {}
+    const cloned = {};
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        cloned[key] = deepClone(obj[key])
+        cloned[key] = deepClone(obj[key]);
       }
     }
 
-    return cloned
+    return cloned;
   }
 
-  return deepClone(SECURITY_POLICIES[upperPolicyName])
+  return deepClone(SECURITY_POLICIES[upperPolicyName]);
 }
 
 /**
@@ -498,11 +498,11 @@ function getSecurityPolicy (policyName) {
  * @returns {Object} Custom security policy
  */
 function createCustomPolicy (basePolicyName, customizations = {}) {
-  const basePolicy = getSecurityPolicy(basePolicyName)
+  const basePolicy = getSecurityPolicy(basePolicyName);
 
   // Deep merge function that handles RegExp objects
   function deepMerge (target, source) {
-    const result = { ...target }
+    const result = { ...target };
 
     for (const key in source) {
       if (Object.prototype.hasOwnProperty.call(source, key)) {
@@ -511,28 +511,28 @@ function createCustomPolicy (basePolicyName, customizations = {}) {
             !Array.isArray(source[key]) &&
             !(source[key] instanceof RegExp)) {
           // Deep merge objects
-          result[key] = deepMerge(target[key] || {}, source[key])
+          result[key] = deepMerge(target[key] || {}, source[key]);
         } else if (source[key] instanceof RegExp) {
           // Clone RegExp objects
-          result[key] = new RegExp(source[key].source, source[key].flags)
+          result[key] = new RegExp(source[key].source, source[key].flags);
         } else if (Array.isArray(source[key])) {
           // For arrays, completely replace with source array (cloning RegExp objects)
           result[key] = source[key].map(item =>
             item instanceof RegExp
               ? new RegExp(item.source, item.flags)
               : item
-          )
+          );
         } else {
           // For primitive values, use source value
-          result[key] = source[key]
+          result[key] = source[key];
         }
       }
     }
 
-    return result
+    return result;
   }
 
-  return deepMerge(basePolicy, customizations)
+  return deepMerge(basePolicy, customizations);
 }
 
 /**
@@ -558,23 +558,23 @@ function getPolicyRecommendation (environment = 'production', trustLevel = 'low'
       medium: 'PRODUCTION',
       low: 'STRICT'
     }
-  }
+  };
 
-  const envRecommendations = recommendations[environment.toLowerCase()]
+  const envRecommendations = recommendations[environment.toLowerCase()];
   if (!envRecommendations) {
-    throw new Error(`Invalid environment: ${environment}. Use 'development', 'staging', or 'production'`)
+    throw new Error(`Invalid environment: ${environment}. Use 'development', 'staging', or 'production'`);
   }
 
-  const policyName = envRecommendations[trustLevel.toLowerCase()]
+  const policyName = envRecommendations[trustLevel.toLowerCase()];
   if (!policyName) {
-    throw new Error(`Invalid trust level: ${trustLevel}. Use 'high', 'medium', or 'low'`)
+    throw new Error(`Invalid trust level: ${trustLevel}. Use 'high', 'medium', or 'low'`);
   }
 
   return {
     recommended: policyName,
     policy: getSecurityPolicy(policyName),
     rationale: `Recommended ${policyName} policy for ${environment} environment with ${trustLevel} trust level`
-  }
+  };
 }
 
 /**
@@ -588,41 +588,41 @@ function validatePolicyRequirements (policy, requirements = {}) {
     valid: true,
     violations: [],
     warnings: []
-  }
+  };
 
   // Check basic security requirements
   if (requirements.requireHTTPS && policy.allowedProtocols.includes('http')) {
-    result.violations.push('Policy allows HTTP protocol when HTTPS is required')
-    result.valid = false
+    result.violations.push('Policy allows HTTP protocol when HTTPS is required');
+    result.valid = false;
   }
 
   if (requirements.maxStringLength && policy.maxStringLength > requirements.maxStringLength) {
-    result.violations.push(`Policy allows strings longer than required maximum: ${requirements.maxStringLength}`)
-    result.valid = false
+    result.violations.push(`Policy allows strings longer than required maximum: ${requirements.maxStringLength}`);
+    result.valid = false;
   }
 
   if (requirements.blockSeverity) {
-    const severityOrder = ['low', 'medium', 'high', 'critical']
-    const requiredIndex = severityOrder.indexOf(requirements.blockSeverity)
-    const policyIndex = severityOrder.indexOf(policy.blockOnSeverity)
+    const severityOrder = ['low', 'medium', 'high', 'critical'];
+    const requiredIndex = severityOrder.indexOf(requirements.blockSeverity);
+    const policyIndex = severityOrder.indexOf(policy.blockOnSeverity);
 
     if (policyIndex > requiredIndex) {
-      result.violations.push(`Policy blocks at ${policy.blockOnSeverity} severity when ${requirements.blockSeverity} or higher is required`)
-      result.valid = false
+      result.violations.push(`Policy blocks at ${policy.blockOnSeverity} severity when ${requirements.blockSeverity} or higher is required`);
+      result.valid = false;
     }
   }
 
   // Check for security features
   if (requirements.requireAllPatternDetection) {
-    const requiredDetections = Object.keys(policy.patternDetection)
+    const requiredDetections = Object.keys(policy.patternDetection);
     for (const detection of requiredDetections) {
       if (!policy.patternDetection[detection]) {
-        result.warnings.push(`Pattern detection disabled for ${detection}`)
+        result.warnings.push(`Pattern detection disabled for ${detection}`);
       }
     }
   }
 
-  return result
+  return result;
 }
 
 module.exports = {
@@ -637,4 +637,4 @@ module.exports = {
   createCustomPolicy,
   getPolicyRecommendation,
   validatePolicyRequirements
-}
+};

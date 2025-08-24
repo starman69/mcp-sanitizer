@@ -1,26 +1,25 @@
 /**
  * Comprehensive Unicode Security Test Suite
- * 
+ *
  * Tests the enhanced Unicode protection system to achieve >95% protection rate
  * Covers all major homograph attack vectors and confusable character types
- * 
+ *
  * This file complements security-comprehensive.test.js with specialized Unicode tests
  * focusing on specific attack vectors not covered in the main security suite.
  */
 
 const MCPSanitizer = require('../src/index');
-const { 
-  detectHomographs, 
-  normalizeConfusableChars, 
-  multiPassNormalization, 
+const {
+  detectHomographs,
+  normalizeConfusableChars,
+  multiPassNormalization,
   detectIDNHomograph,
-  CONFUSABLE_MAPPINGS,
-  ZERO_WIDTH_CHARS 
+  ZERO_WIDTH_CHARS
 } = require('../src/utils/enterprise-security');
 
 describe('Comprehensive Unicode Security Protection', () => {
   let sanitizer;
-  
+
   beforeEach(() => {
     sanitizer = new MCPSanitizer({ strictMode: true });
   });
@@ -37,12 +36,12 @@ describe('Comprehensive Unicode Security Protection', () => {
     fullwidthAttacks.forEach(({ attack, expected, description }) => {
       it(`should detect and normalize ${description}`, () => {
         const result = sanitizer.sanitize(attack, { type: 'command' });
-        
+
         expect(result.blocked).toBe(true);
         expect(result.warnings).toEqual(expect.arrayContaining([
           expect.stringMatching(/fullwidth|confusable|homograph/i)
         ]));
-        
+
         // Verify normalization
         const normalized = normalizeConfusableChars(attack);
         expect(normalized).toBe(expected);
@@ -62,7 +61,7 @@ describe('Comprehensive Unicode Security Protection', () => {
     zeroWidthAttacks.forEach(({ attack, name, char }) => {
       it(`should detect ${name}`, () => {
         const result = sanitizer.sanitize(attack, { type: 'command' });
-        
+
         expect(result.blocked).toBe(true);
         expect(result.warnings).toEqual(expect.arrayContaining([
           expect.stringMatching(new RegExp(`zero.?width|${char}|invisible`, 'i'))
@@ -73,7 +72,7 @@ describe('Comprehensive Unicode Security Protection', () => {
     it('should detect multiple zero-width characters', () => {
       const multiZeroWidth = `ad${ZERO_WIDTH_CHARS.ZWSP}m${ZERO_WIDTH_CHARS.ZWJ}in`;
       const result = sanitizer.sanitize(multiZeroWidth, { type: 'command' });
-      
+
       expect(result.blocked).toBe(true);
       expect(result.warnings.length).toBeGreaterThan(1);
     });
@@ -91,12 +90,12 @@ describe('Comprehensive Unicode Security Protection', () => {
     mathAttacks.forEach(({ attack, expected, description }) => {
       it(`should detect ${description}`, () => {
         const result = sanitizer.sanitize(attack, { type: 'command' });
-        
+
         expect(result.blocked).toBe(true);
         expect(result.warnings).toEqual(expect.arrayContaining([
           expect.stringMatching(/mathematical|alphanumeric|unicode/i)
         ]));
-        
+
         const normalized = normalizeConfusableChars(attack);
         expect(normalized).toBe(expected);
       });
@@ -118,12 +117,12 @@ describe('Comprehensive Unicode Security Protection', () => {
     cyrillicAttacks.forEach(({ attack, cyrillic, latin, description }) => {
       it(`should detect ${description} (${cyrillic} → ${latin})`, () => {
         const result = sanitizer.sanitize(attack, { type: 'command' });
-        
+
         expect(result.blocked).toBe(true);
         expect(result.warnings).toEqual(expect.arrayContaining([
           expect.stringMatching(/cyrillic|homograph|confusable/i)
         ]));
-        
+
         const normalized = normalizeConfusableChars(attack);
         expect(normalized).toContain(latin);
         expect(normalized).not.toContain(cyrillic);
@@ -145,12 +144,12 @@ describe('Comprehensive Unicode Security Protection', () => {
     greekAttacks.forEach(({ attack, greek, latin, description }) => {
       it(`should detect ${description} (${greek} → ${latin})`, () => {
         const result = sanitizer.sanitize(attack, { type: 'command' });
-        
+
         expect(result.blocked).toBe(true);
         expect(result.warnings).toEqual(expect.arrayContaining([
           expect.stringMatching(/greek|homograph|confusable/i)
         ]));
-        
+
         const normalized = normalizeConfusableChars(attack);
         expect(normalized).toContain(latin);
       });
@@ -171,12 +170,12 @@ describe('Comprehensive Unicode Security Protection', () => {
     idnAttacks.forEach(({ domain, target, description }) => {
       it(`should detect ${description}`, () => {
         const result = detectIDNHomograph(domain);
-        
+
         expect(result.detected).toBe(true);
         expect(result.warnings).toEqual(expect.arrayContaining([
           expect.stringMatching(/idn|homograph|domain|confusable/i)
         ]));
-        
+
         if (result.warnings.some(w => w.includes('spoofing'))) {
           expect(result.warnings).toEqual(expect.arrayContaining([
             expect.stringMatching(new RegExp(target, 'i'))
@@ -187,7 +186,7 @@ describe('Comprehensive Unicode Security Protection', () => {
       it(`should sanitize URL with ${description}`, () => {
         const url = `https://${domain}/login`;
         const result = sanitizer.sanitize(url, { type: 'url' });
-        
+
         expect(result.blocked).toBe(true);
         expect(result.warnings.length).toBeGreaterThan(0);
       });
@@ -198,7 +197,7 @@ describe('Comprehensive Unicode Security Protection', () => {
     it('should handle nested homograph encodings', () => {
       const nested = 'а𝒅𝓶ｉn'; // Mixed Cyrillic, mathematical, and fullwidth
       const result = multiPassNormalization(nested);
-      
+
       expect(result.normalized).toBe('admin');
       expect(result.passes).toBeGreaterThan(1);
       expect(result.changes.length).toBeGreaterThan(0);
@@ -207,7 +206,7 @@ describe('Comprehensive Unicode Security Protection', () => {
     it('should detect suspicious multiple normalization passes', () => {
       const suspicious = '𝒂𝐝𝓶ｉ𝒏'; // Requires multiple passes
       const result = detectHomographs(suspicious, { multiPass: true });
-      
+
       expect(result.detected).toBe(true);
       expect(result.metadata.normalizationPasses).toBeGreaterThan(1);
     });
@@ -215,7 +214,7 @@ describe('Comprehensive Unicode Security Protection', () => {
     it('should handle convergence detection', () => {
       const convergent = 'normal text';
       const result = multiPassNormalization(convergent);
-      
+
       expect(result.converged).toBe(true);
       expect(result.suspicious).toBe(false);
     });
@@ -248,20 +247,20 @@ describe('Comprehensive Unicode Security Protection', () => {
     combinedAttacks.forEach(({ attack, types, description }) => {
       it(`should detect combined attack: ${description}`, () => {
         const result = sanitizer.sanitize(attack, { type: 'command' });
-        
+
         expect(result.blocked).toBe(true);
         expect(result.warnings.length).toBeGreaterThan(0);
-        
+
         // Should detect at least one of the attack types
-        const hasExpectedWarning = types.some(type => 
-          result.warnings.some(warning => 
+        const hasExpectedWarning = types.some(type =>
+          result.warnings.some(warning =>
             warning.toLowerCase().includes(type) ||
             warning.toLowerCase().includes('homograph') ||
             warning.toLowerCase().includes('confusable') ||
             warning.toLowerCase().includes('unicode')
           )
         );
-        
+
         expect(hasExpectedWarning).toBe(true);
       });
     });
@@ -271,7 +270,7 @@ describe('Comprehensive Unicode Security Protection', () => {
     it('should handle combining characters correctly', () => {
       const combining = 'e\u0301'; // é with combining acute accent
       const result = detectHomographs(combining, { multiPass: true });
-      
+
       // This should normalize to é but not trigger homograph detection
       expect(result.normalized).toBe('é');
     });
@@ -279,9 +278,9 @@ describe('Comprehensive Unicode Security Protection', () => {
     it('should handle emoji and special Unicode correctly', () => {
       const emoji = '👨‍💻 admin';
       const result = sanitizer.sanitize(emoji, { type: 'command' });
-      
+
       // Emoji should not trigger homograph warnings
-      const homographWarning = result.warnings.some(w => 
+      const homographWarning = result.warnings.some(w =>
         w.toLowerCase().includes('homograph') || w.toLowerCase().includes('confusable')
       );
       expect(homographWarning).toBe(false);
@@ -290,7 +289,7 @@ describe('Comprehensive Unicode Security Protection', () => {
     it('should preserve legitimate Unicode text', () => {
       const legitimate = 'Hello 世界'; // Mixed English and Chinese
       const result = sanitizer.sanitize(legitimate, { type: 'text' });
-      
+
       expect(result.blocked).toBe(false);
     });
   });
@@ -308,24 +307,24 @@ describe('Comprehensive Unicode Security Protection', () => {
     it('should achieve >95% protection rate against known attacks', () => {
       let blockedCount = 0;
       const totalAttacks = knownAttacks.length;
-      
+
       knownAttacks.forEach(attack => {
         const result = sanitizer.sanitize(attack, { type: 'command' });
         if (result.blocked) {
           blockedCount++;
         }
       });
-      
+
       const protectionRate = (blockedCount / totalAttacks) * 100;
       console.log(`Unicode Protection Rate: ${protectionRate.toFixed(1)}% (${blockedCount}/${totalAttacks})`);
-      
+
       expect(protectionRate).toBeGreaterThan(95);
     });
 
     it('should maintain performance for Unicode processing', () => {
       const testInput = 'аdm𝐢n＠ｅｘａｍｐｌｅ．ｃｏｍ';
       const iterations = 1000;
-      
+
       const start = Date.now();
       for (let i = 0; i < iterations; i++) {
         detectHomographs(testInput, {
@@ -336,18 +335,18 @@ describe('Comprehensive Unicode Security Protection', () => {
       }
       const duration = Date.now() - start;
       const avgTime = duration / iterations;
-      
+
       console.log(`Average Unicode detection time: ${avgTime.toFixed(3)}ms`);
       expect(avgTime).toBeLessThan(2); // Should be < 2ms per detection
     });
 
     it('should handle large Unicode strings efficiently', () => {
       const largeUnicodeString = 'а'.repeat(1000) + 'ｄｍｉｎ' + '𝐭𝐞𝐬𝐭'.repeat(100);
-      
+
       const start = Date.now();
       const result = detectHomographs(largeUnicodeString);
       const duration = Date.now() - start;
-      
+
       expect(result.detected).toBe(true);
       expect(duration).toBeLessThan(100); // Should complete in <100ms
     });
@@ -357,7 +356,7 @@ describe('Comprehensive Unicode Security Protection', () => {
     it('should integrate Unicode detection with command sanitization', () => {
       const unicodeCommand = 'ｃａｔ　／ｅｔｃ／ｐａｓｓｗｄ';
       const result = sanitizer.sanitize(unicodeCommand, { type: 'command' });
-      
+
       expect(result.blocked).toBe(true);
       expect(result.warnings.length).toBeGreaterThan(0);
     });
@@ -365,14 +364,14 @@ describe('Comprehensive Unicode Security Protection', () => {
     it('should integrate Unicode detection with URL sanitization', () => {
       const unicodeUrl = 'https://gооgle.com/malicious';
       const result = sanitizer.sanitize(unicodeUrl, { type: 'url' });
-      
+
       expect(result.blocked).toBe(true);
     });
 
     it('should integrate Unicode detection with SQL sanitization', () => {
       const unicodeSQL = "SЕLECT * FROM users WHERE name = 'аdmin'";
       const result = sanitizer.sanitize(unicodeSQL, { type: 'sql' });
-      
+
       expect(result.blocked).toBe(true);
     });
   });
@@ -380,7 +379,7 @@ describe('Comprehensive Unicode Security Protection', () => {
 
 module.exports = {
   // Export test utilities for other test files
-  getUnicodeTestVectors() {
+  getUnicodeTestVectors () {
     return {
       fullwidth: ['ａｄｍｉｎ', 'ｐａｓｓｗｏｒｄ', '１２３'],
       cyrillic: ['аdmin', 'сat', 'есho', 'Аdmin'],
@@ -390,8 +389,8 @@ module.exports = {
       domains: ['gооgle.com', 'аpple.com', 'microsоft.com']
     };
   },
-  
-  calculateProtectionRate(results) {
+
+  calculateProtectionRate (results) {
     const blocked = results.filter(r => r.blocked).length;
     return (blocked / results.length) * 100;
   }

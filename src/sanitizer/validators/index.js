@@ -33,38 +33,38 @@
  */
 
 // Import individual validator modules
-const filePathValidator = require('./file-path')
-const urlValidator = require('./url')
-const commandValidator = require('./command')
-const sqlValidator = require('./sql')
+const filePathValidator = require('./file-path');
+const urlValidator = require('./url');
+const commandValidator = require('./command');
+const sqlValidator = require('./sql');
 
 /**
  * Export all validator classes
  */
-const FilePathValidator = filePathValidator.FilePathValidator
-const URLValidator = urlValidator.URLValidator
-const CommandValidator = commandValidator.CommandValidator
-const SQLValidator = sqlValidator.SQLValidator
+const FilePathValidator = filePathValidator.FilePathValidator;
+const URLValidator = urlValidator.URLValidator;
+const CommandValidator = commandValidator.CommandValidator;
+const SQLValidator = sqlValidator.SQLValidator;
 
 /**
  * Export all factory functions
  */
-const createFilePathValidator = filePathValidator.createFilePathValidator
-const createURLValidator = urlValidator.createURLValidator
-const createCommandValidator = commandValidator.createCommandValidator
-const createSQLValidator = sqlValidator.createSQLValidator
+const createFilePathValidator = filePathValidator.createFilePathValidator;
+const createURLValidator = urlValidator.createURLValidator;
+const createCommandValidator = commandValidator.createCommandValidator;
+const createSQLValidator = sqlValidator.createSQLValidator;
 
 /**
  * Export all convenience functions
  */
-const validateFilePath = filePathValidator.validateFilePath
-const sanitizeFilePath = filePathValidator.sanitizeFilePath
-const validateURL = urlValidator.validateURL
-const sanitizeURL = urlValidator.sanitizeURL
-const validateCommand = commandValidator.validateCommand
-const sanitizeCommand = commandValidator.sanitizeCommand
-const validateSQL = sqlValidator.validateSQL
-const sanitizeSQL = sqlValidator.sanitizeSQL
+const validateFilePath = filePathValidator.validateFilePath;
+const sanitizeFilePath = filePathValidator.sanitizeFilePath;
+const validateURL = urlValidator.validateURL;
+const sanitizeURL = urlValidator.sanitizeURL;
+const validateCommand = commandValidator.validateCommand;
+const sanitizeCommand = commandValidator.sanitizeCommand;
+const validateSQL = sqlValidator.validateSQL;
+const sanitizeSQL = sqlValidator.sanitizeSQL;
 
 /**
  * Export all constants
@@ -74,7 +74,7 @@ const SEVERITY_LEVELS = {
   MEDIUM: 'medium',
   HIGH: 'high',
   CRITICAL: 'critical'
-}
+};
 
 /**
  * Validator type constants for easier identification
@@ -84,7 +84,7 @@ const VALIDATOR_TYPES = {
   URL: 'url',
   COMMAND: 'command',
   SQL: 'sql'
-}
+};
 
 /**
  * Default configurations for all validators
@@ -94,7 +94,7 @@ const DEFAULT_CONFIGS = {
   url: urlValidator.DEFAULT_CONFIG,
   command: commandValidator.DEFAULT_CONFIG,
   sql: sqlValidator.DEFAULT_CONFIG
-}
+};
 
 /**
  * Create a validator instance based on type
@@ -107,22 +107,22 @@ function createValidator (type, config = {}) {
     case VALIDATOR_TYPES.FILE_PATH:
     case 'filepath':
     case 'path':
-      return new FilePathValidator(config)
+      return new FilePathValidator(config);
 
     case VALIDATOR_TYPES.URL:
     case 'uri':
-      return new URLValidator(config)
+      return new URLValidator(config);
 
     case VALIDATOR_TYPES.COMMAND:
     case 'cmd':
-      return new CommandValidator(config)
+      return new CommandValidator(config);
 
     case VALIDATOR_TYPES.SQL:
     case 'query':
-      return new SQLValidator(config)
+      return new SQLValidator(config);
 
     default:
-      throw new Error(`Unknown validator type: ${type}. Supported types: ${Object.values(VALIDATOR_TYPES).join(', ')}`)
+      throw new Error(`Unknown validator type: ${type}. Supported types: ${Object.values(VALIDATOR_TYPES).join(', ')}`);
   }
 }
 
@@ -134,8 +134,8 @@ function createValidator (type, config = {}) {
  * @returns {Promise<Object>} Validation result
  */
 async function validate (input, type, config = {}) {
-  const validator = createValidator(type, config)
-  return await validator.validate(input)
+  const validator = createValidator(type, config);
+  return await validator.validate(input);
 }
 
 /**
@@ -146,8 +146,8 @@ async function validate (input, type, config = {}) {
  * @returns {Promise<Object>} Sanitization result
  */
 async function sanitize (input, type, config = {}) {
-  const validator = createValidator(type, config)
-  return await validator.sanitize(input)
+  const validator = createValidator(type, config);
+  return await validator.sanitize(input);
 }
 
 /**
@@ -156,16 +156,16 @@ async function sanitize (input, type, config = {}) {
  * @returns {Promise<Array>} Array of validation results
  */
 async function validateBatch (inputs) {
-  const results = []
+  const results = [];
 
   for (const { input, type, config = {} } of inputs) {
     try {
-      const result = await validate(input, type, config)
+      const result = await validate(input, type, config);
       results.push({
         input,
         type,
         ...result
-      })
+      });
     } catch (error) {
       results.push({
         input,
@@ -175,11 +175,11 @@ async function validateBatch (inputs) {
         warnings: [`Validation error: ${error.message}`],
         severity: SEVERITY_LEVELS.HIGH,
         metadata: { error: error.message }
-      })
+      });
     }
   }
 
-  return results
+  return results;
 }
 
 /**
@@ -188,16 +188,16 @@ async function validateBatch (inputs) {
  * @returns {Promise<Array>} Array of sanitization results
  */
 async function sanitizeBatch (inputs) {
-  const results = []
+  const results = [];
 
   for (const { input, type, config = {} } of inputs) {
     try {
-      const result = await sanitize(input, type, config)
+      const result = await sanitize(input, type, config);
       results.push({
         input,
         type,
         ...result
-      })
+      });
     } catch (error) {
       results.push({
         input,
@@ -207,11 +207,11 @@ async function sanitizeBatch (inputs) {
         warnings: [`Sanitization error: ${error.message}`],
         severity: SEVERITY_LEVELS.HIGH,
         metadata: { error: error.message }
-      })
+      });
     }
   }
 
-  return results
+  return results;
 }
 
 /**
@@ -224,22 +224,22 @@ function getValidatorConfig (type) {
     case VALIDATOR_TYPES.FILE_PATH:
     case 'filepath':
     case 'path':
-      return { ...DEFAULT_CONFIGS.filePath }
+      return { ...DEFAULT_CONFIGS.filePath };
 
     case VALIDATOR_TYPES.URL:
     case 'uri':
-      return { ...DEFAULT_CONFIGS.url }
+      return { ...DEFAULT_CONFIGS.url };
 
     case VALIDATOR_TYPES.COMMAND:
     case 'cmd':
-      return { ...DEFAULT_CONFIGS.command }
+      return { ...DEFAULT_CONFIGS.command };
 
     case VALIDATOR_TYPES.SQL:
     case 'query':
-      return { ...DEFAULT_CONFIGS.sql }
+      return { ...DEFAULT_CONFIGS.sql };
 
     default:
-      throw new Error(`Unknown validator type: ${type}`)
+      throw new Error(`Unknown validator type: ${type}`);
   }
 }
 
@@ -254,14 +254,14 @@ function createValidatorManager (globalConfig = {}) {
     url: { ...DEFAULT_CONFIGS.url, ...globalConfig.url },
     command: { ...DEFAULT_CONFIGS.command, ...globalConfig.command },
     sql: { ...DEFAULT_CONFIGS.sql, ...globalConfig.sql }
-  }
+  };
 
   const validators = {
     filePath: new FilePathValidator(configs.filePath),
     url: new URLValidator(configs.url),
     command: new CommandValidator(configs.command),
     sql: new SQLValidator(configs.sql)
-  }
+  };
 
   return {
     // Direct validator access
@@ -269,74 +269,74 @@ function createValidatorManager (globalConfig = {}) {
 
     // Convenience methods
     async validateFilePath (input, options = {}) {
-      return await validators.filePath.validate(input, options)
+      return await validators.filePath.validate(input, options);
     },
 
     async sanitizeFilePath (input, options = {}) {
-      return await validators.filePath.sanitize(input, options)
+      return await validators.filePath.sanitize(input, options);
     },
 
     async validateURL (input, options = {}) {
-      return await validators.url.validate(input, options)
+      return await validators.url.validate(input, options);
     },
 
     async sanitizeURL (input, options = {}) {
-      return await validators.url.sanitize(input, options)
+      return await validators.url.sanitize(input, options);
     },
 
     async validateCommand (input, options = {}) {
-      return await validators.command.validate(input, options)
+      return await validators.command.validate(input, options);
     },
 
     async sanitizeCommand (input, options = {}) {
-      return await validators.command.sanitize(input, options)
+      return await validators.command.sanitize(input, options);
     },
 
     async validateSQL (input, options = {}) {
-      return await validators.sql.validate(input, options)
+      return await validators.sql.validate(input, options);
     },
 
     async sanitizeSQL (input, options = {}) {
-      return await validators.sql.sanitize(input, options)
+      return await validators.sql.sanitize(input, options);
     },
 
     // Generic methods
     async validate (input, type, options = {}) {
-      const validator = validators[type] || this._getValidatorByType(type)
-      return await validator.validate(input, options)
+      const validator = validators[type] || this._getValidatorByType(type);
+      return await validator.validate(input, options);
     },
 
     async sanitize (input, type, options = {}) {
-      const validator = validators[type] || this._getValidatorByType(type)
-      return await validator.sanitize(input, options)
+      const validator = validators[type] || this._getValidatorByType(type);
+      return await validator.sanitize(input, options);
     },
 
     // Update configurations
     updateConfig (type, newConfig) {
       if (validators[type]) {
-        validators[type].updateConfig(newConfig)
+        validators[type].updateConfig(newConfig);
       }
     },
 
     updateAllConfigs (newGlobalConfig) {
       Object.keys(validators).forEach(type => {
         if (newGlobalConfig[type]) {
-          validators[type].updateConfig(newGlobalConfig[type])
+          validators[type].updateConfig(newGlobalConfig[type]);
         }
-      })
+      });
     },
 
     // Get configurations
     getConfig (type) {
-      return validators[type] ? validators[type].getConfig() : null
+      return validators[type] ? validators[type].getConfig() : null;
     },
 
     getAllConfigs () {
-      const configs = {}
+      const configs = {};
       Object.keys(validators).forEach(type => {
-        configs[type] = validators[type].getConfig()
-      })
-      return configs
+        configs[type] = validators[type].getConfig();
+      });
+      return configs;
     },
 
     // Helper method to get validator by type string
@@ -345,21 +345,21 @@ function createValidatorManager (globalConfig = {}) {
         case VALIDATOR_TYPES.FILE_PATH:
         case 'filepath':
         case 'path':
-          return validators.filePath
+          return validators.filePath;
         case VALIDATOR_TYPES.URL:
         case 'uri':
-          return validators.url
+          return validators.url;
         case VALIDATOR_TYPES.COMMAND:
         case 'cmd':
-          return validators.command
+          return validators.command;
         case VALIDATOR_TYPES.SQL:
         case 'query':
-          return validators.sql
+          return validators.sql;
         default:
-          throw new Error(`Unknown validator type: ${type}`)
+          throw new Error(`Unknown validator type: ${type}`);
       }
     }
-  }
+  };
 }
 
 // Export everything
@@ -407,4 +407,4 @@ module.exports = {
   urlValidator,
   commandValidator,
   sqlValidator
-}
+};

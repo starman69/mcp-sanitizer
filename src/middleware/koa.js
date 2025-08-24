@@ -45,8 +45,8 @@
  * }));
  */
 
-const MCPSanitizer = require('../index')
-const { createOptimizedMatcher } = require('./optimized-skip-matcher')
+const MCPSanitizer = require('../index');
+const { createOptimizedMatcher } = require('./optimized-skip-matcher');
 
 /**
  * Default configuration for Koa middleware
@@ -86,7 +86,7 @@ const DEFAULT_CONFIG = {
   addToState: true,
   contextKey: 'sanitization',
   loggerKey: 'logger' // Key for logger in context
-}
+};
 
 /**
  * Create Koa middleware for MCP sanitization
@@ -94,47 +94,47 @@ const DEFAULT_CONFIG = {
  * @returns {Function} Koa middleware function
  */
 function createKoaMiddleware (options = {}) {
-  const config = { ...DEFAULT_CONFIG, ...options }
+  const config = { ...DEFAULT_CONFIG, ...options };
 
   // Initialize sanitizer if not provided
   const sanitizer = config.sanitizer || new MCPSanitizer({
     policy: config.policy,
     ...config.sanitizerOptions
-  })
+  });
 
   // Pre-compile skip path matcher for optimal performance
-  const skipMatcher = createOptimizedMatcher(config.skipPaths)
+  const skipMatcher = createOptimizedMatcher(config.skipPaths);
 
   // Pre-compile static checks for better performance
-  const healthPaths = config.skipHealthChecks ? new Set(['/health', '/healthcheck', '/ping', '/status']) : null
-  const staticExtensions = config.skipStaticFiles ? new Set(['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2']) : null
+  const healthPaths = config.skipHealthChecks ? new Set(['/health', '/healthcheck', '/ping', '/status']) : null;
+  const staticExtensions = config.skipStaticFiles ? new Set(['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2']) : null;
 
   // Create backward-compatible shouldSkipRequest function
   function shouldSkipRequest (ctx, config) {
-    return shouldSkipRequestOptimized(ctx, skipMatcher, healthPaths, staticExtensions)
+    return shouldSkipRequestOptimized(ctx, skipMatcher, healthPaths, staticExtensions);
   }
 
   // Return the middleware function
   return async function mcpSanitizationMiddleware (ctx, next) {
     // Skip certain requests if configured - OPTIMIZED (backward compatible)
     if (shouldSkipRequest(ctx, config)) {
-      return next()
+      return next();
     }
 
     try {
-      await processKoaRequest(ctx, sanitizer, config)
+      await processKoaRequest(ctx, sanitizer, config);
 
       // Continue to next middleware
-      await next()
+      await next();
 
       // Process response if configured
       if (config.sanitizeResponse && ctx.body) {
-        await processKoaResponse(ctx, sanitizer, config)
+        await processKoaResponse(ctx, sanitizer, config);
       }
     } catch (error) {
-      await handleMiddlewareError(error, ctx, config)
+      await handleMiddlewareError(error, ctx, config);
     }
-  }
+  };
 }
 
 /**
@@ -149,34 +149,34 @@ function createKoaMiddleware (options = {}) {
 function shouldSkipRequestOptimized (ctx, skipMatcher, healthPaths, staticExtensions) {
   // Priority 1: Check skipPaths using optimized matcher - O(1) to O(log n)
   if (skipMatcher && skipMatcher.shouldSkip(ctx.path)) {
-    return true
+    return true;
   }
 
   // Priority 2: Skip health check endpoints - O(1) Set lookup
   if (healthPaths) {
     if (healthPaths.has(ctx.path)) {
-      return true
+      return true;
     }
     // Check for path prefixes (e.g., /health/detailed)
     for (const healthPath of healthPaths) {
       if (ctx.path.startsWith(healthPath + '/')) {
-        return true
+        return true;
       }
     }
   }
 
   // Priority 3: Skip static file requests - O(1) extension lookup
   if (staticExtensions) {
-    const lastDotIndex = ctx.path.lastIndexOf('.')
+    const lastDotIndex = ctx.path.lastIndexOf('.');
     if (lastDotIndex !== -1) {
-      const extension = ctx.path.substring(lastDotIndex)
+      const extension = ctx.path.substring(lastDotIndex);
       if (staticExtensions.has(extension)) {
-        return true
+        return true;
       }
     }
   }
 
-  return false
+  return false;
 }
 
 // Helper functions removed - functionality moved to optimized shouldSkipRequestOptimized function
@@ -188,19 +188,19 @@ function shouldSkipRequestOptimized (ctx, skipMatcher, healthPaths, staticExtens
  * @param {Object} config - Middleware configuration
  */
 async function processKoaRequest (ctx, sanitizer, config) {
-  const sanitizationResults = {}
-  let hasBlocked = false
-  const allWarnings = []
+  const sanitizationResults = {};
+  let hasBlocked = false;
+  const allWarnings = [];
 
   // Create sanitization tasks
-  const tasks = []
+  const tasks = [];
 
   if (config.sanitizeBody && ctx.request.body) {
     tasks.push({
       type: 'body',
       data: ctx.request.body,
       context: { type: 'request_body', path: ctx.path, method: ctx.method }
-    })
+    });
   }
 
   if (config.sanitizeParams && ctx.params) {
@@ -208,7 +208,7 @@ async function processKoaRequest (ctx, sanitizer, config) {
       type: 'params',
       data: ctx.params,
       context: { type: 'request_params', path: ctx.path, method: ctx.method }
-    })
+    });
   }
 
   if (config.sanitizeQuery && ctx.query) {
@@ -216,7 +216,7 @@ async function processKoaRequest (ctx, sanitizer, config) {
       type: 'query',
       data: ctx.query,
       context: { type: 'request_query', path: ctx.path, method: ctx.method }
-    })
+    });
   }
 
   if (config.sanitizeHeaders && ctx.headers) {
@@ -224,52 +224,52 @@ async function processKoaRequest (ctx, sanitizer, config) {
       type: 'headers',
       data: ctx.headers,
       context: { type: 'request_headers', path: ctx.path, method: ctx.method }
-    })
+    });
   }
 
   // Process all sanitization tasks in parallel
   const results = await Promise.all(
     tasks.map(async (task) => {
-      const result = await Promise.resolve(sanitizer.sanitize(task.data, task.context))
-      return { type: task.type, result }
+      const result = await Promise.resolve(sanitizer.sanitize(task.data, task.context));
+      return { type: task.type, result };
     })
-  )
+  );
 
   // Process results
   for (const { type, result } of results) {
-    sanitizationResults[type] = result
-    if (result.blocked) hasBlocked = true
-    allWarnings.push(...result.warnings)
+    sanitizationResults[type] = result;
+    if (result.blocked) hasBlocked = true;
+    allWarnings.push(...result.warnings);
 
     if (!result.blocked) {
       // Update context with sanitized data
       if (type === 'body') {
-        ctx.request.body = result.sanitized
+        ctx.request.body = result.sanitized;
       } else if (type === 'params') {
-        ctx.params = result.sanitized
+        ctx.params = result.sanitized;
       } else if (type === 'query') {
-        ctx.query = result.sanitized
+        ctx.query = result.sanitized;
       } else if (type === 'headers') {
-        ctx.headers = result.sanitized
+        ctx.headers = result.sanitized;
       }
     }
   }
 
   // Handle blocking mode
   if (config.mode === 'block' && hasBlocked) {
-    await handleBlockedRequest(ctx, allWarnings, sanitizationResults, config)
-    return
+    await handleBlockedRequest(ctx, allWarnings, sanitizationResults, config);
+    return;
   }
 
   // Handle warnings
   if (allWarnings.length > 0) {
-    await handleWarnings(ctx, allWarnings, sanitizationResults, config)
+    await handleWarnings(ctx, allWarnings, sanitizationResults, config);
   }
 
   // Add sanitization data to context
   if (config.addWarningsToContext) {
-    ctx.sanitizationWarnings = allWarnings
-    ctx.sanitizationResults = sanitizationResults
+    ctx.sanitizationWarnings = allWarnings;
+    ctx.sanitizationResults = sanitizationResults;
   }
 
   // Add to state if configured
@@ -279,7 +279,7 @@ async function processKoaRequest (ctx, sanitizer, config) {
       results: sanitizationResults,
       blocked: hasBlocked,
       processed: true
-    }
+    };
   }
 }
 
@@ -295,37 +295,37 @@ async function processKoaResponse (ctx, sanitizer, config) {
       type: 'response_body',
       path: ctx.path,
       method: ctx.method
-    }))
+    }));
 
     if (result.blocked) {
-      const logger = ctx[config.loggerKey] || console
-      logger.error('Response blocked by sanitizer:', result.warnings)
+      const logger = ctx[config.loggerKey] || console;
+      logger.error('Response blocked by sanitizer:', result.warnings);
 
-      ctx.status = 500
+      ctx.status = 500;
       ctx.body = {
         error: 'Response blocked due to security concerns',
         timestamp: new Date().toISOString()
-      }
-      return
+      };
+      return;
     }
 
     if (result.warnings.length > 0) {
-      const logger = ctx[config.loggerKey] || console
-      logger.warn('Response sanitization warnings:', result.warnings)
+      const logger = ctx[config.loggerKey] || console;
+      logger.warn('Response sanitization warnings:', result.warnings);
 
       // Add response warnings to context
-      ctx.responseWarnings = result.warnings
+      ctx.responseWarnings = result.warnings;
       if (config.addToState) {
-        ctx.state[config.contextKey] = ctx.state[config.contextKey] || {}
-        ctx.state[config.contextKey].responseWarnings = result.warnings
+        ctx.state[config.contextKey] = ctx.state[config.contextKey] || {};
+        ctx.state[config.contextKey].responseWarnings = result.warnings;
       }
     }
 
-    ctx.body = result.sanitized
+    ctx.body = result.sanitized;
   } catch (error) {
-    const logger = ctx[config.loggerKey] || console
-    logger.error('Response sanitization error:', error)
-    throw error
+    const logger = ctx[config.loggerKey] || console;
+    logger.error('Response sanitization error:', error);
+    throw error;
   }
 }
 
@@ -339,20 +339,20 @@ async function processKoaResponse (ctx, sanitizer, config) {
 async function handleBlockedRequest (ctx, warnings, results, config) {
   // Log blocked request
   if (config.logWarnings) {
-    const logger = ctx[config.loggerKey] || console
+    const logger = ctx[config.loggerKey] || console;
     logger.warn('Blocked malicious request:', {
       ip: ctx.ip,
       userAgent: ctx.get('User-Agent'),
       path: ctx.path,
       method: ctx.method,
       warnings: warnings.map(w => ({ type: w.type, message: w.message, severity: w.severity }))
-    })
+    });
   }
 
   // Call custom blocked handler if provided
   if (config.onBlocked) {
-    const result = await config.onBlocked(warnings, ctx, results)
-    if (result === false) return // Handler took care of response
+    const result = await config.onBlocked(warnings, ctx, results);
+    if (result === false) return; // Handler took care of response
   }
 
   // Send default blocked response
@@ -360,7 +360,7 @@ async function handleBlockedRequest (ctx, warnings, results, config) {
     error: config.errorMessage,
     blocked: true,
     timestamp: new Date().toISOString()
-  }
+  };
 
   if (config.includeDetails) {
     response.details = warnings.map(w => ({
@@ -368,11 +368,11 @@ async function handleBlockedRequest (ctx, warnings, results, config) {
       message: w.message,
       severity: w.severity,
       field: w.field
-    }))
+    }));
   }
 
-  ctx.status = config.blockStatusCode
-  ctx.body = response
+  ctx.status = config.blockStatusCode;
+  ctx.body = response;
 }
 
 /**
@@ -384,19 +384,19 @@ async function handleBlockedRequest (ctx, warnings, results, config) {
  */
 async function handleWarnings (ctx, warnings, results, config) {
   if (config.logWarnings) {
-    const logger = ctx[config.loggerKey] || console
+    const logger = ctx[config.loggerKey] || console;
     logger.warn('Request sanitization warnings:', {
       ip: ctx.ip,
       userAgent: ctx.get('User-Agent'),
       path: ctx.path,
       method: ctx.method,
       warnings: warnings.map(w => ({ type: w.type, message: w.message, severity: w.severity }))
-    })
+    });
   }
 
   // Call custom warning handler if provided
   if (config.onWarning) {
-    await config.onWarning(warnings, ctx, results)
+    await config.onWarning(warnings, ctx, results);
   }
 }
 
@@ -407,27 +407,27 @@ async function handleWarnings (ctx, warnings, results, config) {
  * @param {Object} config - Middleware configuration
  */
 async function handleMiddlewareError (error, ctx, config) {
-  const logger = ctx[config.loggerKey] || console
+  const logger = ctx[config.loggerKey] || console;
   logger.error('MCP Sanitization middleware error:', {
     error: error.message,
     stack: error.stack,
     path: ctx.path,
     method: ctx.method,
     ip: ctx.ip
-  })
+  });
 
   // Call custom error handler if provided
   if (config.onError) {
-    const result = await config.onError(error, ctx)
-    if (result === false) return // Handler took care of response
+    const result = await config.onError(error, ctx);
+    if (result === false) return; // Handler took care of response
   }
 
   // Send error response
-  ctx.status = 500
+  ctx.status = 500;
   ctx.body = {
     error: 'Internal sanitization error',
     timestamp: new Date().toISOString()
-  }
+  };
 }
 
 /**
@@ -445,9 +445,9 @@ function createMCPToolMiddleware (options = {}) {
     sanitizeQuery: false,
     mode: 'block', // More strict for tool execution
     toolSpecificSanitization: true
-  }
+  };
 
-  const baseMiddleware = createKoaMiddleware(config)
+  const baseMiddleware = createKoaMiddleware(config);
 
   return async function mcpToolMiddleware (ctx, next) {
     // Add MCP-specific context
@@ -455,31 +455,31 @@ function createMCPToolMiddleware (options = {}) {
       toolName: ctx.params.toolName || ctx.request.body?.tool_name,
       isToolExecution: true,
       timestamp: Date.now()
-    }
+    };
 
     // Apply base middleware
     await baseMiddleware(ctx, async () => {
       // Additional MCP-specific processing
       if (config.toolSpecificSanitization && ctx.mcpContext.toolName) {
         try {
-          await applyToolSpecificSanitization(ctx, ctx.mcpContext.toolName, config)
+          await applyToolSpecificSanitization(ctx, ctx.mcpContext.toolName, config);
         } catch (error) {
           if (error.code === 'MCP_TOOL_BLOCKED') {
-            ctx.status = 400
+            ctx.status = 400;
             ctx.body = {
               error: 'Tool parameters blocked due to security concerns',
               details: error.warnings,
               toolName: ctx.mcpContext.toolName
-            }
-            return
+            };
+            return;
           }
-          throw error
+          throw error;
         }
       }
 
-      await next()
-    })
-  }
+      await next();
+    });
+  };
 }
 
 /**
@@ -489,13 +489,13 @@ function createMCPToolMiddleware (options = {}) {
  * @param {Object} config - Middleware configuration
  */
 async function applyToolSpecificSanitization (ctx, toolName, config) {
-  const sanitizer = config.sanitizer || new MCPSanitizer({ policy: config.policy })
+  const sanitizer = config.sanitizer || new MCPSanitizer({ policy: config.policy });
 
-  if (!ctx.request.body || !ctx.request.body.parameters) return
+  if (!ctx.request.body || !ctx.request.body.parameters) return;
 
-  const params = ctx.request.body.parameters
-  let hasBlocked = false
-  const toolWarnings = []
+  const params = ctx.request.body.parameters;
+  let hasBlocked = false;
+  const toolWarnings = [];
 
   const sanitizationMap = {
     file_reader: { field: 'file_path', type: 'file_path' },
@@ -506,33 +506,33 @@ async function applyToolSpecificSanitization (ctx, toolName, config) {
     command_runner: { field: 'command', type: 'command' },
     database_query: { field: 'query', type: 'sql' },
     sql_executor: { field: 'query', type: 'sql' }
-  }
+  };
 
-  const sanitizationConfig = sanitizationMap[toolName]
+  const sanitizationConfig = sanitizationMap[toolName];
   if (sanitizationConfig && params[sanitizationConfig.field]) {
     const result = await Promise.resolve(
       sanitizer.sanitize(params[sanitizationConfig.field], { type: sanitizationConfig.type })
-    )
+    );
 
-    if (result.blocked) hasBlocked = true
-    toolWarnings.push(...result.warnings)
+    if (result.blocked) hasBlocked = true;
+    toolWarnings.push(...result.warnings);
     if (!result.blocked) {
-      params[sanitizationConfig.field] = result.sanitized
+      params[sanitizationConfig.field] = result.sanitized;
     }
   }
 
   // Handle tool-specific blocking
   if (config.mode === 'block' && hasBlocked) {
-    const error = new Error('Tool parameters blocked due to security concerns')
-    error.code = 'MCP_TOOL_BLOCKED'
-    error.warnings = toolWarnings
-    throw error
+    const error = new Error('Tool parameters blocked due to security concerns');
+    error.code = 'MCP_TOOL_BLOCKED';
+    error.warnings = toolWarnings;
+    throw error;
   }
 
   // Add tool warnings to context
   if (toolWarnings.length > 0) {
-    ctx.sanitizationWarnings = ctx.sanitizationWarnings || []
-    ctx.sanitizationWarnings.push(...toolWarnings)
+    ctx.sanitizationWarnings = ctx.sanitizationWarnings || [];
+    ctx.sanitizationWarnings.push(...toolWarnings);
   }
 }
 
@@ -542,20 +542,20 @@ async function applyToolSpecificSanitization (ctx, toolName, config) {
  * @returns {Function} Composed Koa middleware function
  */
 function createMCPServerMiddleware (options = {}) {
-  const config = { ...DEFAULT_CONFIG, ...options }
-  const baseMiddleware = createKoaMiddleware(config)
-  const toolMiddleware = createMCPToolMiddleware(config)
+  const config = { ...DEFAULT_CONFIG, ...options };
+  const baseMiddleware = createKoaMiddleware(config);
+  const toolMiddleware = createMCPToolMiddleware(config);
 
   return async function mcpServerMiddleware (ctx, next) {
     // Check if this is a tool execution request
-    const isToolRequest = ctx.path.includes('/tools/') && ctx.path.includes('/execute')
+    const isToolRequest = ctx.path.includes('/tools/') && ctx.path.includes('/execute');
 
     if (isToolRequest) {
-      await toolMiddleware(ctx, next)
+      await toolMiddleware(ctx, next);
     } else {
-      await baseMiddleware(ctx, next)
+      await baseMiddleware(ctx, next);
     }
-  }
+  };
 }
 
 module.exports = {
@@ -563,7 +563,7 @@ module.exports = {
   createMCPToolMiddleware,
   createMCPServerMiddleware,
   DEFAULT_CONFIG
-}
+};
 
 /**
  * Usage Examples:

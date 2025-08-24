@@ -27,13 +27,13 @@
  */
 
 // const { validationUtils, stringUtils } = require('../../utils') // Unused - commented to fix ESLint
-const { sqlInjection, detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns')
-const sqlstring = require('sqlstring')
+const { sqlInjection, detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
+const sqlstring = require('sqlstring');
 const {
   detectPostgresDollarQuotes,
-  detectNullBytes,
+  detectNullBytes
   // Timing functions removed
-} = require('../../utils/security-enhancements')
+} = require('../../utils/security-enhancements');
 
 /**
  * SQL validation severity levels
@@ -43,7 +43,7 @@ const SEVERITY = {
   MEDIUM: 'medium',
   HIGH: 'high',
   CRITICAL: 'critical'
-}
+};
 
 /**
  * Default configuration for SQL validation
@@ -81,7 +81,7 @@ const DEFAULT_CONFIG = {
   strictMode: false,
   databaseType: 'generic', // mysql, postgresql, sqlite, mssql, oracle
   customPatterns: []
-}
+};
 
 /**
  * SQL injection patterns specific to this validator
@@ -103,7 +103,7 @@ const SQL_INJECTION_PATTERNS = [
   /into\s+(outfile|dumpfile)/i, // File operations
   /\bsp_\w+/i, // Stored procedures
   /\bxp_\w+/i // Extended procedures
-]
+];
 
 /**
  * Database-specific dangerous patterns
@@ -140,7 +140,7 @@ const DATABASE_SPECIFIC_PATTERNS = {
     /pragma/i,
     /attach\s+database/i
   ]
-}
+};
 
 /**
  * SQL Validator Class
@@ -151,7 +151,7 @@ class SQLValidator {
    * @param {Object} config - Validation configuration
    */
   constructor (config = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config }
+    this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
   /**
@@ -162,7 +162,7 @@ class SQLValidator {
    */
   async validate (query, options = {}) {
     // Timing consistency removed - not applicable for middleware sanitization
-    return this._performValidation(query, options)
+    return this._performValidation(query, options);
   }
 
   /**
@@ -185,186 +185,186 @@ class SQLValidator {
         commentCount: 0,
         detectedPatterns: []
       }
-    }
+    };
 
     try {
       // Basic input validation
       if (typeof query !== 'string') {
-        result.warnings.push('SQL query must be a string')
-        result.severity = SEVERITY.HIGH
-        return result
+        result.warnings.push('SQL query must be a string');
+        result.severity = SEVERITY.HIGH;
+        return result;
       }
 
       if (!query || query.trim().length === 0) {
-        result.warnings.push('SQL query cannot be empty')
-        result.severity = SEVERITY.HIGH
-        return result
+        result.warnings.push('SQL query cannot be empty');
+        result.severity = SEVERITY.HIGH;
+        return result;
       }
 
       // Check query length
       if (query.length > this.config.maxQueryLength) {
-        result.warnings.push(`SQL query exceeds maximum length of ${this.config.maxQueryLength} characters`)
-        result.severity = SEVERITY.MEDIUM
-        return result
+        result.warnings.push(`SQL query exceeds maximum length of ${this.config.maxQueryLength} characters`);
+        result.severity = SEVERITY.MEDIUM;
+        return result;
       }
 
-      const trimmedQuery = query.trim()
-      const normalizedQuery = this._normalizeQuery(trimmedQuery)
-      result.metadata.normalizedQuery = normalizedQuery
+      let trimmedQuery = query.trim();
+      const normalizedQuery = this._normalizeQuery(trimmedQuery);
+      result.metadata.normalizedQuery = normalizedQuery;
 
       // Enhanced SQL security checks
-      
+
       // Check for null bytes
-      const nullByteResult = detectNullBytes(trimmedQuery)
+      const nullByteResult = detectNullBytes(trimmedQuery);
       if (nullByteResult.detected) {
-        result.warnings.push(...nullByteResult.warnings.map(w => w.message || w))
-        result.metadata.nullBytes = nullByteResult.metadata
-        result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH)
-        
+        result.warnings.push(...nullByteResult.warnings.map(w => w.message || w));
+        result.metadata.nullBytes = nullByteResult.metadata;
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH);
+
         // Use sanitized version without null bytes
-        trimmedQuery = nullByteResult.sanitized
+        trimmedQuery = nullByteResult.sanitized;
       }
 
       // Check for PostgreSQL dollar quotes
-      const dollarQuoteResult = detectPostgresDollarQuotes(trimmedQuery)
+      const dollarQuoteResult = detectPostgresDollarQuotes(trimmedQuery);
       if (dollarQuoteResult.detected) {
-        result.warnings.push(...dollarQuoteResult.warnings.map(w => w.message || w))
-        result.metadata.postgresDollarQuotes = dollarQuoteResult.metadata
-        
+        result.warnings.push(...dollarQuoteResult.warnings.map(w => w.message || w));
+        result.metadata.postgresDollarQuotes = dollarQuoteResult.metadata;
+
         // Check for critical severity (unpaired quotes or SQL in quotes)
-        const hasCriticalWarnings = dollarQuoteResult.warnings.some(w => w.severity === 'HIGH')
+        const hasCriticalWarnings = dollarQuoteResult.warnings.some(w => w.severity === 'HIGH');
         if (hasCriticalWarnings) {
-          result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH)
+          result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH);
         } else {
-          result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM)
+          result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM);
         }
       }
 
       // Check for SQL injection patterns using the pattern detector
-      const injectionResult = sqlInjection.detectSQLInjection(trimmedQuery)
+      const injectionResult = sqlInjection.detectSQLInjection(trimmedQuery);
       if (injectionResult.detected) {
-        result.metadata.detectedPatterns = injectionResult.patterns
-        result.warnings.push(`SQL injection patterns detected: ${injectionResult.patterns.join(', ')}`)
-        result.severity = this._mapSeverity(injectionResult.severity)
+        result.metadata.detectedPatterns = injectionResult.patterns;
+        result.warnings.push(`SQL injection patterns detected: ${injectionResult.patterns.join(', ')}`);
+        result.severity = this._mapSeverity(injectionResult.severity);
 
         if (injectionResult.severity === SEVERITY_LEVELS.CRITICAL) {
-          return result
+          return result;
         }
       }
 
       // Run general pattern detection
-      const patternResult = detectAllPatterns(trimmedQuery)
+      const patternResult = detectAllPatterns(trimmedQuery);
       if (patternResult.detected) {
-        result.metadata.detectedPatterns.push(...patternResult.patterns)
-        result.warnings.push(`Additional security patterns detected: ${patternResult.patterns.join(', ')}`)
-        result.severity = this._getHigherSeverity(result.severity, this._mapSeverity(patternResult.severity))
+        result.metadata.detectedPatterns.push(...patternResult.patterns);
+        result.warnings.push(`Additional security patterns detected: ${patternResult.patterns.join(', ')}`);
+        result.severity = this._getHigherSeverity(result.severity, this._mapSeverity(patternResult.severity));
       }
 
       // Check for additional SQL-specific injection patterns
-      const customPatternResult = this._checkCustomPatterns(normalizedQuery)
+      const customPatternResult = this._checkCustomPatterns(normalizedQuery);
       if (!customPatternResult.isValid) {
-        result.warnings.push(...customPatternResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, customPatternResult.severity)
+        result.warnings.push(...customPatternResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, customPatternResult.severity);
 
         if (customPatternResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
 
       // Validate SQL keywords
-      const keywordResult = this._validateKeywords(normalizedQuery)
+      const keywordResult = this._validateKeywords(normalizedQuery);
       if (!keywordResult.isValid) {
-        result.warnings.push(...keywordResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, keywordResult.severity)
+        result.warnings.push(...keywordResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, keywordResult.severity);
 
         if (keywordResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
-      result.metadata.detectedKeywords = keywordResult.detectedKeywords
+      result.metadata.detectedKeywords = keywordResult.detectedKeywords;
 
       // Validate SQL functions
-      const functionResult = this._validateFunctions(normalizedQuery)
+      const functionResult = this._validateFunctions(normalizedQuery);
       if (!functionResult.isValid) {
-        result.warnings.push(...functionResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, functionResult.severity)
+        result.warnings.push(...functionResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, functionResult.severity);
 
         if (functionResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
-      result.metadata.detectedFunctions = functionResult.detectedFunctions
+      result.metadata.detectedFunctions = functionResult.detectedFunctions;
 
       // Validate comments
-      const commentResult = this._validateComments(trimmedQuery)
+      const commentResult = this._validateComments(trimmedQuery);
       if (!commentResult.isValid) {
-        result.warnings.push(...commentResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, commentResult.severity)
+        result.warnings.push(...commentResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, commentResult.severity);
 
         if (commentResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
-      result.metadata.commentCount = commentResult.commentCount
+      result.metadata.commentCount = commentResult.commentCount;
 
       // Validate UNION operations
-      const unionResult = this._validateUnions(normalizedQuery)
+      const unionResult = this._validateUnions(normalizedQuery);
       if (!unionResult.isValid) {
-        result.warnings.push(...unionResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, unionResult.severity)
+        result.warnings.push(...unionResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, unionResult.severity);
 
         if (unionResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
-      result.metadata.unionCount = unionResult.unionCount
+      result.metadata.unionCount = unionResult.unionCount;
 
       // Validate subqueries
-      const subqueryResult = this._validateSubqueries(normalizedQuery)
+      const subqueryResult = this._validateSubqueries(normalizedQuery);
       if (!subqueryResult.isValid) {
-        result.warnings.push(...subqueryResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, subqueryResult.severity)
+        result.warnings.push(...subqueryResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, subqueryResult.severity);
 
         if (subqueryResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
-      result.metadata.subqueryCount = subqueryResult.subqueryCount
+      result.metadata.subqueryCount = subqueryResult.subqueryCount;
 
       // Database-specific validation
-      const dbResult = this._validateDatabaseSpecific(normalizedQuery)
+      const dbResult = this._validateDatabaseSpecific(normalizedQuery);
       if (!dbResult.isValid) {
-        result.warnings.push(...dbResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, dbResult.severity)
+        result.warnings.push(...dbResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, dbResult.severity);
 
         if (dbResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
 
       // Validate string and numeric literals
-      const literalResult = this._validateLiterals(trimmedQuery)
+      const literalResult = this._validateLiterals(trimmedQuery);
       if (!literalResult.isValid) {
-        result.warnings.push(...literalResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, literalResult.severity)
+        result.warnings.push(...literalResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, literalResult.severity);
       }
 
       // If we get here, the query is valid
-      result.isValid = true
-      result.sanitized = trimmedQuery
+      result.isValid = true;
+      result.sanitized = trimmedQuery;
 
       // Set severity to lowest if there were warnings but query is still valid
       if (result.warnings.length === 0) {
-        result.severity = null
+        result.severity = null;
       } else if (!result.severity) {
-        result.severity = SEVERITY.LOW
+        result.severity = SEVERITY.LOW;
       }
     } catch (error) {
-      result.warnings.push(`Validation error: ${error.message}`)
-      result.severity = SEVERITY.HIGH
+      result.warnings.push(`Validation error: ${error.message}`);
+      result.severity = SEVERITY.HIGH;
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -374,45 +374,45 @@ class SQLValidator {
    * @returns {Promise<Object>} Sanitization result
    */
   async sanitize (query, options = {}) {
-    const validationResult = await this.validate(query, options)
+    const validationResult = await this.validate(query, options);
 
     if (validationResult.isValid) {
-      return validationResult
+      return validationResult;
     }
 
     // Attempt to sanitize the query
-    let sanitized = query
-    const warnings = [...validationResult.warnings]
+    let sanitized = query;
+    const warnings = [...validationResult.warnings];
 
     try {
       // Basic sanitization
-      sanitized = sanitized.trim()
+      sanitized = sanitized.trim();
 
       // Remove comments if not allowed
       if (!this.config.allowComments) {
-        sanitized = this._removeComments(sanitized)
-        warnings.push('Removed SQL comments')
+        sanitized = this._removeComments(sanitized);
+        warnings.push('Removed SQL comments');
       }
 
       // Remove dangerous keywords by replacing with safe alternatives or comments
-      sanitized = this._sanitizeKeywords(sanitized)
+      sanitized = this._sanitizeKeywords(sanitized);
       if (sanitized !== query.trim()) {
-        warnings.push('Sanitized dangerous SQL keywords')
+        warnings.push('Sanitized dangerous SQL keywords');
       }
 
       // Remove or replace dangerous functions
-      sanitized = this._sanitizeFunctions(sanitized)
+      sanitized = this._sanitizeFunctions(sanitized);
       if (sanitized !== query.trim()) {
-        warnings.push('Sanitized dangerous SQL functions')
+        warnings.push('Sanitized dangerous SQL functions');
       }
 
       // Limit string literal length
-      sanitized = this._sanitizeStringLiterals(sanitized)
+      sanitized = this._sanitizeStringLiterals(sanitized);
 
       // Remove excess UNION operations
-      sanitized = this._limitUnions(sanitized)
+      sanitized = this._limitUnions(sanitized);
       if (sanitized !== query.trim()) {
-        warnings.push(`Limited UNION operations to ${this.config.maxUnions}`)
+        warnings.push(`Limited UNION operations to ${this.config.maxUnions}`);
       }
 
       // If query becomes too short or empty after sanitization, reject it
@@ -427,11 +427,11 @@ class SQLValidator {
             wasSanitized: false,
             sanitizationFailed: true
           }
-        }
+        };
       }
 
       // Re-validate the sanitized query
-      const revalidationResult = await this.validate(sanitized, options)
+      const revalidationResult = await this.validate(sanitized, options);
 
       return {
         isValid: revalidationResult.isValid,
@@ -444,7 +444,7 @@ class SQLValidator {
           wasSanitized: true,
           sanitizationApplied: true
         }
-      }
+      };
     } catch (error) {
       return {
         isValid: false,
@@ -456,7 +456,7 @@ class SQLValidator {
           wasSanitized: false,
           sanitizationError: error.message
         }
-      }
+      };
     }
   }
 
@@ -472,7 +472,7 @@ class SQLValidator {
       .replace(/\n/g, ' ') // Remove newlines
       .replace(/\t/g, ' ') // Remove tabs
       .toUpperCase() // Convert to uppercase for keyword matching
-      .trim()
+      .trim();
   }
 
   /**
@@ -486,26 +486,26 @@ class SQLValidator {
       isValid: true,
       warnings: [],
       severity: null
-    }
+    };
 
     // Check built-in SQL injection patterns
     for (const pattern of SQL_INJECTION_PATTERNS) {
       if (pattern.test(query)) {
-        result.isValid = false
-        result.warnings.push(`SQL injection pattern detected: ${pattern.source}`)
-        result.severity = SEVERITY.CRITICAL
+        result.isValid = false;
+        result.warnings.push(`SQL injection pattern detected: ${pattern.source}`);
+        result.severity = SEVERITY.CRITICAL;
       }
     }
 
     // Check custom patterns from configuration
     for (const pattern of this.config.customPatterns) {
       if (pattern.test && pattern.test(query)) {
-        result.warnings.push(`Custom SQL pattern detected: ${pattern.source || pattern}`)
-        result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM)
+        result.warnings.push(`Custom SQL pattern detected: ${pattern.source || pattern}`);
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM);
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -520,43 +520,43 @@ class SQLValidator {
       warnings: [],
       severity: null,
       detectedKeywords: []
-    }
+    };
 
     // Check for blocked keywords
     for (const keyword of this.config.blockedKeywords) {
-      const pattern = new RegExp(`\\b${keyword}\\b`, 'i')
+      const pattern = new RegExp(`\\b${keyword}\\b`, 'i');
       if (pattern.test(query)) {
-        result.isValid = false
-        result.warnings.push(`Blocked SQL keyword detected: ${keyword}`)
-        result.severity = SEVERITY.CRITICAL
-        result.detectedKeywords.push(keyword)
+        result.isValid = false;
+        result.warnings.push(`Blocked SQL keyword detected: ${keyword}`);
+        result.severity = SEVERITY.CRITICAL;
+        result.detectedKeywords.push(keyword);
       }
     }
 
     // If allowedKeywords is specified, check against it
     if (this.config.allowedKeywords.length > 0) {
-      const words = query.split(/\s+/)
+      const words = query.split(/\s+/);
       for (const word of words) {
-        const cleanWord = word.replace(/[^\w]/g, '')
+        const cleanWord = word.replace(/[^\w]/g, '');
         if (cleanWord.length > 2) { // Only check substantial words
-          let isAllowed = false
+          let isAllowed = false;
 
           for (const allowedKeyword of this.config.allowedKeywords) {
             if (cleanWord.toUpperCase().includes(allowedKeyword.toUpperCase())) {
-              isAllowed = true
-              break
+              isAllowed = true;
+              break;
             }
           }
 
           if (!isAllowed && this._isSQLKeyword(cleanWord)) {
-            result.warnings.push(`SQL keyword '${cleanWord}' is not in allowed list`)
-            result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM)
+            result.warnings.push(`SQL keyword '${cleanWord}' is not in allowed list`);
+            result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM);
           }
         }
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -571,9 +571,9 @@ class SQLValidator {
       'ALTER', 'TABLE', 'INDEX', 'VIEW', 'DATABASE', 'SCHEMA', 'PROCEDURE',
       'FUNCTION', 'TRIGGER', 'UNION', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER',
       'ORDER', 'GROUP', 'HAVING', 'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX'
-    ]
+    ];
 
-    return commonSQLKeywords.includes(word.toUpperCase())
+    return commonSQLKeywords.includes(word.toUpperCase());
   }
 
   /**
@@ -588,35 +588,35 @@ class SQLValidator {
       warnings: [],
       severity: null,
       detectedFunctions: []
-    }
+    };
 
     // Check for blocked functions
     for (const func of this.config.blockedFunctions) {
-      const pattern = new RegExp(`\\b${func}\\s*\\(`, 'i')
+      const pattern = new RegExp(`\\b${func}\\s*\\(`, 'i');
       if (pattern.test(query)) {
-        result.isValid = false
-        result.warnings.push(`Blocked SQL function detected: ${func}`)
-        result.severity = SEVERITY.CRITICAL
-        result.detectedFunctions.push(func)
+        result.isValid = false;
+        result.warnings.push(`Blocked SQL function detected: ${func}`);
+        result.severity = SEVERITY.CRITICAL;
+        result.detectedFunctions.push(func);
       }
     }
 
     // If allowedFunctions is specified, check against it
     if (this.config.allowedFunctions.length > 0) {
-      const functionMatches = query.match(/\b\w+\s*\(/g)
+      const functionMatches = query.match(/\b\w+\s*\(/g);
       if (functionMatches) {
         for (const match of functionMatches) {
-          const funcName = match.replace(/\s*\(.*$/, '').trim()
+          const funcName = match.replace(/\s*\(.*$/, '').trim();
           if (!this.config.allowedFunctions.some(allowed =>
             funcName.toUpperCase().includes(allowed.toUpperCase()))) {
-            result.warnings.push(`SQL function '${funcName}' is not in allowed list`)
-            result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM)
+            result.warnings.push(`SQL function '${funcName}' is not in allowed list`);
+            result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM);
           }
         }
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -631,7 +631,7 @@ class SQLValidator {
       warnings: [],
       severity: null,
       commentCount: 0
-    }
+    };
 
     if (!this.config.allowComments) {
       // Check for various comment types
@@ -639,20 +639,20 @@ class SQLValidator {
         /\/\*.*?\*\//gs, // Block comments
         /--.*$/gm, // SQL line comments
         /#.*$/gm // MySQL comments
-      ]
+      ];
 
       for (const pattern of commentPatterns) {
-        const matches = query.match(pattern)
+        const matches = query.match(pattern);
         if (matches) {
-          result.isValid = false
-          result.commentCount += matches.length
-          result.warnings.push(`SQL comments detected (${matches.length} found)`)
-          result.severity = SEVERITY.HIGH
+          result.isValid = false;
+          result.commentCount += matches.length;
+          result.warnings.push(`SQL comments detected (${matches.length} found)`);
+          result.severity = SEVERITY.HIGH;
         }
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -667,22 +667,22 @@ class SQLValidator {
       warnings: [],
       severity: null,
       unionCount: 0
-    }
+    };
 
-    const unionMatches = query.match(/\bUNION(\s+ALL)?\b/gi)
-    result.unionCount = unionMatches ? unionMatches.length : 0
+    const unionMatches = query.match(/\bUNION(\s+ALL)?\b/gi);
+    result.unionCount = unionMatches ? unionMatches.length : 0;
 
     if (!this.config.allowUnions && result.unionCount > 0) {
-      result.isValid = false
-      result.warnings.push('UNION operations are not allowed')
-      result.severity = SEVERITY.HIGH
+      result.isValid = false;
+      result.warnings.push('UNION operations are not allowed');
+      result.severity = SEVERITY.HIGH;
     } else if (result.unionCount > this.config.maxUnions) {
-      result.isValid = false
-      result.warnings.push(`Too many UNION operations (${result.unionCount} > ${this.config.maxUnions})`)
-      result.severity = SEVERITY.HIGH
+      result.isValid = false;
+      result.warnings.push(`Too many UNION operations (${result.unionCount} > ${this.config.maxUnions})`);
+      result.severity = SEVERITY.HIGH;
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -697,34 +697,34 @@ class SQLValidator {
       warnings: [],
       severity: null,
       subqueryCount: 0
-    }
+    };
 
     // Count nested parentheses as a proxy for subqueries
-    let depth = 0
-    let maxDepth = 0
+    let depth = 0;
+    let maxDepth = 0;
 
     for (let i = 0; i < query.length; i++) {
       if (query[i] === '(') {
-        depth++
-        maxDepth = Math.max(maxDepth, depth)
+        depth++;
+        maxDepth = Math.max(maxDepth, depth);
       } else if (query[i] === ')') {
-        depth--
+        depth--;
       }
     }
 
-    result.subqueryCount = maxDepth
+    result.subqueryCount = maxDepth;
 
     if (!this.config.allowSubqueries && result.subqueryCount > 0) {
-      result.isValid = false
-      result.warnings.push('Subqueries are not allowed')
-      result.severity = SEVERITY.HIGH
+      result.isValid = false;
+      result.warnings.push('Subqueries are not allowed');
+      result.severity = SEVERITY.HIGH;
     } else if (result.subqueryCount > this.config.maxSubqueries) {
-      result.isValid = false
-      result.warnings.push(`Too many nested subqueries (${result.subqueryCount} > ${this.config.maxSubqueries})`)
-      result.severity = SEVERITY.HIGH
+      result.isValid = false;
+      result.warnings.push(`Too many nested subqueries (${result.subqueryCount} > ${this.config.maxSubqueries})`);
+      result.severity = SEVERITY.HIGH;
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -738,20 +738,20 @@ class SQLValidator {
       isValid: true,
       warnings: [],
       severity: null
-    }
+    };
 
-    const patterns = DATABASE_SPECIFIC_PATTERNS[this.config.databaseType]
+    const patterns = DATABASE_SPECIFIC_PATTERNS[this.config.databaseType];
     if (patterns) {
       for (const pattern of patterns) {
         if (pattern.test(query)) {
-          result.isValid = false
-          result.warnings.push(`Database-specific dangerous pattern detected for ${this.config.databaseType}: ${pattern.source}`)
-          result.severity = SEVERITY.CRITICAL
+          result.isValid = false;
+          result.warnings.push(`Database-specific dangerous pattern detected for ${this.config.databaseType}: ${pattern.source}`);
+          result.severity = SEVERITY.CRITICAL;
         }
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -765,25 +765,25 @@ class SQLValidator {
       isValid: true,
       warnings: [],
       severity: null
-    }
+    };
 
     if (!this.config.allowStringLiterals) {
-      const stringLiterals = query.match(/'[^']*'/g)
+      const stringLiterals = query.match(/'[^']*'/g);
       if (stringLiterals) {
-        result.warnings.push(`String literals detected (${stringLiterals.length} found)`)
-        result.severity = SEVERITY.MEDIUM
+        result.warnings.push(`String literals detected (${stringLiterals.length} found)`);
+        result.severity = SEVERITY.MEDIUM;
       }
     }
 
     // Check for very long string literals that might be injection attempts
-    const longStringPattern = /'[^']{100,}'/g
-    const longStrings = query.match(longStringPattern)
+    const longStringPattern = /'[^']{100,}'/g;
+    const longStrings = query.match(longStringPattern);
     if (longStrings) {
-      result.warnings.push('Very long string literals detected (potential injection)')
-      result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH)
+      result.warnings.push('Very long string literals detected (potential injection)');
+      result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH);
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -798,7 +798,7 @@ class SQLValidator {
       .replace(/--.*$/gm, '') // Line comments
       .replace(/#.*$/gm, '') // MySQL comments
       .replace(/\s+/g, ' ') // Normalize whitespace
-      .trim()
+      .trim();
   }
 
   /**
@@ -808,14 +808,14 @@ class SQLValidator {
    * @private
    */
   _sanitizeKeywords (query) {
-    let sanitized = query
+    let sanitized = query;
 
     for (const keyword of this.config.blockedKeywords) {
-      const pattern = new RegExp(`\\b${keyword}\\b`, 'gi')
-      sanitized = sanitized.replace(pattern, `/* ${keyword} */`)
+      const pattern = new RegExp(`\\b${keyword}\\b`, 'gi');
+      sanitized = sanitized.replace(pattern, `/* ${keyword} */`);
     }
 
-    return sanitized
+    return sanitized;
   }
 
   /**
@@ -825,14 +825,14 @@ class SQLValidator {
    * @private
    */
   _sanitizeFunctions (query) {
-    let sanitized = query
+    let sanitized = query;
 
     for (const func of this.config.blockedFunctions) {
-      const pattern = new RegExp(`\\b${func}\\s*\\(`, 'gi')
-      sanitized = sanitized.replace(pattern, `/* ${func} */(`)
+      const pattern = new RegExp(`\\b${func}\\s*\\(`, 'gi');
+      sanitized = sanitized.replace(pattern, `/* ${func} */(`);
     }
 
-    return sanitized
+    return sanitized;
   }
 
   /**
@@ -843,8 +843,8 @@ class SQLValidator {
    */
   _sanitizeStringLiterals (query) {
     return query.replace(/'([^']{100,})'/g, (match, content) => {
-      return `'${content.substring(0, 100)}...'`
-    })
+      return `'${content.substring(0, 100)}...'`;
+    });
   }
 
   /**
@@ -854,20 +854,20 @@ class SQLValidator {
    * @private
    */
   _limitUnions (query) {
-    const unionPattern = /\bUNION(\s+ALL)?\b/gi
-    const matches = [...query.matchAll(unionPattern)]
+    const unionPattern = /\bUNION(\s+ALL)?\b/gi;
+    const matches = [...query.matchAll(unionPattern)];
 
     if (matches.length <= this.config.maxUnions) {
-      return query
+      return query;
     }
 
     // Remove excess UNION operations
-    let result = query
+    let result = query;
     for (let i = this.config.maxUnions; i < matches.length; i++) {
-      result = result.replace(matches[i][0], '/* UNION removed */')
+      result = result.replace(matches[i][0], '/* UNION removed */');
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -882,8 +882,8 @@ class SQLValidator {
       [SEVERITY_LEVELS.MEDIUM]: SEVERITY.MEDIUM,
       [SEVERITY_LEVELS.HIGH]: SEVERITY.HIGH,
       [SEVERITY_LEVELS.CRITICAL]: SEVERITY.CRITICAL
-    }
-    return mapping[patternSeverity] || SEVERITY.MEDIUM
+    };
+    return mapping[patternSeverity] || SEVERITY.MEDIUM;
   }
 
   /**
@@ -894,14 +894,14 @@ class SQLValidator {
    * @private
    */
   _getHigherSeverity (current, newSeverity) {
-    if (!current) return newSeverity
-    if (!newSeverity) return current
+    if (!current) return newSeverity;
+    if (!newSeverity) return current;
 
-    const severityOrder = [SEVERITY.LOW, SEVERITY.MEDIUM, SEVERITY.HIGH, SEVERITY.CRITICAL]
-    const currentIndex = severityOrder.indexOf(current)
-    const newIndex = severityOrder.indexOf(newSeverity)
+    const severityOrder = [SEVERITY.LOW, SEVERITY.MEDIUM, SEVERITY.HIGH, SEVERITY.CRITICAL];
+    const currentIndex = severityOrder.indexOf(current);
+    const newIndex = severityOrder.indexOf(newSeverity);
 
-    return newIndex > currentIndex ? newSeverity : current
+    return newIndex > currentIndex ? newSeverity : current;
   }
 
   /**
@@ -909,7 +909,7 @@ class SQLValidator {
    * @param {Object} newConfig - New configuration to merge
    */
   updateConfig (newConfig) {
-    this.config = { ...this.config, ...newConfig }
+    this.config = { ...this.config, ...newConfig };
   }
 
   /**
@@ -917,7 +917,7 @@ class SQLValidator {
    * @returns {Object} Current configuration
    */
   getConfig () {
-    return { ...this.config }
+    return { ...this.config };
   }
 
   /**
@@ -926,7 +926,7 @@ class SQLValidator {
    * @returns {string} Escaped SQL value
    */
   escapeValue (value) {
-    return sqlstring.escape(value)
+    return sqlstring.escape(value);
   }
 
   /**
@@ -935,7 +935,7 @@ class SQLValidator {
    * @returns {string} Escaped SQL identifier
    */
   escapeIdentifier (identifier) {
-    return sqlstring.escapeId(identifier)
+    return sqlstring.escapeId(identifier);
   }
 
   /**
@@ -945,7 +945,7 @@ class SQLValidator {
    * @returns {string} Formatted SQL query
    */
   format (sql, values) {
-    return sqlstring.format(sql, values)
+    return sqlstring.format(sql, values);
   }
 }
 
@@ -955,7 +955,7 @@ class SQLValidator {
  * @returns {SQLValidator} New validator instance
  */
 function createSQLValidator (config = {}) {
-  return new SQLValidator(config)
+  return new SQLValidator(config);
 }
 
 /**
@@ -965,8 +965,8 @@ function createSQLValidator (config = {}) {
  * @returns {Promise<Object>} Validation result
  */
 async function validateSQL (query, config = {}) {
-  const validator = new SQLValidator(config)
-  return await validator.validate(query)
+  const validator = new SQLValidator(config);
+  return await validator.validate(query);
 }
 
 /**
@@ -976,8 +976,8 @@ async function validateSQL (query, config = {}) {
  * @returns {Promise<Object>} Sanitization result
  */
 async function sanitizeSQL (query, config = {}) {
-  const validator = new SQLValidator(config)
-  return await validator.sanitize(query)
+  const validator = new SQLValidator(config);
+  return await validator.sanitize(query);
 }
 
 module.exports = {
@@ -989,4 +989,4 @@ module.exports = {
   DEFAULT_CONFIG,
   SQL_INJECTION_PATTERNS,
   DATABASE_SPECIFIC_PATTERNS
-}
+};

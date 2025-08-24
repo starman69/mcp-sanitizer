@@ -35,7 +35,7 @@ const {
   validateConfig,
   createConfig,
   getDefaultConfig
-} = require('./default-config')
+} = require('./default-config');
 
 const {
   SECURITY_POLICIES,
@@ -49,7 +49,7 @@ const {
   createCustomPolicy,
   getPolicyRecommendation,
   validatePolicyRequirements
-} = require('./security-policies')
+} = require('./security-policies');
 
 /**
  * Create a configuration from a security policy
@@ -58,10 +58,10 @@ const {
  * @returns {Object} Validated configuration object
  */
 function createConfigFromPolicy (policyName, customizations = {}) {
-  const policy = getSecurityPolicy(policyName)
-  const mergedConfig = mergeConfig({ ...policy, ...customizations })
-  validateConfig(mergedConfig)
-  return mergedConfig
+  const policy = getSecurityPolicy(policyName);
+  const mergedConfig = mergeConfig({ ...policy, ...customizations });
+  validateConfig(mergedConfig);
+  return mergedConfig;
 }
 
 /**
@@ -72,8 +72,8 @@ function createConfigFromPolicy (policyName, customizations = {}) {
  * @returns {Object} Configuration object with metadata
  */
 function createRecommendedConfig (environment = 'production', trustLevel = 'low', customizations = {}) {
-  const recommendation = getPolicyRecommendation(environment, trustLevel)
-  const config = createConfigFromPolicy(recommendation.recommended, customizations)
+  const recommendation = getPolicyRecommendation(environment, trustLevel);
+  const config = createConfigFromPolicy(recommendation.recommended, customizations);
 
   return {
     config,
@@ -83,7 +83,7 @@ function createRecommendedConfig (environment = 'production', trustLevel = 'low'
       trustLevel,
       rationale: recommendation.rationale
     }
-  }
+  };
 }
 
 /**
@@ -91,7 +91,7 @@ function createRecommendedConfig (environment = 'production', trustLevel = 'low'
  */
 class ConfigBuilder {
   constructor () {
-    this.config = getDefaultConfig()
+    this.config = getDefaultConfig();
   }
 
   /**
@@ -100,9 +100,9 @@ class ConfigBuilder {
    * @returns {ConfigBuilder} Builder instance for chaining
    */
   usePolicy (policyName) {
-    const policy = getSecurityPolicy(policyName)
-    this.config = mergeConfig(policy)
-    return this
+    const policy = getSecurityPolicy(policyName);
+    this.config = mergeConfig(policy);
+    return this;
   }
 
   /**
@@ -111,8 +111,8 @@ class ConfigBuilder {
    * @returns {ConfigBuilder} Builder instance for chaining
    */
   allowProtocols (protocols) {
-    this.config.allowedProtocols = protocols
-    return this
+    this.config.allowedProtocols = protocols;
+    return this;
   }
 
   /**
@@ -121,8 +121,8 @@ class ConfigBuilder {
    * @returns {ConfigBuilder} Builder instance for chaining
    */
   maxStringLength (length) {
-    this.config.maxStringLength = length
-    return this
+    this.config.maxStringLength = length;
+    return this;
   }
 
   /**
@@ -131,8 +131,8 @@ class ConfigBuilder {
    * @returns {ConfigBuilder} Builder instance for chaining
    */
   maxDepth (depth) {
-    this.config.maxDepth = depth
-    return this
+    this.config.maxDepth = depth;
+    return this;
   }
 
   /**
@@ -141,8 +141,8 @@ class ConfigBuilder {
    * @returns {ConfigBuilder} Builder instance for chaining
    */
   allowFileExtensions (extensions) {
-    this.config.allowedFileExtensions = extensions
-    return this
+    this.config.allowedFileExtensions = extensions;
+    return this;
   }
 
   /**
@@ -151,8 +151,8 @@ class ConfigBuilder {
    * @returns {ConfigBuilder} Builder instance for chaining
    */
   blockPatterns (patterns) {
-    this.config.blockedPatterns = [...this.config.blockedPatterns, ...patterns]
-    return this
+    this.config.blockedPatterns = [...this.config.blockedPatterns, ...patterns];
+    return this;
   }
 
   /**
@@ -161,8 +161,8 @@ class ConfigBuilder {
    * @returns {ConfigBuilder} Builder instance for chaining
    */
   blockOnSeverity (severity) {
-    this.config.blockOnSeverity = severity
-    return this
+    this.config.blockOnSeverity = severity;
+    return this;
   }
 
   /**
@@ -171,8 +171,8 @@ class ConfigBuilder {
    * @returns {ConfigBuilder} Builder instance for chaining
    */
   strictMode (enabled = true) {
-    this.config.strictMode = enabled
-    return this
+    this.config.strictMode = enabled;
+    return this;
   }
 
   /**
@@ -181,8 +181,8 @@ class ConfigBuilder {
    * @returns {ConfigBuilder} Builder instance for chaining
    */
   patternDetection (settings) {
-    this.config.patternDetection = { ...this.config.patternDetection, ...settings }
-    return this
+    this.config.patternDetection = { ...this.config.patternDetection, ...settings };
+    return this;
   }
 
   /**
@@ -191,8 +191,8 @@ class ConfigBuilder {
    * @returns {ConfigBuilder} Builder instance for chaining
    */
   custom (customConfig) {
-    this.config = mergeConfig(this.config, customConfig)
-    return this
+    this.config = mergeConfig(this.config, customConfig);
+    return this;
   }
 
   /**
@@ -200,8 +200,8 @@ class ConfigBuilder {
    * @returns {Object} Validated configuration object
    */
   build () {
-    validateConfig(this.config)
-    return { ...this.config }
+    validateConfig(this.config);
+    return { ...this.config };
   }
 }
 
@@ -210,7 +210,7 @@ class ConfigBuilder {
  * @returns {ConfigBuilder} New configuration builder instance
  */
 function createConfigBuilder () {
-  return new ConfigBuilder()
+  return new ConfigBuilder();
 }
 
 /**
@@ -242,7 +242,7 @@ function getConfigSummary (config) {
     },
     detection: config.patternDetection,
     performance: config.performance
-  }
+  };
 }
 
 /**
@@ -256,43 +256,43 @@ function validateEnvironmentCompatibility (config, environment) {
     compatible: true,
     warnings: [],
     recommendations: []
-  }
+  };
 
   if (environment === 'production') {
     if (config.allowedProtocols.includes('http')) {
-      result.warnings.push('HTTP protocol allowed in production environment')
-      result.recommendations.push('Consider using HTTPS only for production')
+      result.warnings.push('HTTP protocol allowed in production environment');
+      result.recommendations.push('Consider using HTTPS only for production');
     }
 
     if (!config.strictMode) {
-      result.warnings.push('Strict mode disabled in production environment')
-      result.recommendations.push('Enable strict mode for production security')
+      result.warnings.push('Strict mode disabled in production environment');
+      result.recommendations.push('Enable strict mode for production security');
     }
 
     if (config.blockOnSeverity === 'critical') {
-      result.warnings.push('Only blocking critical severity in production')
-      result.recommendations.push('Consider blocking high severity issues in production')
+      result.warnings.push('Only blocking critical severity in production');
+      result.recommendations.push('Consider blocking high severity issues in production');
     }
 
     if (config.contextSettings?.url?.allowPrivateIPs) {
-      result.warnings.push('Private IP access allowed in production')
-      result.recommendations.push('Disable private IP access for production security')
+      result.warnings.push('Private IP access allowed in production');
+      result.recommendations.push('Disable private IP access for production security');
     }
   }
 
   if (environment === 'development') {
     if (config.blockOnSeverity === 'low') {
-      result.warnings.push('Blocking low severity issues may hinder development')
-      result.recommendations.push('Consider using medium or high severity blocking for development')
+      result.warnings.push('Blocking low severity issues may hinder development');
+      result.recommendations.push('Consider using medium or high severity blocking for development');
     }
 
     if (config.performance?.timeoutMs < 5000) {
-      result.warnings.push('Short timeout may interrupt debugging')
-      result.recommendations.push('Consider longer timeout for development environment')
+      result.warnings.push('Short timeout may interrupt debugging');
+      result.recommendations.push('Consider longer timeout for development environment');
     }
   }
 
-  return result
+  return result;
 }
 
 // Export everything needed for configuration management
@@ -332,4 +332,4 @@ module.exports = {
 
   // Builder class
   ConfigBuilder
-}
+};
