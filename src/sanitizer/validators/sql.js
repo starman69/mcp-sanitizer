@@ -29,6 +29,11 @@
 // const { validationUtils, stringUtils } = require('../../utils') // Unused - commented to fix ESLint
 const { sqlInjection, detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns')
 const sqlstring = require('sqlstring')
+const {
+  detectPostgresDollarQuotes,
+  detectNullBytes,
+  ensureTimingConsistency
+} = require('../../utils/security-enhancements')
 
 /**
  * SQL validation severity levels
@@ -156,6 +161,20 @@ class SQLValidator {
    * @returns {Promise<Object>} Validation result
    */
   async validate (query, options = {}) {
+    const { ensureTimingConsistency: useTimingConsistency = true } = options
+    
+    if (useTimingConsistency) {
+      return ensureTimingConsistency(() => this._performValidation(query, options), 75)
+    }
+    
+    return this._performValidation(query, options)
+  }
+
+  /**
+   * Internal validation method
+   * @private
+   */
+  async _performValidation (query, options = {}) {
     const result = {
       isValid: false,
       sanitized: null,
@@ -197,6 +216,34 @@ class SQLValidator {
       const trimmedQuery = query.trim()
       const normalizedQuery = this._normalizeQuery(trimmedQuery)
       result.metadata.normalizedQuery = normalizedQuery
+
+      // Enhanced SQL security checks
+      
+      // Check for null bytes
+      const nullByteResult = detectNullBytes(trimmedQuery)
+      if (nullByteResult.detected) {
+        result.warnings.push(...nullByteResult.warnings.map(w => w.message || w))
+        result.metadata.nullBytes = nullByteResult.metadata
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH)
+        
+        // Use sanitized version without null bytes
+        trimmedQuery = nullByteResult.sanitized
+      }
+
+      // Check for PostgreSQL dollar quotes
+      const dollarQuoteResult = detectPostgresDollarQuotes(trimmedQuery)
+      if (dollarQuoteResult.detected) {
+        result.warnings.push(...dollarQuoteResult.warnings.map(w => w.message || w))
+        result.metadata.postgresDollarQuotes = dollarQuoteResult.metadata
+        
+        // Check for critical severity (unpaired quotes or SQL in quotes)
+        const hasCriticalWarnings = dollarQuoteResult.warnings.some(w => w.severity === 'HIGH')
+        if (hasCriticalWarnings) {
+          result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH)
+        } else {
+          result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM)
+        }
+      }
 
       // Check for SQL injection patterns using the pattern detector
       const injectionResult = sqlInjection.detectSQLInjection(trimmedQuery)

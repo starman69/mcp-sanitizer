@@ -88,9 +88,17 @@ function findBlockedPattern (str, patterns) {
  * @param {RegExp[]} patterns - Array of regex patterns to check against
  * @throws {Error} - If string contains blocked patterns
  */
-function validateAgainstBlockedPatterns (str, patterns) {
+function validateAgainstBlockedPatterns (str, patterns, context = {}) {
   const matchedPattern = findBlockedPattern(str, patterns)
   if (matchedPattern) {
+    // For SQL context with PostgreSQL dollar quotes, provide specific message
+    if (context.type === 'sql' && str.includes('$$')) {
+      // Check if it's actually PostgreSQL dollar quoting
+      const dollarQuotePattern = /\$\$.*?\$\$/
+      if (dollarQuotePattern.test(str)) {
+        throw new Error('PostgreSQL dollar quoting detected')
+      }
+    }
     throw new Error(`String contains blocked pattern: ${matchedPattern}`)
   }
 }
@@ -230,6 +238,72 @@ function containsOnlySafeChars (str, allowedCharsPattern = /^[a-zA-Z0-9\s\-_.,!?
   return allowedCharsPattern.test(str)
 }
 
+// Import security enhancements
+const {
+  detectDirectionalOverrides,
+  detectNullBytes,
+  detectMultipleUrlEncoding,
+  handleEmptyStrings
+} = require('./security-enhancements')
+
+/**
+ * Enhanced string validation with security enhancements
+ * @param {string} str - String to validate
+ * @param {Object} options - Validation options
+ * @returns {Object} Enhanced validation result
+ */
+function enhancedStringValidation (str, options = {}) {
+  const {
+    checkDirectionalOverrides = true,
+    checkNullBytes = true,
+    checkMultipleEncoding = false, // Only for URLs
+    handleEmpty = true,
+    emptyContext = {}
+  } = options
+
+  const results = {
+    isValid: true,
+    warnings: [],
+    sanitized: str,
+    metadata: {}
+  }
+
+  // Check for directional overrides
+  if (checkDirectionalOverrides) {
+    const dirResult = detectDirectionalOverrides(str)
+    if (dirResult.detected) {
+      results.warnings.push(...dirResult.warnings)
+      results.sanitized = dirResult.sanitized
+      results.metadata.directionalOverrides = dirResult.metadata
+    }
+  }
+
+  // Check for null bytes
+  if (checkNullBytes) {
+    const nullResult = detectNullBytes(results.sanitized)
+    if (nullResult.detected) {
+      results.warnings.push(...nullResult.warnings)
+      results.sanitized = nullResult.sanitized
+      results.metadata.nullBytes = nullResult.metadata
+    }
+  }
+
+  // Handle empty strings
+  if (handleEmpty) {
+    const emptyResult = handleEmptyStrings(results.sanitized, emptyContext)
+    if (!emptyResult.isValid) {
+      results.isValid = false
+      results.warnings.push(...emptyResult.warnings)
+    }
+    if (emptyResult.processed !== results.sanitized) {
+      results.sanitized = emptyResult.processed
+    }
+    results.metadata.emptyString = emptyResult.metadata
+  }
+
+  return results
+}
+
 module.exports = {
   htmlEncode,
   isWithinLengthLimit,
@@ -242,5 +316,6 @@ module.exports = {
   isEmpty,
   normalizeLineEndings,
   escapeRegex,
-  containsOnlySafeChars
+  containsOnlySafeChars,
+  enhancedStringValidation
 }

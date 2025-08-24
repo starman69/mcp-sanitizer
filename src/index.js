@@ -117,6 +117,18 @@ module.exports.isDangerousKey = utils.isDangerousKey
 module.exports.validateObjectKey = utils.validateObjectKey
 module.exports.validateNonEmptyString = utils.validateNonEmptyString
 
+// Export new security enhancement functions
+module.exports.detectDirectionalOverrides = utils.detectDirectionalOverrides
+module.exports.detectNullBytes = utils.detectNullBytes
+module.exports.detectMultipleUrlEncoding = utils.detectMultipleUrlEncoding
+module.exports.detectPostgresDollarQuotes = utils.detectPostgresDollarQuotes
+module.exports.detectCyrillicHomographs = utils.detectCyrillicHomographs
+module.exports.handleEmptyStrings = utils.handleEmptyStrings
+module.exports.ensureTimingConsistency = utils.ensureTimingConsistency
+module.exports.secureStringCompare = utils.secureStringCompare
+module.exports.comprehensiveSecurityAnalysis = utils.comprehensiveSecurityAnalysis
+module.exports.enhancedStringValidation = utils.enhancedStringValidation
+
 // Export constants
 module.exports.SEVERITY_LEVELS = validators.SEVERITY_LEVELS
 module.exports.VALIDATOR_TYPES = validators.VALIDATOR_TYPES

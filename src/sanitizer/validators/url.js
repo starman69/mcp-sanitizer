@@ -30,6 +30,11 @@ const { URL } = require('url')
 // const { validationUtils } = require('../../utils') // Unused - commented to fix ESLint
 const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns')
 const validator = require('validator')
+const {
+  detectMultipleUrlEncoding,
+  detectCyrillicHomographs,
+  ensureTimingConsistency
+} = require('../../utils/security-enhancements')
 
 /**
  * URL validation severity levels
@@ -162,6 +167,31 @@ class URLValidator {
 
         if (patternResult.severity === SEVERITY_LEVELS.CRITICAL) {
           return result
+        }
+      }
+
+      // Enhanced URL security checks
+      const encodingResult = detectMultipleUrlEncoding(url)
+      if (encodingResult.detected) {
+        result.warnings.push(...encodingResult.warnings.map(w => w.message || w))
+        result.metadata.multipleEncoding = encodingResult.metadata
+        result.severity = this._getHigherSeverity(result.severity, 
+          encodingResult.warnings.some(w => w.severity === 'HIGH') ? SEVERITY.HIGH : SEVERITY.MEDIUM)
+      }
+
+      // Check for Cyrillic homograph attacks in hostname
+      const homographResult = detectCyrillicHomographs(url)
+      if (homographResult.detected) {
+        result.warnings.push(...homographResult.warnings.map(w => w.message || w))
+        result.metadata.cyrillicHomographs = homographResult.metadata
+        
+        // Critical severity for domain spoofing attempts
+        const hasCriticalWarnings = homographResult.warnings.some(w => w.severity === 'CRITICAL')
+        if (hasCriticalWarnings) {
+          result.severity = SEVERITY.CRITICAL
+          return result
+        } else {
+          result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH)
         }
       }
 

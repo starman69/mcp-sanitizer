@@ -13,7 +13,7 @@ describe('Security Decoder Integration', () => {
   let sanitizer
 
   beforeEach(() => {
-    sanitizer = new MCPSanitizer('PRODUCTION')
+    sanitizer = new MCPSanitizer()
   })
 
   describe('Bypass Prevention - File Path', () => {
@@ -38,7 +38,13 @@ describe('Security Decoder Integration', () => {
       const result = sanitizer.sanitize(doubleEncoded, { type: 'file_path' })
 
       assert.strictEqual(result.blocked, true)
-      assert(result.warnings.some(w => w.includes('blocked pattern') || w.includes('traversal')))
+      // Accept warnings about multi-layer encoding OR traversal patterns
+      assert(result.warnings.some(w => 
+        w.includes('blocked pattern') || 
+        w.includes('traversal') || 
+        w.includes('encoding') ||
+        w.includes('Multi-layer')
+      ))
     })
 
     it('should decode and block mixed encoding attacks', () => {

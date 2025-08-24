@@ -30,6 +30,7 @@
 // Import utility modules
 const { stringUtils, objectUtils, validationUtils } = require('../utils')
 const { securityDecode } = require('../utils/security-decoder')
+const enterpriseSecurity = require('../utils/enterprise-security')
 
 // Import configuration system
 const { createConfig, createConfigFromPolicy } = require('../config')
@@ -94,6 +95,19 @@ class MCPSanitizer {
   sanitize (input, context = {}) {
     const startTime = Date.now()
 
+    // Handle empty input properly (Fix Issue #7)
+    const emptyCheck = enterpriseSecurity.handleEmptyInput(input, context)
+    if (emptyCheck.isEmpty) {
+      return {
+        sanitized: emptyCheck.sanitized,
+        warnings: emptyCheck.warnings,
+        blocked: emptyCheck.shouldBlock,
+        metadata: {
+          processingTime: Date.now() - startTime
+        }
+      }
+    }
+
     if (input === null || input === undefined) {
       return {
         sanitized: input,
@@ -118,6 +132,28 @@ class MCPSanitizer {
     }
 
     try {
+      // First, apply enterprise security checks
+      if (typeof input === 'string') {
+        const securityChecks = enterpriseSecurity.performSecurityChecks(input, {
+          checkDirectional: true,
+          checkNullBytes: true,
+          checkDoubleEncoding: true,
+          checkHomographs: false // Will check after normalization
+        })
+        
+        if (securityChecks.blocked) {
+          result.blocked = true
+          result.warnings.push(...securityChecks.warnings)
+          result.sanitized = null
+          this.stats.blockedCount++
+          
+          // Apply timing protection and return early
+          this._applyTimingProtection(startTime)
+          result.metadata.processingTime = Date.now() - startTime
+          return result
+        }
+      }
+      
       result.sanitized = this._sanitizeValue(input, context, 0)
       this.stats.sanitizationCount++
     } catch (error) {
@@ -127,16 +163,8 @@ class MCPSanitizer {
       this.stats.blockedCount++
     }
 
-    // SECURITY: Add timing noise to prevent timing attacks
-    // This adds 0-2ms of random delay to mask processing differences
-    if (this.options.enableTimingProtection !== false) {
-      // Synchronous approximation for backward compatibility
-      const noiseDelay = Math.random() * 2
-      const endTime = Date.now() + noiseDelay
-      while (Date.now() < endTime) {
-        // Busy wait (not ideal but maintains sync API)
-      }
-    }
+    // Apply timing protection
+    this._applyTimingProtection(startTime)
 
     // Update performance stats
     const processingTime = Date.now() - startTime
@@ -452,11 +480,20 @@ class MCPSanitizer {
       decodeUnicode: true,
       decodeUrl: true,
       normalizePath: context.type === 'file_path',
-      stripDangerous: context.type === 'command'
+      stripDangerous: context.type === 'command',
+      normalizeUnicode: true
     })
 
     // Use decoded string for all subsequent operations
     const decodedStr = decodeResult.decoded
+
+    // Check for homograph attacks after normalization
+    if (str !== decodedStr && decodeResult.decodingSteps.includes('unicode-normalize')) {
+      const homographCheck = enterpriseSecurity.detectHomographs(str, decodedStr)
+      if (homographCheck.detected) {
+        throw new Error(homographCheck.warnings.join('; '))
+      }
+    }
 
     // Log potential bypass attempts
     if (decodeResult.wasDecoded && decodeResult.decodingSteps.length > 0) {
@@ -466,8 +503,8 @@ class MCPSanitizer {
     // Validate string length on decoded content
     stringUtils.validateStringLength(decodedStr, this.options.maxStringLength)
 
-    // Check for blocked patterns on decoded content
-    stringUtils.validateAgainstBlockedPatterns(decodedStr, this.options.blockedPatterns)
+    // Check for blocked patterns on decoded content  
+    stringUtils.validateAgainstBlockedPatterns(decodedStr, this.options.blockedPatterns, context)
 
     // Context-specific sanitization using SECURE validators (not legacy)
     if (context.type === 'file_path') {
@@ -602,6 +639,12 @@ class MCPSanitizer {
     // query is already decoded by _sanitizeString
     validationUtils.validateNonEmptyString(query, 'SQL query')
 
+    // Check for PostgreSQL dollar quoting with specific warning
+    const dollarQuoteCheck = enterpriseSecurity.detectPostgreSQLDollarQuoting(query)
+    if (dollarQuoteCheck.detected) {
+      throw new Error(dollarQuoteCheck.warnings.join('; '))
+    }
+
     // Filter out safe SQL keywords for legacy compatibility
     const dangerousSQLKeywords = this.options.sqlKeywords.filter(keyword =>
       !['SELECT', 'FROM', 'WHERE', 'ORDER BY', 'GROUP BY', 'HAVING'].includes(keyword.toUpperCase())
@@ -684,6 +727,33 @@ class MCPSanitizer {
       this.stats.averageProcessingTime = (
         (this.stats.averageProcessingTime * (totalOperations - 1) + processingTime) / totalOperations
       )
+    }
+  }
+
+  /**
+   * Apply timing protection to prevent timing attacks
+   * @param {number} startTime - Start time of operation
+   * @private
+   */
+  _applyTimingProtection (startTime) {
+    if (this.options.enableTimingProtection === false) {
+      return
+    }
+
+    const elapsed = Date.now() - startTime
+    const targetTime = 10 // Target 10ms for all operations
+    
+    if (elapsed < targetTime) {
+      // Add variable delay to reach target time
+      const remainingTime = targetTime - elapsed
+      const variance = (Math.random() - 0.5) * 0.4 * remainingTime // ±20% variance
+      const finalDelay = Math.max(0, remainingTime + variance)
+      
+      const endTime = Date.now() + finalDelay
+      while (Date.now() < endTime) {
+        // CPU work to prevent optimization
+        Math.sqrt(Math.random())
+      }
     }
   }
 }

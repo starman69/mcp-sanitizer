@@ -97,7 +97,9 @@ const DATABASE_SPECIFIC_PATTERNS = {
     /\bCURRENT_DATABASE\s*\(\s*\)/gi, // Schema enumeration
     /\bCURRENT_USER\s*\(\s*\)/gi,
     /\bVERSION\s*\(\s*\)/gi,
-    /\bpg_sleep\s*\(/gi // Time delays
+    /\bpg_sleep\s*\(/gi, // Time delays
+    /\$\$[^$]*\$\$/g, // Dollar quoting ($$...$$)
+    /\$([a-zA-Z_][a-zA-Z0-9_]*)\$[^$]*\$\1\$/g // Tagged dollar quotes ($tag$...$tag$)
   ],
 
   mssql: [
