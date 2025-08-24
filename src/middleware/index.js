@@ -36,9 +36,9 @@
 // const MCPSanitizer = require('../index') // Unused - commented to fix ESLint
 
 // Import framework-specific middleware
-const express = require('./express')
-const fastify = require('./fastify')
-const koa = require('./koa')
+const express = require('./express');
+const fastify = require('./fastify');
+const koa = require('./koa');
 
 /**
  * Framework detection utilities
@@ -47,7 +47,7 @@ const FRAMEWORK_DETECTORS = {
   express: (app) => app && typeof app.use === 'function' && typeof app.get === 'function' && app.constructor.name === 'Function',
   fastify: (app) => app && typeof app.register === 'function' && typeof app.addHook === 'function',
   koa: (app) => app && typeof app.use === 'function' && app.constructor.name === 'Application'
-}
+};
 
 /**
  * Unified configuration interface
@@ -93,7 +93,7 @@ const UNIFIED_CONFIG = {
     addToState: true,
     contextKey: 'sanitization'
   }
-}
+};
 
 /**
  * Auto-detect framework and create appropriate middleware
@@ -102,20 +102,20 @@ const UNIFIED_CONFIG = {
  * @returns {Function|Object} Middleware function or plugin
  */
 function createMiddleware (framework, options = {}) {
-  const config = { ...UNIFIED_CONFIG, ...options }
+  const config = { ...UNIFIED_CONFIG, ...options };
 
   // If framework is a string, create middleware directly
   if (typeof framework === 'string') {
-    return createMiddlewareByName(framework.toLowerCase(), config)
+    return createMiddlewareByName(framework.toLowerCase(), config);
   }
 
   // Try to detect framework from app instance
-  const detectedFramework = detectFramework(framework)
+  const detectedFramework = detectFramework(framework);
   if (detectedFramework) {
-    return createMiddlewareByName(detectedFramework, config)
+    return createMiddlewareByName(detectedFramework, config);
   }
 
-  throw new Error('Unable to detect framework. Please specify framework name or use framework-specific imports.')
+  throw new Error('Unable to detect framework. Please specify framework name or use framework-specific imports.');
 }
 
 /**
@@ -129,25 +129,25 @@ function createMiddlewareByName (frameworkName, config) {
   const frameworkConfig = {
     ...config,
     ...(config[frameworkName] || {})
-  }
+  };
 
   // Remove framework-specific sections from config
-  delete frameworkConfig.express
-  delete frameworkConfig.fastify
-  delete frameworkConfig.koa
+  delete frameworkConfig.express;
+  delete frameworkConfig.fastify;
+  delete frameworkConfig.koa;
 
   switch (frameworkName) {
     case 'express':
-      return express.createExpressMiddleware(frameworkConfig)
+      return express.createExpressMiddleware(frameworkConfig);
 
     case 'fastify':
-      return fastify // Return the plugin directly
+      return fastify; // Return the plugin directly
 
     case 'koa':
-      return koa.createKoaMiddleware(frameworkConfig)
+      return koa.createKoaMiddleware(frameworkConfig);
 
     default:
-      throw new Error(`Unsupported framework: ${frameworkName}`)
+      throw new Error(`Unsupported framework: ${frameworkName}`);
   }
 }
 
@@ -159,10 +159,10 @@ function createMiddlewareByName (frameworkName, config) {
 function detectFramework (app) {
   for (const [name, detector] of Object.entries(FRAMEWORK_DETECTORS)) {
     if (detector(app)) {
-      return name
+      return name;
     }
   }
-  return null
+  return null;
 }
 
 /**
@@ -177,23 +177,23 @@ function createMCPToolMiddleware (framework, options = {}) {
     ...options,
     toolSpecificSanitization: true,
     mode: 'block' // More strict for tool execution
-  }
+  };
 
-  const frameworkName = typeof framework === 'string' ? framework.toLowerCase() : detectFramework(framework)
+  const frameworkName = typeof framework === 'string' ? framework.toLowerCase() : detectFramework(framework);
 
   switch (frameworkName) {
     case 'express':
-      return express.createMCPToolMiddleware(config)
+      return express.createMCPToolMiddleware(config);
 
     case 'fastify':
       // Return plugin with tool-specific configuration
-      return Object.assign(fastify, { defaultConfig: config })
+      return Object.assign(fastify, { defaultConfig: config });
 
     case 'koa':
-      return koa.createMCPToolMiddleware(config)
+      return koa.createMCPToolMiddleware(config);
 
     default:
-      throw new Error(`Unsupported framework for tool middleware: ${frameworkName}`)
+      throw new Error(`Unsupported framework for tool middleware: ${frameworkName}`);
   }
 }
 
@@ -203,7 +203,7 @@ function createMCPToolMiddleware (framework, options = {}) {
  * @returns {Object} Framework-specific middleware factories
  */
 function createUniversalMiddleware (options = {}) {
-  const config = { ...UNIFIED_CONFIG, ...options }
+  const config = { ...UNIFIED_CONFIG, ...options };
 
   return {
     express: () => express.createExpressMiddleware({ ...config, ...config.express }),
@@ -221,7 +221,7 @@ function createUniversalMiddleware (options = {}) {
       }),
       koa: () => koa.createMCPToolMiddleware({ ...config, ...config.koa })
     }
-  }
+  };
 }
 
 /**
@@ -260,12 +260,12 @@ function createEnvironmentMiddleware (environment = 'production', customizations
       includeDetails: true,
       async: true
     }
-  }
+  };
 
-  const envConfig = environmentConfigs[environment.toLowerCase()] || environmentConfigs.production
-  const config = { ...UNIFIED_CONFIG, ...envConfig, ...customizations }
+  const envConfig = environmentConfigs[environment.toLowerCase()] || environmentConfigs.production;
+  const config = { ...UNIFIED_CONFIG, ...envConfig, ...customizations };
 
-  return createUniversalMiddleware(config)
+  return createUniversalMiddleware(config);
 }
 
 /**
@@ -274,27 +274,27 @@ function createEnvironmentMiddleware (environment = 'production', customizations
  * @returns {Object} Validated and normalized configuration
  */
 function validateConfig (config) {
-  const validated = { ...config }
+  const validated = { ...config };
 
   // Validate mode
   if (!['sanitize', 'block'].includes(validated.mode)) {
     // Only log in non-test environments
     if (process.env.NODE_ENV !== 'test') {
       // eslint-disable-next-line no-console
-      console.warn(`Invalid mode '${validated.mode}', defaulting to 'sanitize'`)
+      console.warn(`Invalid mode '${validated.mode}', defaulting to 'sanitize'`);
     }
-    validated.mode = 'sanitize'
+    validated.mode = 'sanitize';
   }
 
   // Validate policy
-  const validPolicies = ['PERMISSIVE', 'DEVELOPMENT', 'MODERATE', 'PRODUCTION', 'STRICT']
+  const validPolicies = ['PERMISSIVE', 'DEVELOPMENT', 'MODERATE', 'PRODUCTION', 'STRICT'];
   if (!validPolicies.includes(validated.policy)) {
     // Only log in non-test environments
     if (process.env.NODE_ENV !== 'test') {
       // eslint-disable-next-line no-console
-      console.warn(`Invalid policy '${validated.policy}', defaulting to 'PRODUCTION'`)
+      console.warn(`Invalid policy '${validated.policy}', defaulting to 'PRODUCTION'`);
     }
-    validated.policy = 'PRODUCTION'
+    validated.policy = 'PRODUCTION';
   }
 
   // Validate status code
@@ -302,12 +302,12 @@ function validateConfig (config) {
     // Only log in non-test environments
     if (process.env.NODE_ENV !== 'test') {
       // eslint-disable-next-line no-console
-      console.warn(`Invalid blockStatusCode '${validated.blockStatusCode}', defaulting to 400`)
+      console.warn(`Invalid blockStatusCode '${validated.blockStatusCode}', defaulting to 400`);
     }
-    validated.blockStatusCode = 400
+    validated.blockStatusCode = 400;
   }
 
-  return validated
+  return validated;
 }
 
 /**
@@ -344,7 +344,7 @@ module.exports = {
     fastify,
     koa: koa.createKoaMiddleware
   }
-}
+};
 
 /**
  * Type definitions for better IDE support
@@ -359,7 +359,7 @@ module.exports.types = {
   Environment: 'string',
   SanitizationMode: 'string',
   SecurityPolicy: 'string'
-}
+};
 
 /**
  * Usage Examples:

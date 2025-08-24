@@ -13,7 +13,7 @@ const SEVERITY_LEVELS = {
   HIGH: 'high',
   MEDIUM: 'medium',
   LOW: 'low'
-}
+};
 
 /**
  * Dangerous object keys that can lead to prototype pollution
@@ -32,7 +32,7 @@ const DANGEROUS_KEYS = [
   'propertyIsEnumerable',
   'toString',
   'valueOf'
-]
+];
 
 /**
  * Patterns for prototype pollution in different contexts
@@ -61,7 +61,7 @@ const POLLUTION_PATTERNS = [
   /__defineGetter__\s*\(/g,
   /__defineSetter__\s*\(/g,
   /Object\s*\.\s*defineProperty\s*\(\s*.*prototype/g
-]
+];
 
 /**
  * JSON-based prototype pollution patterns
@@ -83,7 +83,7 @@ const JSON_POLLUTION_PATTERNS = [
   // Hex escaped versions
   /"\x5f\x5fproto\x5f\x5f"\s*:/g,
   /"\x63onstructor"\s*:/g
-]
+];
 
 /**
  * Lodash-specific pollution patterns
@@ -100,7 +100,7 @@ const LODASH_POLLUTION_PATTERNS = [
   // Property path pollution
   /\[\s*'__proto__\..*'\s*\]/g,
   /\[\s*"__proto__\..*"\s*\]/g
-]
+];
 
 /**
  * Express.js specific pollution patterns
@@ -115,7 +115,7 @@ const EXPRESS_POLLUTION_PATTERNS = [
   /__proto__\[.*\]/g,
   /constructor\[prototype\]/g,
   /constructor\.prototype\[/g
-]
+];
 
 /**
  * Encoding bypass patterns for prototype pollution
@@ -140,7 +140,7 @@ const ENCODING_BYPASS_PATTERNS = [
   /__PROTO__/gi,
   /CONSTRUCTOR/gi,
   /PROTOTYPE/gi
-]
+];
 
 /**
  * Property access patterns that might indicate pollution
@@ -157,7 +157,7 @@ const PROPERTY_ACCESS_PATTERNS = [
   // Computed property names
   /\[\s*['"]\w*proto\w*['"]\s*\]/gi,
   /\[\s*['"]\w*constructor\w*['"]\s*\]/gi
-]
+];
 
 /**
  * Main detection function for prototype pollution patterns
@@ -166,59 +166,59 @@ const PROPERTY_ACCESS_PATTERNS = [
  * @returns {Object} Detection result with severity and details
  */
 function detectPrototypePollution (input, options = {}) {
-  const detectedPatterns = []
-  let maxSeverity = null
+  const detectedPatterns = [];
+  let maxSeverity = null;
 
   // Handle different input types
   if (typeof input === 'object' && input !== null) {
-    const objectResult = checkObjectKeys(input)
+    const objectResult = checkObjectKeys(input);
     if (objectResult.detected) {
-      detectedPatterns.push(...objectResult.patterns)
-      maxSeverity = getHigherSeverity(maxSeverity, objectResult.severity)
+      detectedPatterns.push(...objectResult.patterns);
+      maxSeverity = getHigherSeverity(maxSeverity, objectResult.severity);
     }
   }
 
   if (typeof input === 'string') {
     // Check pollution patterns
-    const pollutionResult = checkPollutionPatterns(input)
+    const pollutionResult = checkPollutionPatterns(input);
     if (pollutionResult.detected) {
-      detectedPatterns.push(...pollutionResult.patterns)
-      maxSeverity = getHigherSeverity(maxSeverity, pollutionResult.severity)
+      detectedPatterns.push(...pollutionResult.patterns);
+      maxSeverity = getHigherSeverity(maxSeverity, pollutionResult.severity);
     }
 
     // Check JSON pollution patterns
-    const jsonResult = checkJSONPollutionPatterns(input)
+    const jsonResult = checkJSONPollutionPatterns(input);
     if (jsonResult.detected) {
-      detectedPatterns.push(...jsonResult.patterns)
-      maxSeverity = getHigherSeverity(maxSeverity, jsonResult.severity)
+      detectedPatterns.push(...jsonResult.patterns);
+      maxSeverity = getHigherSeverity(maxSeverity, jsonResult.severity);
     }
 
     // Check lodash patterns
-    const lodashResult = checkLodashPollutionPatterns(input)
+    const lodashResult = checkLodashPollutionPatterns(input);
     if (lodashResult.detected) {
-      detectedPatterns.push(...lodashResult.patterns)
-      maxSeverity = getHigherSeverity(maxSeverity, lodashResult.severity)
+      detectedPatterns.push(...lodashResult.patterns);
+      maxSeverity = getHigherSeverity(maxSeverity, lodashResult.severity);
     }
 
     // Check Express patterns
-    const expressResult = checkExpressPollutionPatterns(input)
+    const expressResult = checkExpressPollutionPatterns(input);
     if (expressResult.detected) {
-      detectedPatterns.push(...expressResult.patterns)
-      maxSeverity = getHigherSeverity(maxSeverity, expressResult.severity)
+      detectedPatterns.push(...expressResult.patterns);
+      maxSeverity = getHigherSeverity(maxSeverity, expressResult.severity);
     }
 
     // Check encoding bypass patterns
-    const encodingResult = checkEncodingBypassPatterns(input)
+    const encodingResult = checkEncodingBypassPatterns(input);
     if (encodingResult.detected) {
-      detectedPatterns.push(...encodingResult.patterns)
-      maxSeverity = getHigherSeverity(maxSeverity, encodingResult.severity)
+      detectedPatterns.push(...encodingResult.patterns);
+      maxSeverity = getHigherSeverity(maxSeverity, encodingResult.severity);
     }
 
     // Check property access patterns
-    const propertyResult = checkPropertyAccessPatterns(input)
+    const propertyResult = checkPropertyAccessPatterns(input);
     if (propertyResult.detected) {
-      detectedPatterns.push(...propertyResult.patterns)
-      maxSeverity = getHigherSeverity(maxSeverity, propertyResult.severity)
+      detectedPatterns.push(...propertyResult.patterns);
+      maxSeverity = getHigherSeverity(maxSeverity, propertyResult.severity);
     }
   }
 
@@ -229,7 +229,7 @@ function detectPrototypePollution (input, options = {}) {
     message: detectedPatterns.length > 0
       ? `Prototype pollution patterns detected: ${detectedPatterns.join(', ')}`
       : null
-  }
+  };
 }
 
 /**
@@ -237,57 +237,57 @@ function detectPrototypePollution (input, options = {}) {
  */
 function checkObjectKeys (obj, prefix = '', visited = new WeakSet()) {
   if (visited.has(obj)) {
-    return { detected: false, severity: null, patterns: [] }
+    return { detected: false, severity: null, patterns: [] };
   }
-  visited.add(obj)
+  visited.add(obj);
 
-  const detected = []
+  const detected = [];
 
   try {
     for (const key of Object.keys(obj)) {
-      const fullKey = prefix ? `${prefix}.${key}` : key
+      const fullKey = prefix ? `${prefix}.${key}` : key;
 
       // Check if key is dangerous
       if (DANGEROUS_KEYS.includes(key)) {
-        detected.push(`dangerous_key:${fullKey}`)
+        detected.push(`dangerous_key:${fullKey}`);
       }
 
       // Check for prototype pollution key patterns
       if (key.includes('__proto__') ||
           key.includes('constructor') ||
           key.includes('prototype')) {
-        detected.push(`pollution_key:${fullKey}`)
+        detected.push(`pollution_key:${fullKey}`);
       }
 
       // Recursively check nested objects
       if (typeof obj[key] === 'object' && obj[key] !== null) {
-        const nestedResult = checkObjectKeys(obj[key], fullKey, visited)
+        const nestedResult = checkObjectKeys(obj[key], fullKey, visited);
         if (nestedResult.detected) {
-          detected.push(...nestedResult.patterns)
+          detected.push(...nestedResult.patterns);
         }
       }
     }
   } catch (error) {
     // Handle cases where object properties cannot be enumerated
-    detected.push(`object_enumeration_error:${error.message}`)
+    detected.push(`object_enumeration_error:${error.message}`);
   }
 
   return {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.CRITICAL : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for prototype pollution patterns in strings
  */
 function checkPollutionPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of POLLUTION_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`pollution_pattern:${pattern.source}`)
+      detected.push(`pollution_pattern:${pattern.source}`);
     }
   }
 
@@ -295,18 +295,18 @@ function checkPollutionPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.CRITICAL : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for JSON-based pollution patterns
  */
 function checkJSONPollutionPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of JSON_POLLUTION_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`json_pollution:${pattern.source}`)
+      detected.push(`json_pollution:${pattern.source}`);
     }
   }
 
@@ -314,18 +314,18 @@ function checkJSONPollutionPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.HIGH : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for Lodash-specific pollution patterns
  */
 function checkLodashPollutionPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of LODASH_POLLUTION_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`lodash_pollution:${pattern.source}`)
+      detected.push(`lodash_pollution:${pattern.source}`);
     }
   }
 
@@ -333,18 +333,18 @@ function checkLodashPollutionPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.HIGH : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for Express.js specific pollution patterns
  */
 function checkExpressPollutionPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of EXPRESS_POLLUTION_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`express_pollution:${pattern.source}`)
+      detected.push(`express_pollution:${pattern.source}`);
     }
   }
 
@@ -352,18 +352,18 @@ function checkExpressPollutionPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.HIGH : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for encoding bypass patterns
  */
 function checkEncodingBypassPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of ENCODING_BYPASS_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`encoding_bypass:${pattern.source}`)
+      detected.push(`encoding_bypass:${pattern.source}`);
     }
   }
 
@@ -371,18 +371,18 @@ function checkEncodingBypassPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.MEDIUM : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for suspicious property access patterns
  */
 function checkPropertyAccessPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of PROPERTY_ACCESS_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`property_access:${pattern.source}`)
+      detected.push(`property_access:${pattern.source}`);
     }
   }
 
@@ -390,27 +390,27 @@ function checkPropertyAccessPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.MEDIUM : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Get the higher severity between two severity levels
  */
 function getHigherSeverity (current, newSeverity) {
-  if (!current) return newSeverity
-  if (!newSeverity) return current
+  if (!current) return newSeverity;
+  if (!newSeverity) return current;
 
   const severityOrder = [
     SEVERITY_LEVELS.LOW,
     SEVERITY_LEVELS.MEDIUM,
     SEVERITY_LEVELS.HIGH,
     SEVERITY_LEVELS.CRITICAL
-  ]
+  ];
 
-  const currentIndex = severityOrder.indexOf(current)
-  const newIndex = severityOrder.indexOf(newSeverity)
+  const currentIndex = severityOrder.indexOf(current);
+  const newIndex = severityOrder.indexOf(newSeverity);
 
-  return newIndex > currentIndex ? newSeverity : current
+  return newIndex > currentIndex ? newSeverity : current;
 }
 
 /**
@@ -419,7 +419,7 @@ function getHigherSeverity (current, newSeverity) {
  * @returns {boolean} True if prototype pollution patterns are detected
  */
 function isPrototypePollution (input) {
-  return detectPrototypePollution(input).detected
+  return detectPrototypePollution(input).detected;
 }
 
 /**
@@ -431,7 +431,7 @@ function isDangerousKey (key) {
   return DANGEROUS_KEYS.includes(key) ||
          key.includes('__proto__') ||
          key.includes('constructor') ||
-         key.includes('prototype')
+         key.includes('prototype');
 }
 
 module.exports = {
@@ -460,4 +460,4 @@ module.exports = {
 
   // Constants
   SEVERITY_LEVELS
-}
+};

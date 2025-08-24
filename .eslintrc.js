@@ -13,6 +13,7 @@ module.exports = {
     sourceType: 'module'
   },
   rules: {
+    'semi': ['error', 'always'],
     'no-console': 'warn',
     'no-eval': 'error',
     'no-implied-eval': 'error',

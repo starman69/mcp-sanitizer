@@ -43,8 +43,8 @@
  * }));
  */
 
-const MCPSanitizer = require('../index')
-const { createOptimizedMatcher } = require('./optimized-skip-matcher')
+const MCPSanitizer = require('../index');
+const { createOptimizedMatcher } = require('./optimized-skip-matcher');
 
 /**
  * Default configuration for Express middleware
@@ -80,7 +80,7 @@ const DEFAULT_CONFIG = {
   onWarning: null,
   onBlocked: null,
   onError: null
-}
+};
 
 /**
  * Create Express.js middleware for MCP sanitization
@@ -88,40 +88,40 @@ const DEFAULT_CONFIG = {
  * @returns {Function} Express middleware function
  */
 function createExpressMiddleware (options = {}) {
-  const config = { ...DEFAULT_CONFIG, ...options }
+  const config = { ...DEFAULT_CONFIG, ...options };
 
   // Initialize sanitizer if not provided
   const sanitizer = config.sanitizer || new MCPSanitizer({
     policy: config.policy,
     ...config.sanitizerOptions
-  })
+  });
 
   // Pre-compile skip path matcher for optimal performance
-  const skipMatcher = createOptimizedMatcher(config.skipPaths)
+  const skipMatcher = createOptimizedMatcher(config.skipPaths);
 
   // Pre-compile static checks for better performance
-  const healthPaths = config.skipHealthChecks ? new Set(['/health', '/healthcheck', '/ping', '/status']) : null
-  const staticExtensions = config.skipStaticFiles ? new Set(['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2']) : null
+  const healthPaths = config.skipHealthChecks ? new Set(['/health', '/healthcheck', '/ping', '/status']) : null;
+  const staticExtensions = config.skipStaticFiles ? new Set(['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2']) : null;
 
   // Create backward-compatible shouldSkipRequest function
   function shouldSkipRequest (req, config) {
-    return shouldSkipRequestOptimized(req, skipMatcher, healthPaths, staticExtensions)
+    return shouldSkipRequestOptimized(req, skipMatcher, healthPaths, staticExtensions);
   }
 
   // Create the middleware function
   return function mcpSanitizationMiddleware (req, res, next) {
     // Skip certain requests if configured - OPTIMIZED (backward compatible)
     if (shouldSkipRequest(req, config)) {
-      return next()
+      return next();
     }
 
     // Choose sync or async processing
     if (config.async) {
-      return processRequestAsync(req, res, next, sanitizer, config)
+      return processRequestAsync(req, res, next, sanitizer, config);
     } else {
-      return processRequestSync(req, res, next, sanitizer, config)
+      return processRequestSync(req, res, next, sanitizer, config);
     }
-  }
+  };
 }
 
 /**
@@ -136,35 +136,35 @@ function createExpressMiddleware (options = {}) {
 function shouldSkipRequestOptimized (req, skipMatcher, healthPaths, staticExtensions) {
   // Priority 1: Check skipPaths using optimized matcher - O(1) to O(log n)
   if (skipMatcher && skipMatcher.shouldSkip(req.path)) {
-    return true
+    return true;
   }
 
   // Priority 2: Skip health check endpoints - O(1) Set lookup
   if (healthPaths) {
     // Fast Set lookup instead of array iteration
     if (healthPaths.has(req.path)) {
-      return true
+      return true;
     }
     // Check for path prefixes (e.g., /health/detailed)
     for (const healthPath of healthPaths) {
       if (req.path.startsWith(healthPath + '/')) {
-        return true
+        return true;
       }
     }
   }
 
   // Priority 3: Skip static file requests - O(1) extension lookup
   if (staticExtensions) {
-    const lastDotIndex = req.path.lastIndexOf('.')
+    const lastDotIndex = req.path.lastIndexOf('.');
     if (lastDotIndex !== -1) {
-      const extension = req.path.substring(lastDotIndex)
+      const extension = req.path.substring(lastDotIndex);
       if (staticExtensions.has(extension)) {
-        return true
+        return true;
       }
     }
   }
 
-  return false
+  return false;
 }
 
 // Helper functions removed - functionality moved to optimized shouldSkipRequestOptimized function
@@ -179,9 +179,9 @@ function shouldSkipRequestOptimized (req, skipMatcher, healthPaths, staticExtens
  */
 function processRequestSync (req, res, next, sanitizer, config) {
   try {
-    const sanitizationResults = {}
-    let hasBlocked = false
-    const allWarnings = []
+    const sanitizationResults = {};
+    let hasBlocked = false;
+    const allWarnings = [];
 
     // Sanitize request body
     if (config.sanitizeBody && req.body) {
@@ -189,14 +189,14 @@ function processRequestSync (req, res, next, sanitizer, config) {
         type: 'request_body',
         path: req.path,
         method: req.method
-      })
+      });
 
-      sanitizationResults.body = result
-      if (result.blocked) hasBlocked = true
-      allWarnings.push(...result.warnings)
+      sanitizationResults.body = result;
+      if (result.blocked) hasBlocked = true;
+      allWarnings.push(...result.warnings);
 
       if (!result.blocked) {
-        req.body = result.sanitized
+        req.body = result.sanitized;
       }
     }
 
@@ -206,14 +206,14 @@ function processRequestSync (req, res, next, sanitizer, config) {
         type: 'request_params',
         path: req.path,
         method: req.method
-      })
+      });
 
-      sanitizationResults.params = result
-      if (result.blocked) hasBlocked = true
-      allWarnings.push(...result.warnings)
+      sanitizationResults.params = result;
+      if (result.blocked) hasBlocked = true;
+      allWarnings.push(...result.warnings);
 
       if (!result.blocked) {
-        req.params = result.sanitized
+        req.params = result.sanitized;
       }
     }
 
@@ -223,14 +223,14 @@ function processRequestSync (req, res, next, sanitizer, config) {
         type: 'request_query',
         path: req.path,
         method: req.method
-      })
+      });
 
-      sanitizationResults.query = result
-      if (result.blocked) hasBlocked = true
-      allWarnings.push(...result.warnings)
+      sanitizationResults.query = result;
+      if (result.blocked) hasBlocked = true;
+      allWarnings.push(...result.warnings);
 
       if (!result.blocked) {
-        req.query = result.sanitized
+        req.query = result.sanitized;
       }
     }
 
@@ -240,36 +240,36 @@ function processRequestSync (req, res, next, sanitizer, config) {
         type: 'request_headers',
         path: req.path,
         method: req.method
-      })
+      });
 
-      sanitizationResults.headers = result
-      if (result.blocked) hasBlocked = true
-      allWarnings.push(...result.warnings)
+      sanitizationResults.headers = result;
+      if (result.blocked) hasBlocked = true;
+      allWarnings.push(...result.warnings);
 
       if (!result.blocked) {
-        req.headers = result.sanitized
+        req.headers = result.sanitized;
       }
     }
 
     // Handle blocking mode
     if (config.mode === 'block' && hasBlocked) {
-      return handleBlockedRequest(req, res, allWarnings, sanitizationResults, config)
+      return handleBlockedRequest(req, res, allWarnings, sanitizationResults, config);
     }
 
     // Handle warnings
     if (allWarnings.length > 0) {
-      handleWarnings(req, allWarnings, sanitizationResults, config)
+      handleWarnings(req, allWarnings, sanitizationResults, config);
     }
 
     // Add sanitization data to request
     if (config.addWarningsToRequest) {
-      req.sanitizationWarnings = allWarnings
-      req.sanitizationResults = sanitizationResults
+      req.sanitizationWarnings = allWarnings;
+      req.sanitizationResults = sanitizationResults;
     }
 
-    next()
+    next();
   } catch (error) {
-    handleMiddlewareError(error, req, res, next, config)
+    handleMiddlewareError(error, req, res, next, config);
   }
 }
 
@@ -283,19 +283,19 @@ function processRequestSync (req, res, next, sanitizer, config) {
  */
 async function processRequestAsync (req, res, next, sanitizer, config) {
   try {
-    const sanitizationResults = {}
-    let hasBlocked = false
-    const allWarnings = []
+    const sanitizationResults = {};
+    let hasBlocked = false;
+    const allWarnings = [];
 
     // Create array of sanitization tasks
-    const tasks = []
+    const tasks = [];
 
     if (config.sanitizeBody && req.body) {
       tasks.push({
         type: 'body',
         data: req.body,
         context: { type: 'request_body', path: req.path, method: req.method }
-      })
+      });
     }
 
     if (config.sanitizeParams && req.params) {
@@ -303,7 +303,7 @@ async function processRequestAsync (req, res, next, sanitizer, config) {
         type: 'params',
         data: req.params,
         context: { type: 'request_params', path: req.path, method: req.method }
-      })
+      });
     }
 
     if (config.sanitizeQuery && req.query) {
@@ -311,7 +311,7 @@ async function processRequestAsync (req, res, next, sanitizer, config) {
         type: 'query',
         data: req.query,
         context: { type: 'request_query', path: req.path, method: req.method }
-      })
+      });
     }
 
     if (config.sanitizeHeaders && req.headers) {
@@ -319,47 +319,47 @@ async function processRequestAsync (req, res, next, sanitizer, config) {
         type: 'headers',
         data: req.headers,
         context: { type: 'request_headers', path: req.path, method: req.method }
-      })
+      });
     }
 
     // Process all sanitization tasks in parallel
     const results = await Promise.all(
       tasks.map(async (task) => {
-        const result = await Promise.resolve(sanitizer.sanitize(task.data, task.context))
-        return { type: task.type, result }
+        const result = await Promise.resolve(sanitizer.sanitize(task.data, task.context));
+        return { type: task.type, result };
       })
-    )
+    );
 
     // Process results
     for (const { type, result } of results) {
-      sanitizationResults[type] = result
-      if (result.blocked) hasBlocked = true
-      allWarnings.push(...result.warnings)
+      sanitizationResults[type] = result;
+      if (result.blocked) hasBlocked = true;
+      allWarnings.push(...result.warnings);
 
       if (!result.blocked) {
-        req[type] = result.sanitized
+        req[type] = result.sanitized;
       }
     }
 
     // Handle blocking mode
     if (config.mode === 'block' && hasBlocked) {
-      return handleBlockedRequest(req, res, allWarnings, sanitizationResults, config)
+      return handleBlockedRequest(req, res, allWarnings, sanitizationResults, config);
     }
 
     // Handle warnings
     if (allWarnings.length > 0) {
-      handleWarnings(req, allWarnings, sanitizationResults, config)
+      handleWarnings(req, allWarnings, sanitizationResults, config);
     }
 
     // Add sanitization data to request
     if (config.addWarningsToRequest) {
-      req.sanitizationWarnings = allWarnings
-      req.sanitizationResults = sanitizationResults
+      req.sanitizationWarnings = allWarnings;
+      req.sanitizationResults = sanitizationResults;
     }
 
-    next()
+    next();
   } catch (error) {
-    handleMiddlewareError(error, req, res, next, config)
+    handleMiddlewareError(error, req, res, next, config);
   }
 }
 
@@ -383,14 +383,14 @@ function handleBlockedRequest (req, res, warnings, results, config) {
         path: req.path,
         method: req.method,
         warnings: warnings.map(w => ({ type: w.type, message: w.message, severity: w.severity }))
-      })
+      });
     }
   }
 
   // Call custom blocked handler if provided
   if (config.onBlocked) {
-    const result = config.onBlocked(warnings, req, res, results)
-    if (result === false) return // Handler took care of response
+    const result = config.onBlocked(warnings, req, res, results);
+    if (result === false) return; // Handler took care of response
   }
 
   // Send default blocked response
@@ -398,7 +398,7 @@ function handleBlockedRequest (req, res, warnings, results, config) {
     error: config.errorMessage,
     blocked: true,
     timestamp: new Date().toISOString()
-  }
+  };
 
   if (config.includeDetails) {
     response.details = warnings.map(w => ({
@@ -406,10 +406,10 @@ function handleBlockedRequest (req, res, warnings, results, config) {
       message: w.message,
       severity: w.severity,
       field: w.field
-    }))
+    }));
   }
 
-  res.status(config.blockStatusCode).json(response)
+  res.status(config.blockStatusCode).json(response);
 }
 
 /**
@@ -430,13 +430,13 @@ function handleWarnings (req, warnings, results, config) {
         path: req.path,
         method: req.method,
         warnings: warnings.map(w => ({ type: w.type, message: w.message, severity: w.severity }))
-      })
+      });
     }
   }
 
   // Call custom warning handler if provided
   if (config.onWarning) {
-    config.onWarning(warnings, req, results)
+    config.onWarning(warnings, req, results);
   }
 }
 
@@ -458,20 +458,20 @@ function handleMiddlewareError (error, req, res, next, config) {
       path: req.path,
       method: req.method,
       ip: req.ip
-    })
+    });
   }
 
   // Call custom error handler if provided
   if (config.onError) {
-    const result = config.onError(error, req, res, next)
-    if (result === false) return // Handler took care of response
+    const result = config.onError(error, req, res, next);
+    if (result === false) return; // Handler took care of response
   }
 
   // Send error response
   res.status(500).json({
     error: 'Internal sanitization error',
     timestamp: new Date().toISOString()
-  })
+  });
 }
 
 /**
@@ -489,9 +489,9 @@ function createMCPToolMiddleware (options = {}) {
     sanitizeQuery: false,
     mode: 'block', // More strict for tool execution
     toolSpecificSanitization: true
-  }
+  };
 
-  const baseMiddleware = createExpressMiddleware(config)
+  const baseMiddleware = createExpressMiddleware(config);
 
   return function mcpToolMiddleware (req, res, next) {
     // Add MCP-specific context
@@ -499,24 +499,24 @@ function createMCPToolMiddleware (options = {}) {
       toolName: req.params.toolName || req.body?.tool_name,
       isToolExecution: true,
       timestamp: Date.now()
-    }
+    };
 
     // Apply base middleware
     baseMiddleware(req, res, (err) => {
-      if (err) return next(err)
+      if (err) return next(err);
 
       // Additional MCP-specific processing
       if (config.toolSpecificSanitization && req.mcpContext.toolName) {
         try {
-          applyToolSpecificSanitization(req, req.mcpContext.toolName, config)
+          applyToolSpecificSanitization(req, req.mcpContext.toolName, config);
         } catch (error) {
-          return handleMiddlewareError(error, req, res, next, config)
+          return handleMiddlewareError(error, req, res, next, config);
         }
       }
 
-      next()
-    })
-  }
+      next();
+    });
+  };
 }
 
 /**
@@ -526,68 +526,68 @@ function createMCPToolMiddleware (options = {}) {
  * @param {Object} config - Middleware configuration
  */
 function applyToolSpecificSanitization (req, toolName, config) {
-  const sanitizer = config.sanitizer || new MCPSanitizer({ policy: config.policy })
+  const sanitizer = config.sanitizer || new MCPSanitizer({ policy: config.policy });
 
-  if (!req.body || !req.body.parameters) return
+  if (!req.body || !req.body.parameters) return;
 
-  const params = req.body.parameters
-  let hasBlocked = false
-  const toolWarnings = []
+  const params = req.body.parameters;
+  let hasBlocked = false;
+  const toolWarnings = [];
 
   switch (toolName) {
     case 'file_reader':
     case 'file_writer':
       if (params.file_path) {
-        const result = sanitizer.sanitize(params.file_path, { type: 'file_path' })
-        if (result.blocked) hasBlocked = true
-        toolWarnings.push(...result.warnings)
-        if (!result.blocked) params.file_path = result.sanitized
+        const result = sanitizer.sanitize(params.file_path, { type: 'file_path' });
+        if (result.blocked) hasBlocked = true;
+        toolWarnings.push(...result.warnings);
+        if (!result.blocked) params.file_path = result.sanitized;
       }
-      break
+      break;
 
     case 'web_scraper':
     case 'web_fetch':
       if (params.url) {
-        const result = sanitizer.sanitize(params.url, { type: 'url' })
-        if (result.blocked) hasBlocked = true
-        toolWarnings.push(...result.warnings)
-        if (!result.blocked) params.url = result.sanitized
+        const result = sanitizer.sanitize(params.url, { type: 'url' });
+        if (result.blocked) hasBlocked = true;
+        toolWarnings.push(...result.warnings);
+        if (!result.blocked) params.url = result.sanitized;
       }
-      break
+      break;
 
     case 'shell_executor':
     case 'command_runner':
       if (params.command) {
-        const result = sanitizer.sanitize(params.command, { type: 'command' })
-        if (result.blocked) hasBlocked = true
-        toolWarnings.push(...result.warnings)
-        if (!result.blocked) params.command = result.sanitized
+        const result = sanitizer.sanitize(params.command, { type: 'command' });
+        if (result.blocked) hasBlocked = true;
+        toolWarnings.push(...result.warnings);
+        if (!result.blocked) params.command = result.sanitized;
       }
-      break
+      break;
 
     case 'database_query':
     case 'sql_executor':
       if (params.query) {
-        const result = sanitizer.sanitize(params.query, { type: 'sql' })
-        if (result.blocked) hasBlocked = true
-        toolWarnings.push(...result.warnings)
-        if (!result.blocked) params.query = result.sanitized
+        const result = sanitizer.sanitize(params.query, { type: 'sql' });
+        if (result.blocked) hasBlocked = true;
+        toolWarnings.push(...result.warnings);
+        if (!result.blocked) params.query = result.sanitized;
       }
-      break
+      break;
   }
 
   // Handle tool-specific blocking
   if (config.mode === 'block' && hasBlocked) {
-    const error = new Error('Tool parameters blocked due to security concerns')
-    error.code = 'MCP_TOOL_BLOCKED'
-    error.warnings = toolWarnings
-    throw error
+    const error = new Error('Tool parameters blocked due to security concerns');
+    error.code = 'MCP_TOOL_BLOCKED';
+    error.warnings = toolWarnings;
+    throw error;
   }
 
   // Add tool warnings to request
   if (toolWarnings.length > 0) {
-    req.sanitizationWarnings = req.sanitizationWarnings || []
-    req.sanitizationWarnings.push(...toolWarnings)
+    req.sanitizationWarnings = req.sanitizationWarnings || [];
+    req.sanitizationWarnings.push(...toolWarnings);
   }
 }
 
@@ -595,7 +595,7 @@ module.exports = {
   createExpressMiddleware,
   createMCPToolMiddleware,
   DEFAULT_CONFIG
-}
+};
 
 /**
  * Usage Examples:

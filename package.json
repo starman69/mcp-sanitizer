@@ -1,6 +1,6 @@
 {
   "name": "mcp-sanitizer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Comprehensive security sanitization library for Model Context Protocol (MCP) servers with trusted security libraries",
   "main": "src/index.js",
   "scripts": {
@@ -36,6 +36,7 @@
     "sanitize-filename": "^1.6.3",
     "shell-quote": "^1.8.3",
     "sqlstring": "^2.3.3",
+    "unorm": "^1.6.0",
     "validator": "^13.15.15"
   },
   "devDependencies": {

@@ -174,7 +174,7 @@ const DEFAULT_CONFIG = {
     enabled: false,
     patterns: []
   }
-}
+};
 
 /**
  * Configuration schema for validation
@@ -183,83 +183,83 @@ const DEFAULT_CONFIG = {
 const CONFIG_SCHEMA = {
   allowedProtocols: (value) => {
     if (!Array.isArray(value)) {
-      throw new Error('allowedProtocols must be an array')
+      throw new Error('allowedProtocols must be an array');
     }
     if (!value.every(protocol => typeof protocol === 'string')) {
-      throw new Error('All protocols must be strings')
+      throw new Error('All protocols must be strings');
     }
   },
 
   maxStringLength: (value) => {
     if (typeof value !== 'number' || value < 0) {
-      throw new Error('maxStringLength must be a non-negative number')
+      throw new Error('maxStringLength must be a non-negative number');
     }
   },
 
   maxDepth: (value) => {
     if (typeof value !== 'number' || value < 0) {
-      throw new Error('maxDepth must be a non-negative number')
+      throw new Error('maxDepth must be a non-negative number');
     }
   },
 
   maxArrayLength: (value) => {
     if (typeof value !== 'number' || value < 0) {
-      throw new Error('maxArrayLength must be a non-negative number')
+      throw new Error('maxArrayLength must be a non-negative number');
     }
   },
 
   maxObjectKeys: (value) => {
     if (typeof value !== 'number' || value < 0) {
-      throw new Error('maxObjectKeys must be a non-negative number')
+      throw new Error('maxObjectKeys must be a non-negative number');
     }
   },
 
   allowedFileExtensions: (value) => {
     if (!Array.isArray(value)) {
-      throw new Error('allowedFileExtensions must be an array')
+      throw new Error('allowedFileExtensions must be an array');
     }
     if (!value.every(ext => typeof ext === 'string' && ext.startsWith('.'))) {
-      throw new Error('All file extensions must be strings starting with a dot')
+      throw new Error('All file extensions must be strings starting with a dot');
     }
   },
 
   blockedPatterns: (value) => {
     if (!Array.isArray(value)) {
-      throw new Error('blockedPatterns must be an array')
+      throw new Error('blockedPatterns must be an array');
     }
     if (!value.every(pattern => pattern instanceof RegExp)) {
-      throw new Error('All blocked patterns must be RegExp objects')
+      throw new Error('All blocked patterns must be RegExp objects');
     }
   },
 
   sqlKeywords: (value) => {
     if (!Array.isArray(value)) {
-      throw new Error('sqlKeywords must be an array')
+      throw new Error('sqlKeywords must be an array');
     }
     if (!value.every(keyword => typeof keyword === 'string')) {
-      throw new Error('All SQL keywords must be strings')
+      throw new Error('All SQL keywords must be strings');
     }
   },
 
   strictMode: (value) => {
     if (typeof value !== 'boolean') {
-      throw new Error('strictMode must be a boolean')
+      throw new Error('strictMode must be a boolean');
     }
   },
 
   logSecurityEvents: (value) => {
     if (typeof value !== 'boolean') {
-      throw new Error('logSecurityEvents must be a boolean')
+      throw new Error('logSecurityEvents must be a boolean');
     }
   },
 
   blockOnSeverity: (value) => {
-    const validSeverities = ['low', 'medium', 'high', 'critical']
+    const validSeverities = ['low', 'medium', 'high', 'critical'];
     if (!validSeverities.includes(value)) {
-      throw new Error(`blockOnSeverity must be one of: ${validSeverities.join(', ')}`)
+      throw new Error(`blockOnSeverity must be one of: ${validSeverities.join(', ')}`);
     }
   }
-}
+};
 
 /**
  * Deep merge function that handles RegExp objects
@@ -269,13 +269,13 @@ const CONFIG_SCHEMA = {
  */
 function deepMerge (target, source) {
   if (typeof target !== 'object' || target === null) {
-    target = {}
+    target = {};
   }
   if (typeof source !== 'object' || source === null) {
-    return target
+    return target;
   }
 
-  const result = { ...target }
+  const result = { ...target };
 
   for (const key in source) {
     if (Object.prototype.hasOwnProperty.call(source, key)) {
@@ -284,25 +284,25 @@ function deepMerge (target, source) {
           !Array.isArray(source[key]) &&
           !(source[key] instanceof RegExp)) {
         // Deep merge objects
-        result[key] = deepMerge(target[key] || {}, source[key])
+        result[key] = deepMerge(target[key] || {}, source[key]);
       } else if (source[key] instanceof RegExp) {
         // Clone RegExp objects
-        result[key] = new RegExp(source[key].source, source[key].flags)
+        result[key] = new RegExp(source[key].source, source[key].flags);
       } else if (Array.isArray(source[key])) {
         // For arrays, completely replace with source array (cloning RegExp objects)
         result[key] = source[key].map(item =>
           item instanceof RegExp
             ? new RegExp(item.source, item.flags)
             : item
-        )
+        );
       } else {
         // For primitive values, use source value
-        result[key] = source[key]
+        result[key] = source[key];
       }
     }
   }
 
-  return result
+  return result;
 }
 
 /**
@@ -314,11 +314,11 @@ function deepMerge (target, source) {
 function mergeConfig (target = DEFAULT_CONFIG, source = {}) {
   // If called with one parameter, assume it's merging with DEFAULT_CONFIG
   if (arguments.length === 1 && typeof target === 'object') {
-    source = target
-    target = DEFAULT_CONFIG
+    source = target;
+    target = DEFAULT_CONFIG;
   }
 
-  return deepMerge(target, source)
+  return deepMerge(target, source);
 }
 
 /**
@@ -330,9 +330,9 @@ function validateConfig (config) {
   for (const [key, validator] of Object.entries(CONFIG_SCHEMA)) {
     if (key in config) {
       try {
-        validator(config[key])
+        validator(config[key]);
       } catch (error) {
-        throw new Error(`Invalid configuration for '${key}': ${error.message}`)
+        throw new Error(`Invalid configuration for '${key}': ${error.message}`);
       }
     }
   }
@@ -344,9 +344,9 @@ function validateConfig (config) {
  * @returns {Object} Validated and merged configuration
  */
 function createConfig (userConfig = {}) {
-  const mergedConfig = mergeConfig(userConfig)
-  validateConfig(mergedConfig)
-  return mergedConfig
+  const mergedConfig = mergeConfig(userConfig);
+  validateConfig(mergedConfig);
+  return mergedConfig;
 }
 
 /**
@@ -357,28 +357,28 @@ function getDefaultConfig () {
   // Deep clone function that preserves RegExp objects
   function deepClone (obj) {
     if (obj === null || typeof obj !== 'object') {
-      return obj
+      return obj;
     }
 
     if (obj instanceof RegExp) {
-      return new RegExp(obj.source, obj.flags)
+      return new RegExp(obj.source, obj.flags);
     }
 
     if (Array.isArray(obj)) {
-      return obj.map(item => deepClone(item))
+      return obj.map(item => deepClone(item));
     }
 
-    const cloned = {}
+    const cloned = {};
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        cloned[key] = deepClone(obj[key])
+        cloned[key] = deepClone(obj[key]);
       }
     }
 
-    return cloned
+    return cloned;
   }
 
-  return deepClone(DEFAULT_CONFIG)
+  return deepClone(DEFAULT_CONFIG);
 }
 
 module.exports = {
@@ -389,4 +389,4 @@ module.exports = {
   validateConfig,
   createConfig,
   getDefaultConfig
-}
+};

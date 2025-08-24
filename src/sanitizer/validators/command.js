@@ -27,9 +27,11 @@
  */
 
 // const { validationUtils, stringUtils } = require('../../utils') // Unused - commented to fix ESLint
-const { commandInjection, detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns')
-const shellQuote = require('shell-quote')
-const { securityDecode } = require('../../utils/security-decoder')
+const { commandInjection, detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
+const shellQuote = require('shell-quote');
+// const { securityDecode } = require('../../utils/security-decoder') // Unused
+// CVE-TBD-001 FIX: Import unified parser for consistent string normalization
+const { parseUnified } = require('../../utils/unified-parser');
 
 /**
  * Command validation severity levels
@@ -39,7 +41,7 @@ const SEVERITY = {
   MEDIUM: 'medium',
   HIGH: 'high',
   CRITICAL: 'critical'
-}
+};
 
 /**
  * Default configuration for command validation
@@ -76,7 +78,7 @@ const DEFAULT_CONFIG = {
       dangerousPaths: ['/bin/', '/sbin/', '/usr/bin/', '/usr/sbin/']
     }
   }
-}
+};
 
 /**
  * Shell metacharacters that can be dangerous
@@ -88,7 +90,7 @@ const SHELL_METACHARACTERS = {
   background: ['&'],
   substitution: ['`', '$()'],
   globbing: ['*', '?', '[', ']', '{', '}']
-}
+};
 
 /**
  * Command injection patterns specific to this validator
@@ -112,7 +114,7 @@ const INJECTION_PATTERNS = [
   /\.ssh\//i, // SSH keys
   /\.aws\//i, // AWS credentials
   /\.env/i // Environment files
-]
+];
 
 /**
  * Command Validator Class
@@ -123,8 +125,8 @@ class CommandValidator {
    * @param {Object} config - Validation configuration
    */
   constructor (config = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config }
-    this.platform = this._detectPlatform()
+    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.platform = this._detectPlatform();
   }
 
   /**
@@ -149,146 +151,152 @@ class CommandValidator {
         wasDecoded: false,
         decodingSteps: []
       }
-    }
+    };
 
     try {
       // Basic input validation
       if (typeof command !== 'string') {
-        result.warnings.push('Command must be a string')
-        result.severity = SEVERITY.HIGH
-        return result
+        result.warnings.push('Command must be a string');
+        result.severity = SEVERITY.HIGH;
+        return result;
       }
 
       if (!command || command.trim().length === 0) {
-        result.warnings.push('Command cannot be empty')
-        result.severity = SEVERITY.HIGH
-        return result
+        result.warnings.push('Command cannot be empty');
+        result.severity = SEVERITY.HIGH;
+        return result;
       }
 
       // Check command length
       if (command.length > this.config.maxCommandLength) {
-        result.warnings.push(`Command exceeds maximum length of ${this.config.maxCommandLength} characters`)
-        result.severity = SEVERITY.MEDIUM
-        return result
+        result.warnings.push(`Command exceeds maximum length of ${this.config.maxCommandLength} characters`);
+        result.severity = SEVERITY.MEDIUM;
+        return result;
       }
 
-      // SECURITY: Decode and sanitize the command first
-      const decodedResult = securityDecode(command, {
-        decodeUnicode: true,
-        decodeUrl: true,
-        normalizePath: false, // Not a path
-        stripDangerous: true // Strip null bytes and newlines
-      })
+      // CVE-TBD-001 FIX: Use unified parser for consistent normalization
+      const normalizedStr = parseUnified(command, {
+        type: 'command',
+        strictMode: true
+      });
 
-      if (decodedResult.wasDecoded) {
-        result.metadata.wasDecoded = true
-        result.metadata.decodingSteps = decodedResult.decodingSteps
-        result.warnings.push(`Encoded/dangerous sequences detected and processed: ${decodedResult.decodingSteps.join(', ')}`)
-        result.severity = SEVERITY.HIGH // Encoding in commands is suspicious
+      const trimmedCommand = normalizedStr.getNormalized().trim();
+      const metadata = normalizedStr.getMetadata();
+
+      // Update result metadata with parsing information
+      if (metadata.wasDecoded) {
+        result.metadata.wasDecoded = true;
+        result.metadata.decodingSteps = metadata.decodingSteps;
+        result.warnings.push(`Encoded/dangerous sequences detected and processed: ${metadata.decodingSteps.join(', ')}`);
+        result.severity = SEVERITY.HIGH; // Encoding in commands is suspicious
       }
 
-      // Check for newlines and null bytes before processing
-      if (command.includes('\n') || command.includes('\r') || command.includes('\0')) {
-        result.warnings.push('Command contains dangerous control characters (newlines or null bytes)')
-        result.severity = SEVERITY.CRITICAL
-        return result
+      // Check for security warnings from unified parser
+      if (metadata.warnings && metadata.warnings.length > 0) {
+        result.warnings.push(...metadata.warnings);
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH);
       }
 
-      const trimmedCommand = decodedResult.decoded.trim()
+      // Check for newlines and null bytes before processing (should be removed by unified parser)
+      if (trimmedCommand.includes('\n') || trimmedCommand.includes('\r') || trimmedCommand.includes('\0')) {
+        result.warnings.push('Command contains dangerous control characters (newlines or null bytes)');
+        result.severity = SEVERITY.CRITICAL;
+        return result;
+      }
 
       // Check for security patterns using command injection detector
-      const injectionResult = commandInjection.detectCommandInjection(trimmedCommand)
+      const injectionResult = commandInjection.detectCommandInjection(trimmedCommand);
       if (injectionResult.detected) {
-        result.metadata.detectedPatterns = injectionResult.patterns
-        result.warnings.push(`Command injection patterns detected: ${injectionResult.patterns.join(', ')}`)
-        result.severity = this._mapSeverity(injectionResult.severity)
+        result.metadata.detectedPatterns = injectionResult.patterns;
+        result.warnings.push(`Command injection patterns detected: ${injectionResult.patterns.join(', ')}`);
+        result.severity = this._mapSeverity(injectionResult.severity);
 
         if (injectionResult.severity === SEVERITY_LEVELS.CRITICAL) {
-          return result
+          return result;
         }
       }
 
       // Run general pattern detection
-      const patternResult = detectAllPatterns(trimmedCommand)
+      const patternResult = detectAllPatterns(trimmedCommand);
       if (patternResult.detected) {
-        result.metadata.detectedPatterns.push(...patternResult.patterns)
-        result.warnings.push(`Additional security patterns detected: ${patternResult.patterns.join(', ')}`)
-        result.severity = this._getHigherSeverity(result.severity, this._mapSeverity(patternResult.severity))
+        result.metadata.detectedPatterns.push(...patternResult.patterns);
+        result.warnings.push(`Additional security patterns detected: ${patternResult.patterns.join(', ')}`);
+        result.severity = this._getHigherSeverity(result.severity, this._mapSeverity(patternResult.severity));
       }
 
       // Parse command into components
-      const parseResult = this._parseCommand(trimmedCommand)
+      const parseResult = this._parseCommand(trimmedCommand);
       if (!parseResult.isValid) {
-        result.warnings.push(...parseResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, parseResult.severity)
-        return result
+        result.warnings.push(...parseResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, parseResult.severity);
+        return result;
       }
 
-      result.metadata.parsedCommand = parseResult.parsed
-      result.metadata.commandName = parseResult.parsed.command
-      result.metadata.arguments = parseResult.parsed.arguments
+      result.metadata.parsedCommand = parseResult.parsed;
+      result.metadata.commandName = parseResult.parsed.command;
+      result.metadata.arguments = parseResult.parsed.arguments;
 
       // Validate shell metacharacters
-      const metacharResult = this._validateMetacharacters(trimmedCommand)
+      const metacharResult = this._validateMetacharacters(trimmedCommand);
       if (!metacharResult.isValid) {
-        result.warnings.push(...metacharResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, metacharResult.severity)
-        result.metadata.containsMetacharacters = true
+        result.warnings.push(...metacharResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, metacharResult.severity);
+        result.metadata.containsMetacharacters = true;
 
         if (metacharResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
 
       // Validate command name against whitelist/blacklist
-      const commandResult = this._validateCommandName(parseResult.parsed.command)
+      const commandResult = this._validateCommandName(parseResult.parsed.command);
       if (!commandResult.isValid) {
-        result.warnings.push(...commandResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, commandResult.severity)
+        result.warnings.push(...commandResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, commandResult.severity);
 
         if (commandResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
 
       // Validate arguments
-      const argsResult = this._validateArguments(parseResult.parsed.arguments)
+      const argsResult = this._validateArguments(parseResult.parsed.arguments);
       if (!argsResult.isValid) {
-        result.warnings.push(...argsResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, argsResult.severity)
+        result.warnings.push(...argsResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, argsResult.severity);
 
         if (argsResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
 
       // Platform-specific validation
-      const platformResult = this._validatePlatformSpecific(parseResult.parsed, trimmedCommand)
+      const platformResult = this._validatePlatformSpecific(parseResult.parsed, trimmedCommand);
       if (!platformResult.isValid) {
-        result.warnings.push(...platformResult.warnings)
-        result.severity = this._getHigherSeverity(result.severity, platformResult.severity)
+        result.warnings.push(...platformResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, platformResult.severity);
 
         if (platformResult.severity === SEVERITY.CRITICAL) {
-          return result
+          return result;
         }
       }
 
       // If we get here, the command is valid
-      result.isValid = true
-      result.sanitized = trimmedCommand
+      result.isValid = true;
+      result.sanitized = trimmedCommand;
 
       // Set severity to lowest if there were warnings but command is still valid
       if (result.warnings.length === 0) {
-        result.severity = null
+        result.severity = null;
       } else if (!result.severity) {
-        result.severity = SEVERITY.LOW
+        result.severity = SEVERITY.LOW;
       }
     } catch (error) {
-      result.warnings.push(`Validation error: ${error.message}`)
-      result.severity = SEVERITY.HIGH
+      result.warnings.push(`Validation error: ${error.message}`);
+      result.severity = SEVERITY.HIGH;
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -298,58 +306,58 @@ class CommandValidator {
    * @returns {Promise<Object>} Sanitization result
    */
   async sanitize (command, options = {}) {
-    const validationResult = await this.validate(command, options)
+    const validationResult = await this.validate(command, options);
 
     if (validationResult.isValid) {
-      return validationResult
+      return validationResult;
     }
 
     // Attempt to sanitize the command
-    let sanitized = command
-    const warnings = [...validationResult.warnings]
+    let sanitized = command;
+    const warnings = [...validationResult.warnings];
 
     try {
       // Basic sanitization
-      sanitized = sanitized.trim()
+      sanitized = sanitized.trim();
 
       // Remove or escape dangerous metacharacters
       if (!this.config.allowShellMetacharacters) {
         // Remove dangerous metacharacters
-        sanitized = sanitized.replace(/[;&|`$(){}[\]<>*?]/g, '')
-        warnings.push('Removed shell metacharacters')
+        sanitized = sanitized.replace(/[;&|`$(){}[\]<>*?]/g, '');
+        warnings.push('Removed shell metacharacters');
       }
 
       // Remove command chaining
-      sanitized = sanitized.split(/[;&|]{1,2}/)[0].trim()
+      sanitized = sanitized.split(/[;&|]{1,2}/)[0].trim();
       if (sanitized !== command.trim()) {
-        warnings.push('Removed command chaining')
+        warnings.push('Removed command chaining');
       }
 
       // Remove redirection
-      sanitized = sanitized.replace(/\s*[<>]+\s*[^\s]*/g, '')
+      sanitized = sanitized.replace(/\s*[<>]+\s*[^\s]*/g, '');
       if (sanitized !== command.trim()) {
-        warnings.push('Removed redirection operators')
+        warnings.push('Removed redirection operators');
       }
 
       // Remove background execution
-      sanitized = sanitized.replace(/\s*&\s*$/, '')
+      sanitized = sanitized.replace(/\s*&\s*$/, '');
 
       // Limit argument count
-      const parts = sanitized.split(/\s+/)
+      const parts = sanitized.split(/\s+/);
       if (parts.length > this.config.maxArguments + 1) { // +1 for command name
-        sanitized = parts.slice(0, this.config.maxArguments + 1).join(' ')
-        warnings.push(`Limited arguments to ${this.config.maxArguments}`)
+        sanitized = parts.slice(0, this.config.maxArguments + 1).join(' ');
+        warnings.push(`Limited arguments to ${this.config.maxArguments}`);
       }
 
       // Limit argument lengths
       const sanitizedParts = sanitized.split(/\s+/).map(part => {
         if (part.length > this.config.maxArgumentLength) {
-          warnings.push(`Truncated argument '${part}' to maximum length`)
-          return part.substring(0, this.config.maxArgumentLength)
+          warnings.push(`Truncated argument '${part}' to maximum length`);
+          return part.substring(0, this.config.maxArgumentLength);
         }
-        return part
-      })
-      sanitized = sanitizedParts.join(' ')
+        return part;
+      });
+      sanitized = sanitizedParts.join(' ');
 
       // If command becomes empty or too short after sanitization, reject it
       if (!sanitized || sanitized.length < 2) {
@@ -363,11 +371,11 @@ class CommandValidator {
             wasSanitized: false,
             sanitizationFailed: true
           }
-        }
+        };
       }
 
       // Re-validate the sanitized command
-      const revalidationResult = await this.validate(sanitized, options)
+      const revalidationResult = await this.validate(sanitized, options);
 
       return {
         isValid: revalidationResult.isValid,
@@ -380,7 +388,7 @@ class CommandValidator {
           wasSanitized: true,
           sanitizationApplied: true
         }
-      }
+      };
     } catch (error) {
       return {
         isValid: false,
@@ -392,7 +400,7 @@ class CommandValidator {
           wasSanitized: false,
           sanitizationError: error.message
         }
-      }
+      };
     }
   }
 
@@ -412,48 +420,48 @@ class CommandValidator {
         arguments: [],
         fullCommand: command
       }
-    }
+    };
 
     try {
       // Simple parsing - split by whitespace
-      const parts = command.trim().split(/\s+/)
+      const parts = command.trim().split(/\s+/);
 
       if (parts.length === 0) {
-        result.isValid = false
-        result.warnings.push('Unable to parse command')
-        result.severity = SEVERITY.HIGH
-        return result
+        result.isValid = false;
+        result.warnings.push('Unable to parse command');
+        result.severity = SEVERITY.HIGH;
+        return result;
       }
 
-      result.parsed.command = parts[0]
-      result.parsed.arguments = parts.slice(1)
+      result.parsed.command = parts[0];
+      result.parsed.arguments = parts.slice(1);
 
       // Check for dangerous command patterns in the first part
-      const commandPart = result.parsed.command.toLowerCase()
+      const commandPart = result.parsed.command.toLowerCase();
 
       // Check for path traversal in command name
       if (commandPart.includes('..') || commandPart.includes('/./') || commandPart.includes('\\.\\')) {
-        result.warnings.push('Path traversal detected in command name')
-        result.severity = SEVERITY.HIGH
+        result.warnings.push('Path traversal detected in command name');
+        result.severity = SEVERITY.HIGH;
       }
 
       // Check for executable extensions (Windows)
       if (this.platform === 'windows') {
-        const dangerousExts = this.config.platformSpecific.windows.dangerousExtensions
+        const dangerousExts = this.config.platformSpecific.windows.dangerousExtensions;
         for (const ext of dangerousExts) {
           if (commandPart.endsWith(ext)) {
-            result.warnings.push(`Potentially dangerous executable extension: ${ext}`)
-            result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM)
+            result.warnings.push(`Potentially dangerous executable extension: ${ext}`);
+            result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM);
           }
         }
       }
     } catch (error) {
-      result.isValid = false
-      result.warnings.push(`Command parsing failed: ${error.message}`)
-      result.severity = SEVERITY.HIGH
+      result.isValid = false;
+      result.warnings.push(`Command parsing failed: ${error.message}`);
+      result.severity = SEVERITY.HIGH;
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -467,20 +475,20 @@ class CommandValidator {
       isValid: true,
       warnings: [],
       severity: null
-    }
+    };
 
     // Check for dangerous metacharacters
     for (const char of SHELL_METACHARACTERS.dangerous) {
       if (command.includes(char)) {
-        const charType = this._getMetacharacterType(char)
+        const charType = this._getMetacharacterType(char);
 
         if (!this._isMetacharacterAllowed(char, charType)) {
-          result.isValid = false
-          result.warnings.push(`Dangerous shell metacharacter detected: '${char}' (${charType})`)
-          result.severity = this._getMetacharacterSeverity(char, charType)
+          result.isValid = false;
+          result.warnings.push(`Dangerous shell metacharacter detected: '${char}' (${charType})`);
+          result.severity = this._getMetacharacterSeverity(char, charType);
         } else {
-          result.warnings.push(`Warning: Shell metacharacter '${char}' detected but allowed`)
-          result.severity = this._getHigherSeverity(result.severity, SEVERITY.LOW)
+          result.warnings.push(`Warning: Shell metacharacter '${char}' detected but allowed`);
+          result.severity = this._getHigherSeverity(result.severity, SEVERITY.LOW);
         }
       }
     }
@@ -488,13 +496,13 @@ class CommandValidator {
     // Check for specific injection patterns
     for (const pattern of INJECTION_PATTERNS) {
       if (pattern.test(command)) {
-        result.isValid = false
-        result.warnings.push(`Command injection pattern detected: ${pattern.source}`)
-        result.severity = SEVERITY.CRITICAL
+        result.isValid = false;
+        result.warnings.push(`Command injection pattern detected: ${pattern.source}`);
+        result.severity = SEVERITY.CRITICAL;
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -504,12 +512,12 @@ class CommandValidator {
    * @private
    */
   _getMetacharacterType (char) {
-    if (SHELL_METACHARACTERS.redirection.includes(char)) return 'redirection'
-    if (SHELL_METACHARACTERS.pipes.includes(char)) return 'pipe'
-    if (SHELL_METACHARACTERS.background.includes(char)) return 'background'
-    if (SHELL_METACHARACTERS.substitution.includes(char)) return 'substitution'
-    if (SHELL_METACHARACTERS.globbing.includes(char)) return 'globbing'
-    return 'other'
+    if (SHELL_METACHARACTERS.redirection.includes(char)) return 'redirection';
+    if (SHELL_METACHARACTERS.pipes.includes(char)) return 'pipe';
+    if (SHELL_METACHARACTERS.background.includes(char)) return 'background';
+    if (SHELL_METACHARACTERS.substitution.includes(char)) return 'substitution';
+    if (SHELL_METACHARACTERS.globbing.includes(char)) return 'globbing';
+    return 'other';
   }
 
   /**
@@ -520,19 +528,19 @@ class CommandValidator {
    * @private
    */
   _isMetacharacterAllowed (char, type) {
-    if (this.config.allowShellMetacharacters) return true
+    if (this.config.allowShellMetacharacters) return true;
 
     switch (type) {
       case 'redirection':
-        return this.config.allowRedirection
+        return this.config.allowRedirection;
       case 'pipe':
-        return this.config.allowPipes
+        return this.config.allowPipes;
       case 'background':
-        return this.config.allowBackgroundExecution
+        return this.config.allowBackgroundExecution;
       case 'substitution':
-        return this.config.allowSubcommands
+        return this.config.allowSubcommands;
       default:
-        return false
+        return false;
     }
   }
 
@@ -546,15 +554,15 @@ class CommandValidator {
   _getMetacharacterSeverity (char, type) {
     switch (type) {
       case 'substitution':
-        return SEVERITY.CRITICAL
+        return SEVERITY.CRITICAL;
       case 'pipe':
-        return char === '|' ? SEVERITY.HIGH : SEVERITY.CRITICAL
+        return char === '|' ? SEVERITY.HIGH : SEVERITY.CRITICAL;
       case 'redirection':
-        return SEVERITY.HIGH
+        return SEVERITY.HIGH;
       case 'background':
-        return SEVERITY.HIGH
+        return SEVERITY.HIGH;
       default:
-        return SEVERITY.MEDIUM
+        return SEVERITY.MEDIUM;
     }
   }
 
@@ -569,35 +577,35 @@ class CommandValidator {
       isValid: true,
       warnings: [],
       severity: null
-    }
+    };
 
     if (!commandName) {
-      result.isValid = false
-      result.warnings.push('Command name is empty')
-      result.severity = SEVERITY.HIGH
-      return result
+      result.isValid = false;
+      result.warnings.push('Command name is empty');
+      result.severity = SEVERITY.HIGH;
+      return result;
     }
 
-    const lowerCommand = commandName.toLowerCase()
+    const lowerCommand = commandName.toLowerCase();
 
     // Check blacklist first (higher priority)
     if (this.config.blockedCommands.includes(lowerCommand)) {
-      result.isValid = false
-      result.warnings.push(`Command '${commandName}' is blocked for security reasons`)
-      result.severity = SEVERITY.CRITICAL
-      return result
+      result.isValid = false;
+      result.warnings.push(`Command '${commandName}' is blocked for security reasons`);
+      result.severity = SEVERITY.CRITICAL;
+      return result;
     }
 
     // Check whitelist if specified
     if (this.config.allowedCommands.length > 0) {
       if (!this.config.allowedCommands.includes(lowerCommand)) {
-        result.isValid = false
-        result.warnings.push(`Command '${commandName}' is not in the allowed list`)
-        result.severity = SEVERITY.HIGH
+        result.isValid = false;
+        result.warnings.push(`Command '${commandName}' is not in the allowed list`);
+        result.severity = SEVERITY.HIGH;
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -611,39 +619,39 @@ class CommandValidator {
       isValid: true,
       warnings: [],
       severity: null
-    }
+    };
 
     // Check argument count
     if (args.length > this.config.maxArguments) {
-      result.warnings.push(`Too many arguments (${args.length} > ${this.config.maxArguments})`)
-      result.severity = SEVERITY.MEDIUM
+      result.warnings.push(`Too many arguments (${args.length} > ${this.config.maxArguments})`);
+      result.severity = SEVERITY.MEDIUM;
     }
 
     // Validate each argument
     for (let i = 0; i < args.length; i++) {
-      const arg = args[i]
+      const arg = args[i];
 
       // Check argument length
       if (arg.length > this.config.maxArgumentLength) {
-        result.warnings.push(`Argument ${i + 1} exceeds maximum length (${this.config.maxArgumentLength})`)
-        result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM)
+        result.warnings.push(`Argument ${i + 1} exceeds maximum length (${this.config.maxArgumentLength})`);
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM);
       }
 
       // Check for dangerous patterns in arguments
-      const patternResult = detectAllPatterns(arg)
+      const patternResult = detectAllPatterns(arg);
       if (patternResult.detected) {
-        result.warnings.push(`Security patterns detected in argument ${i + 1}: ${patternResult.patterns.join(', ')}`)
-        result.severity = this._getHigherSeverity(result.severity, this._mapSeverity(patternResult.severity))
+        result.warnings.push(`Security patterns detected in argument ${i + 1}: ${patternResult.patterns.join(', ')}`);
+        result.severity = this._getHigherSeverity(result.severity, this._mapSeverity(patternResult.severity));
       }
 
       // Check for environment variables if not allowed
       if (!this.config.allowEnvironmentVariables && (arg.includes('$') || arg.includes('%'))) {
-        result.warnings.push(`Environment variable detected in argument ${i + 1}`)
-        result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM)
+        result.warnings.push(`Environment variable detected in argument ${i + 1}`);
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM);
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -658,20 +666,20 @@ class CommandValidator {
       isValid: true,
       warnings: [],
       severity: null
-    }
+    };
 
-    const platformConfig = this.config.platformSpecific[this.platform]
+    const platformConfig = this.config.platformSpecific[this.platform];
     if (!platformConfig) {
-      return result // No platform-specific rules
+      return result; // No platform-specific rules
     }
 
     // Check platform-specific blocked commands
     if (platformConfig.blockedCommands) {
-      const lowerCommand = parsed.command.toLowerCase()
+      const lowerCommand = parsed.command.toLowerCase();
       if (platformConfig.blockedCommands.includes(lowerCommand)) {
-        result.isValid = false
-        result.warnings.push(`Command '${parsed.command}' is blocked on ${this.platform} platform`)
-        result.severity = SEVERITY.CRITICAL
+        result.isValid = false;
+        result.warnings.push(`Command '${parsed.command}' is blocked on ${this.platform} platform`);
+        result.severity = SEVERITY.CRITICAL;
       }
     }
 
@@ -679,13 +687,13 @@ class CommandValidator {
     if (this.platform === 'unix' && platformConfig.dangerousPaths) {
       for (const path of platformConfig.dangerousPaths) {
         if (command.includes(path)) {
-          result.warnings.push(`Dangerous path detected: ${path}`)
-          result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH)
+          result.warnings.push(`Dangerous path detected: ${path}`);
+          result.severity = this._getHigherSeverity(result.severity, SEVERITY.HIGH);
         }
       }
     }
 
-    return result
+    return result;
   }
 
   /**
@@ -695,9 +703,9 @@ class CommandValidator {
    */
   _detectPlatform () {
     if (process.platform === 'win32') {
-      return 'windows'
+      return 'windows';
     }
-    return 'unix' // Covers Linux, macOS, etc.
+    return 'unix'; // Covers Linux, macOS, etc.
   }
 
   /**
@@ -712,8 +720,8 @@ class CommandValidator {
       [SEVERITY_LEVELS.MEDIUM]: SEVERITY.MEDIUM,
       [SEVERITY_LEVELS.HIGH]: SEVERITY.HIGH,
       [SEVERITY_LEVELS.CRITICAL]: SEVERITY.CRITICAL
-    }
-    return mapping[patternSeverity] || SEVERITY.MEDIUM
+    };
+    return mapping[patternSeverity] || SEVERITY.MEDIUM;
   }
 
   /**
@@ -724,14 +732,14 @@ class CommandValidator {
    * @private
    */
   _getHigherSeverity (current, newSeverity) {
-    if (!current) return newSeverity
-    if (!newSeverity) return current
+    if (!current) return newSeverity;
+    if (!newSeverity) return current;
 
-    const severityOrder = [SEVERITY.LOW, SEVERITY.MEDIUM, SEVERITY.HIGH, SEVERITY.CRITICAL]
-    const currentIndex = severityOrder.indexOf(current)
-    const newIndex = severityOrder.indexOf(newSeverity)
+    const severityOrder = [SEVERITY.LOW, SEVERITY.MEDIUM, SEVERITY.HIGH, SEVERITY.CRITICAL];
+    const currentIndex = severityOrder.indexOf(current);
+    const newIndex = severityOrder.indexOf(newSeverity);
 
-    return newIndex > currentIndex ? newSeverity : current
+    return newIndex > currentIndex ? newSeverity : current;
   }
 
   /**
@@ -739,7 +747,7 @@ class CommandValidator {
    * @param {Object} newConfig - New configuration to merge
    */
   updateConfig (newConfig) {
-    this.config = { ...this.config, ...newConfig }
+    this.config = { ...this.config, ...newConfig };
   }
 
   /**
@@ -747,7 +755,7 @@ class CommandValidator {
    * @returns {Object} Current configuration
    */
   getConfig () {
-    return { ...this.config }
+    return { ...this.config };
   }
 
   /**
@@ -757,9 +765,9 @@ class CommandValidator {
    */
   quote (args) {
     if (!Array.isArray(args)) {
-      throw new Error('Arguments must be an array')
+      throw new Error('Arguments must be an array');
     }
-    return shellQuote.quote(args)
+    return shellQuote.quote(args);
   }
 
   /**
@@ -770,9 +778,9 @@ class CommandValidator {
    */
   parse (cmd, env = {}) {
     if (typeof cmd !== 'string') {
-      throw new Error('Command must be a string')
+      throw new Error('Command must be a string');
     }
-    return shellQuote.parse(cmd, env)
+    return shellQuote.parse(cmd, env);
   }
 
   /**
@@ -783,9 +791,9 @@ class CommandValidator {
    */
   buildSafeCommand (command, args = []) {
     if (!command || typeof command !== 'string') {
-      throw new Error('Command must be a non-empty string')
+      throw new Error('Command must be a non-empty string');
     }
-    return this.quote([command, ...args])
+    return this.quote([command, ...args]);
   }
 }
 
@@ -795,7 +803,7 @@ class CommandValidator {
  * @returns {CommandValidator} New validator instance
  */
 function createCommandValidator (config = {}) {
-  return new CommandValidator(config)
+  return new CommandValidator(config);
 }
 
 /**
@@ -805,8 +813,8 @@ function createCommandValidator (config = {}) {
  * @returns {Promise<Object>} Validation result
  */
 async function validateCommand (command, config = {}) {
-  const validator = new CommandValidator(config)
-  return await validator.validate(command)
+  const validator = new CommandValidator(config);
+  return await validator.validate(command);
 }
 
 /**
@@ -816,8 +824,8 @@ async function validateCommand (command, config = {}) {
  * @returns {Promise<Object>} Sanitization result
  */
 async function sanitizeCommand (command, config = {}) {
-  const validator = new CommandValidator(config)
-  return await validator.sanitize(command)
+  const validator = new CommandValidator(config);
+  return await validator.sanitize(command);
 }
 
 module.exports = {
@@ -829,4 +837,4 @@ module.exports = {
   DEFAULT_CONFIG,
   SHELL_METACHARACTERS,
   INJECTION_PATTERNS
-}
+};

@@ -16,10 +16,11 @@
  * OWASP guidelines, and comprehensive security research.
  */
 
-const commandInjection = require('./command-injection')
-const sqlInjection = require('./sql-injection')
-const prototypePollution = require('./prototype-pollution')
-const templateInjection = require('./template-injection')
+const commandInjection = require('./command-injection');
+const sqlInjection = require('./sql-injection');
+const prototypePollution = require('./prototype-pollution');
+const templateInjection = require('./template-injection');
+const nosqlInjection = require('./nosql-injection');
 
 /**
  * Combined severity levels from all modules
@@ -29,7 +30,7 @@ const SEVERITY_LEVELS = {
   HIGH: 'high',
   MEDIUM: 'medium',
   LOW: 'low'
-}
+};
 
 /**
  * Pattern type constants for easier identification
@@ -38,8 +39,9 @@ const PATTERN_TYPES = {
   COMMAND_INJECTION: 'command_injection',
   SQL_INJECTION: 'sql_injection',
   PROTOTYPE_POLLUTION: 'prototype_pollution',
-  TEMPLATE_INJECTION: 'template_injection'
-}
+  TEMPLATE_INJECTION: 'template_injection',
+  NOSQL_INJECTION: 'nosql_injection'
+};
 
 /**
  * Comprehensive security pattern detection
@@ -60,63 +62,66 @@ function detectAllPatterns (input, options = {}) {
       patternsByType: {},
       patternsBySeverity: {}
     }
-  }
+  };
 
   // Run all detection modules
   const detectionModules = [
     { name: PATTERN_TYPES.COMMAND_INJECTION, module: commandInjection },
     { name: PATTERN_TYPES.SQL_INJECTION, module: sqlInjection },
     { name: PATTERN_TYPES.PROTOTYPE_POLLUTION, module: prototypePollution },
-    { name: PATTERN_TYPES.TEMPLATE_INJECTION, module: templateInjection }
-  ]
+    { name: PATTERN_TYPES.TEMPLATE_INJECTION, module: templateInjection },
+    { name: PATTERN_TYPES.NOSQL_INJECTION, module: nosqlInjection }
+  ];
 
   for (const { name, module } of detectionModules) {
-    let detectResult
+    let detectResult;
 
     // Call the appropriate detection function based on module
     if (name === PATTERN_TYPES.COMMAND_INJECTION) {
-      detectResult = module.detectCommandInjection(input, options)
+      detectResult = module.detectCommandInjection(input, options);
     } else if (name === PATTERN_TYPES.SQL_INJECTION) {
-      detectResult = module.detectSQLInjection(input, options)
+      detectResult = module.detectSQLInjection(input, options);
     } else if (name === PATTERN_TYPES.PROTOTYPE_POLLUTION) {
-      detectResult = module.detectPrototypePollution(input, options)
+      detectResult = module.detectPrototypePollution(input, options);
     } else if (name === PATTERN_TYPES.TEMPLATE_INJECTION) {
-      detectResult = module.detectTemplateInjection(input, options)
+      detectResult = module.detectTemplateInjection(input, options);
+    } else if (name === PATTERN_TYPES.NOSQL_INJECTION) {
+      detectResult = module.detectNoSQLInjection(input, options);
     }
 
     // Store individual results
-    results.detectionResults[name] = detectResult
+    results.detectionResults[name] = detectResult;
 
     // Combine patterns
     if (detectResult.detected) {
-      results.detected = true
-      results.patterns.push(...detectResult.patterns.map(p => `${name}:${p}`))
+      results.detected = true;
+      results.patterns.push(...detectResult.patterns.map(p => `${name}:${p}`));
 
       // Update severity to highest found
-      results.severity = getHigherSeverity(results.severity, detectResult.severity)
+      results.severity = getHigherSeverity(results.severity, detectResult.severity);
 
       // Update summary
-      results.summary.patternsByType[name] = detectResult.patterns.length
+      results.summary.patternsByType[name] = detectResult.patterns.length;
 
       if (detectResult.severity) {
         results.summary.patternsBySeverity[detectResult.severity] =
-          (results.summary.patternsBySeverity[detectResult.severity] || 0) + detectResult.patterns.length
+          (results.summary.patternsBySeverity[detectResult.severity] || 0) + detectResult.patterns.length;
       }
     } else {
-      results.summary.patternsByType[name] = 0
+      results.summary.patternsByType[name] = 0;
     }
   }
 
-  results.summary.totalPatterns = results.patterns.length
+  results.summary.totalPatterns = results.patterns.length;
 
   // Generate combined message
   if (results.detected) {
     const typeCount = Object.values(results.summary.patternsByType)
-      .filter(count => count > 0).length
-    results.message = `${results.summary.totalPatterns} security patterns detected across ${typeCount} categories (severity: ${results.severity})`
+      .filter(count => count > 0).length;
+    results.message = `${results.summary.totalPatterns} security patterns detected across ${typeCount} categories (severity: ${results.severity})`;
   }
 
-  return results
+  return results;
 }
 
 /**
@@ -125,7 +130,7 @@ function detectAllPatterns (input, options = {}) {
  * @returns {boolean} True if any security patterns are detected
  */
 function hasSecurityPatterns (input) {
-  return detectAllPatterns(input).detected
+  return detectAllPatterns(input).detected;
 }
 
 /**
@@ -135,33 +140,37 @@ function hasSecurityPatterns (input) {
  * @returns {Object} Detailed security analysis
  */
 function analyzeSecurityPatterns (input, options = {}) {
-  const detection = detectAllPatterns(input, options)
+  const detection = detectAllPatterns(input, options);
 
   const analysis = {
     ...detection,
     recommendations: [],
     riskLevel: getRiskLevel(detection.severity),
     shouldBlock: detection.severity === SEVERITY_LEVELS.CRITICAL
-  }
+  };
 
   // Generate recommendations based on detected patterns
   if (detection.detectionResults[PATTERN_TYPES.COMMAND_INJECTION]?.detected) {
-    analysis.recommendations.push('Input contains command injection patterns. Sanitize shell metacharacters and validate against allowed commands.')
+    analysis.recommendations.push('Input contains command injection patterns. Sanitize shell metacharacters and validate against allowed commands.');
   }
 
   if (detection.detectionResults[PATTERN_TYPES.SQL_INJECTION]?.detected) {
-    analysis.recommendations.push('Input contains SQL injection patterns. Use parameterized queries and validate SQL keywords.')
+    analysis.recommendations.push('Input contains SQL injection patterns. Use parameterized queries and validate SQL keywords.');
   }
 
   if (detection.detectionResults[PATTERN_TYPES.PROTOTYPE_POLLUTION]?.detected) {
-    analysis.recommendations.push('Input contains prototype pollution patterns. Validate object keys and use Object.create(null) for safe objects.')
+    analysis.recommendations.push('Input contains prototype pollution patterns. Validate object keys and use Object.create(null) for safe objects.');
   }
 
   if (detection.detectionResults[PATTERN_TYPES.TEMPLATE_INJECTION]?.detected) {
-    analysis.recommendations.push('Input contains template injection patterns. Sanitize template syntax and use safe template engines.')
+    analysis.recommendations.push('Input contains template injection patterns. Sanitize template syntax and use safe template engines.');
   }
 
-  return analysis
+  if (detection.detectionResults[PATTERN_TYPES.NOSQL_INJECTION]?.detected) {
+    analysis.recommendations.push('Input contains NoSQL injection patterns. Validate database operators, sanitize user input, and use parameterized queries.');
+  }
+
+  return analysis;
 }
 
 /**
@@ -170,15 +179,15 @@ function analyzeSecurityPatterns (input, options = {}) {
 function getRiskLevel (severity) {
   switch (severity) {
     case SEVERITY_LEVELS.CRITICAL:
-      return 'CRITICAL'
+      return 'CRITICAL';
     case SEVERITY_LEVELS.HIGH:
-      return 'HIGH'
+      return 'HIGH';
     case SEVERITY_LEVELS.MEDIUM:
-      return 'MEDIUM'
+      return 'MEDIUM';
     case SEVERITY_LEVELS.LOW:
-      return 'LOW'
+      return 'LOW';
     default:
-      return 'NONE'
+      return 'NONE';
   }
 }
 
@@ -186,20 +195,20 @@ function getRiskLevel (severity) {
  * Get the higher severity between two severity levels
  */
 function getHigherSeverity (current, newSeverity) {
-  if (!current) return newSeverity
-  if (!newSeverity) return current
+  if (!current) return newSeverity;
+  if (!newSeverity) return current;
 
   const severityOrder = [
     SEVERITY_LEVELS.LOW,
     SEVERITY_LEVELS.MEDIUM,
     SEVERITY_LEVELS.HIGH,
     SEVERITY_LEVELS.CRITICAL
-  ]
+  ];
 
-  const currentIndex = severityOrder.indexOf(current)
-  const newIndex = severityOrder.indexOf(newSeverity)
+  const currentIndex = severityOrder.indexOf(current);
+  const newIndex = severityOrder.indexOf(newSeverity);
 
-  return newIndex > currentIndex ? newSeverity : current
+  return newIndex > currentIndex ? newSeverity : current;
 }
 
 /**
@@ -213,19 +222,21 @@ function createPatternDetector (config = {}) {
     enableSQLInjection = true,
     enablePrototypePollution = true,
     enableTemplateInjection = true,
+    enableNoSQLInjection = true,
     strictMode = false,
     customPatterns = []
-  } = config
+  } = config;
 
   return {
     detect: (input, options = {}) => {
-      const mergedOptions = { ...options, strictMode, customPatterns }
+      const mergedOptions = { ...options, strictMode, customPatterns };
 
       if (!enableCommandInjection &&
           !enableSQLInjection &&
           !enablePrototypePollution &&
-          !enableTemplateInjection) {
-        return { detected: false, severity: null, patterns: [] }
+          !enableTemplateInjection &&
+          !enableNoSQLInjection) {
+        return { detected: false, severity: null, patterns: [] };
       }
 
       // Run only enabled detectors
@@ -234,55 +245,65 @@ function createPatternDetector (config = {}) {
         severity: null,
         patterns: [],
         detectionResults: {}
-      }
+      };
 
       if (enableCommandInjection) {
-        const result = commandInjection.detectCommandInjection(input, mergedOptions)
+        const result = commandInjection.detectCommandInjection(input, mergedOptions);
         if (result.detected) {
-          results.detected = true
-          results.patterns.push(...result.patterns)
-          results.severity = getHigherSeverity(results.severity, result.severity)
+          results.detected = true;
+          results.patterns.push(...result.patterns);
+          results.severity = getHigherSeverity(results.severity, result.severity);
         }
-        results.detectionResults.commandInjection = result
+        results.detectionResults.commandInjection = result;
       }
 
       if (enableSQLInjection) {
-        const result = sqlInjection.detectSQLInjection(input, mergedOptions)
+        const result = sqlInjection.detectSQLInjection(input, mergedOptions);
         if (result.detected) {
-          results.detected = true
-          results.patterns.push(...result.patterns)
-          results.severity = getHigherSeverity(results.severity, result.severity)
+          results.detected = true;
+          results.patterns.push(...result.patterns);
+          results.severity = getHigherSeverity(results.severity, result.severity);
         }
-        results.detectionResults.sqlInjection = result
+        results.detectionResults.sqlInjection = result;
       }
 
       if (enablePrototypePollution) {
-        const result = prototypePollution.detectPrototypePollution(input, mergedOptions)
+        const result = prototypePollution.detectPrototypePollution(input, mergedOptions);
         if (result.detected) {
-          results.detected = true
-          results.patterns.push(...result.patterns)
-          results.severity = getHigherSeverity(results.severity, result.severity)
+          results.detected = true;
+          results.patterns.push(...result.patterns);
+          results.severity = getHigherSeverity(results.severity, result.severity);
         }
-        results.detectionResults.prototypePollution = result
+        results.detectionResults.prototypePollution = result;
       }
 
       if (enableTemplateInjection) {
-        const result = templateInjection.detectTemplateInjection(input, mergedOptions)
+        const result = templateInjection.detectTemplateInjection(input, mergedOptions);
         if (result.detected) {
-          results.detected = true
-          results.patterns.push(...result.patterns)
-          results.severity = getHigherSeverity(results.severity, result.severity)
+          results.detected = true;
+          results.patterns.push(...result.patterns);
+          results.severity = getHigherSeverity(results.severity, result.severity);
         }
-        results.detectionResults.templateInjection = result
+        results.detectionResults.templateInjection = result;
       }
 
-      return results
+      if (enableNoSQLInjection) {
+        const result = nosqlInjection.detectNoSQLInjection(input, mergedOptions);
+        if (result.detected) {
+          results.detected = true;
+          results.patterns.push(...result.patterns);
+          results.severity = getHigherSeverity(results.severity, result.severity);
+        }
+        results.detectionResults.nosqlInjection = result;
+      }
+
+      return results;
     },
 
     isSecure: (input, options = {}) => {
-      return !this.detect(input, options).detected
+      return !this.detect(input, options).detected;
     }
-  }
+  };
 }
 
 // Export individual modules
@@ -292,6 +313,7 @@ module.exports = {
   sqlInjection,
   prototypePollution,
   templateInjection,
+  nosqlInjection,
 
   // Combined detection functions
   detectAllPatterns,
@@ -306,4 +328,4 @@ module.exports = {
   // Constants
   SEVERITY_LEVELS,
   PATTERN_TYPES
-}
+};

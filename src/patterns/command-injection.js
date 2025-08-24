@@ -13,7 +13,7 @@ const SEVERITY_LEVELS = {
   HIGH: 'high',
   MEDIUM: 'medium',
   LOW: 'low'
-}
+};
 
 /**
  * Shell metacharacters that can be used for command injection
@@ -25,7 +25,7 @@ const SHELL_METACHARACTERS = [
   />\s*\/dev\/|<\s*\/dev\//, // Device redirection
   /<<\s*EOF|<<\s*\w+/, // Here documents
   /\*|\?|~|\^/ // Wildcards and expansion
-]
+];
 
 /**
  * Dangerous system commands that should be blocked
@@ -52,7 +52,7 @@ const DANGEROUS_COMMANDS = [
 
   // Data exfiltration
   /\b(mail|sendmail|base64|xxd|hexdump)\s+/i
-]
+];
 
 /**
  * Command injection patterns specific to different shells
@@ -76,7 +76,7 @@ const SHELL_SPECIFIC_PATTERNS = {
     />\s*con\s*/i, // Console redirection
     /for\s+\/[lrf]\s+/i // Windows for loops
   ]
-}
+};
 
 /**
  * Patterns for encoded command injection attempts
@@ -87,7 +87,7 @@ const ENCODED_PATTERNS = [
   /\\u[0-9a-f]{4}/i, // Unicode encoding
   /%[0-9a-f]{2}/i, // URL encoding
   /\+/ // URL encoding spaces
-]
+];
 
 /**
  * Time-based command injection patterns
@@ -97,7 +97,7 @@ const TIME_BASED_PATTERNS = [
   /ping\s+-[nc]\s+\d+/i,
   /timeout\s+\d+/i,
   /usleep\s+\d+/i
-]
+];
 
 /**
  * Main detection function for command injection patterns
@@ -107,45 +107,45 @@ const TIME_BASED_PATTERNS = [
  */
 function detectCommandInjection (input, options = {}) {
   if (typeof input !== 'string') {
-    return { detected: false, severity: null, patterns: [] }
+    return { detected: false, severity: null, patterns: [] };
   }
 
-  const detectedPatterns = []
-  let maxSeverity = null
+  const detectedPatterns = [];
+  let maxSeverity = null;
 
   // Check shell metacharacters
-  const shellMetaResult = checkShellMetacharacters(input)
+  const shellMetaResult = checkShellMetacharacters(input);
   if (shellMetaResult.detected) {
-    detectedPatterns.push(...shellMetaResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, shellMetaResult.severity)
+    detectedPatterns.push(...shellMetaResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, shellMetaResult.severity);
   }
 
   // Check dangerous commands
-  const dangerousCommandResult = checkDangerousCommands(input)
+  const dangerousCommandResult = checkDangerousCommands(input);
   if (dangerousCommandResult.detected) {
-    detectedPatterns.push(...dangerousCommandResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, dangerousCommandResult.severity)
+    detectedPatterns.push(...dangerousCommandResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, dangerousCommandResult.severity);
   }
 
   // Check shell-specific patterns
-  const shellSpecificResult = checkShellSpecificPatterns(input)
+  const shellSpecificResult = checkShellSpecificPatterns(input);
   if (shellSpecificResult.detected) {
-    detectedPatterns.push(...shellSpecificResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, shellSpecificResult.severity)
+    detectedPatterns.push(...shellSpecificResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, shellSpecificResult.severity);
   }
 
   // Check encoded patterns
-  const encodedResult = checkEncodedPatterns(input)
+  const encodedResult = checkEncodedPatterns(input);
   if (encodedResult.detected) {
-    detectedPatterns.push(...encodedResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, encodedResult.severity)
+    detectedPatterns.push(...encodedResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, encodedResult.severity);
   }
 
   // Check time-based patterns
-  const timeBasedResult = checkTimeBasedPatterns(input)
+  const timeBasedResult = checkTimeBasedPatterns(input);
   if (timeBasedResult.detected) {
-    detectedPatterns.push(...timeBasedResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, timeBasedResult.severity)
+    detectedPatterns.push(...timeBasedResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, timeBasedResult.severity);
   }
 
   return {
@@ -155,18 +155,18 @@ function detectCommandInjection (input, options = {}) {
     message: detectedPatterns.length > 0
       ? `Command injection patterns detected: ${detectedPatterns.join(', ')}`
       : null
-  }
+  };
 }
 
 /**
  * Check for shell metacharacters
  */
 function checkShellMetacharacters (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of SHELL_METACHARACTERS) {
     if (pattern.test(input)) {
-      detected.push(`shell_metacharacter:${pattern.source}`)
+      detected.push(`shell_metacharacter:${pattern.source}`);
     }
   }
 
@@ -174,18 +174,18 @@ function checkShellMetacharacters (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.HIGH : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for dangerous system commands
  */
 function checkDangerousCommands (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of DANGEROUS_COMMANDS) {
     if (pattern.test(input)) {
-      detected.push(`dangerous_command:${pattern.source}`)
+      detected.push(`dangerous_command:${pattern.source}`);
     }
   }
 
@@ -193,19 +193,19 @@ function checkDangerousCommands (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.CRITICAL : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for shell-specific injection patterns
  */
 function checkShellSpecificPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const [shell, patterns] of Object.entries(SHELL_SPECIFIC_PATTERNS)) {
     for (const pattern of patterns) {
       if (pattern.test(input)) {
-        detected.push(`${shell}_specific:${pattern.source}`)
+        detected.push(`${shell}_specific:${pattern.source}`);
       }
     }
   }
@@ -214,18 +214,18 @@ function checkShellSpecificPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.HIGH : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for encoded command injection attempts
  */
 function checkEncodedPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of ENCODED_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`encoded_pattern:${pattern.source}`)
+      detected.push(`encoded_pattern:${pattern.source}`);
     }
   }
 
@@ -233,18 +233,18 @@ function checkEncodedPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.MEDIUM : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for time-based command injection patterns
  */
 function checkTimeBasedPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of TIME_BASED_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`time_based:${pattern.source}`)
+      detected.push(`time_based:${pattern.source}`);
     }
   }
 
@@ -252,27 +252,27 @@ function checkTimeBasedPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.MEDIUM : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Get the higher severity between two severity levels
  */
 function getHigherSeverity (current, newSeverity) {
-  if (!current) return newSeverity
-  if (!newSeverity) return current
+  if (!current) return newSeverity;
+  if (!newSeverity) return current;
 
   const severityOrder = [
     SEVERITY_LEVELS.LOW,
     SEVERITY_LEVELS.MEDIUM,
     SEVERITY_LEVELS.HIGH,
     SEVERITY_LEVELS.CRITICAL
-  ]
+  ];
 
-  const currentIndex = severityOrder.indexOf(current)
-  const newIndex = severityOrder.indexOf(newSeverity)
+  const currentIndex = severityOrder.indexOf(current);
+  const newIndex = severityOrder.indexOf(newSeverity);
 
-  return newIndex > currentIndex ? newSeverity : current
+  return newIndex > currentIndex ? newSeverity : current;
 }
 
 /**
@@ -281,7 +281,7 @@ function getHigherSeverity (current, newSeverity) {
  * @returns {boolean} True if command injection patterns are detected
  */
 function isCommandInjection (input) {
-  return detectCommandInjection(input).detected
+  return detectCommandInjection(input).detected;
 }
 
 module.exports = {
@@ -305,4 +305,4 @@ module.exports = {
 
   // Constants
   SEVERITY_LEVELS
-}
+};

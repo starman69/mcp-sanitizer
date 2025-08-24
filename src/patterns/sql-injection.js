@@ -13,7 +13,7 @@ const SEVERITY_LEVELS = {
   HIGH: 'high',
   MEDIUM: 'medium',
   LOW: 'low'
-}
+};
 
 /**
  * SQL keywords that are commonly used in injection attacks
@@ -30,7 +30,7 @@ const SQL_KEYWORDS = [
 
   // System commands
   /\b(EXEC|EXECUTE|SHUTDOWN|BACKUP|RESTORE)\b/gi
-]
+];
 
 /**
  * SQL injection attack patterns
@@ -61,7 +61,7 @@ const INJECTION_PATTERNS = [
   /;\s*(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)/gi,
   /;\s*--/,
   /;\s*\/\*/
-]
+];
 
 /**
  * SQL comment patterns used to bypass filters
@@ -73,7 +73,7 @@ const COMMENT_PATTERNS = [
   /#.*$/gm, // MySQL comments
   /--\+.*$/gm, // Oracle hints
   /\/\*!\d+.*?\*\//g // MySQL version-specific comments
-]
+];
 
 /**
  * Database-specific injection patterns
@@ -97,7 +97,9 @@ const DATABASE_SPECIFIC_PATTERNS = {
     /\bCURRENT_DATABASE\s*\(\s*\)/gi, // Schema enumeration
     /\bCURRENT_USER\s*\(\s*\)/gi,
     /\bVERSION\s*\(\s*\)/gi,
-    /\bpg_sleep\s*\(/gi // Time delays
+    /\bpg_sleep\s*\(/gi, // Time delays
+    /\$\$[^$]*\$\$/g, // Dollar quoting ($$...$$)
+    /\$([a-zA-Z_][a-zA-Z0-9_]*)\$[^$]*\$\1\$/g // Tagged dollar quotes ($tag$...$tag$)
   ],
 
   mssql: [
@@ -130,7 +132,7 @@ const DATABASE_SPECIFIC_PATTERNS = {
     /\bPRAGMA\s+database_list\b/gi,
     /\bATTACH\s+DATABASE\b/gi // Database manipulation
   ]
-}
+};
 
 /**
  * Encoded SQL injection patterns
@@ -143,7 +145,7 @@ const ENCODED_PATTERNS = [
   /CONCAT\s*\(/gi, // String concatenation
   /\|\|/g, // String concatenation (Oracle/PostgreSQL)
   /\+.*\+/g // String concatenation (SQL Server)
-]
+];
 
 /**
  * Bypass techniques
@@ -156,7 +158,7 @@ const BYPASS_PATTERNS = [
   /['"]\s*\+\s*['"]/g, // Quote concatenation
   /['"]\s*\|\|\s*['"]/g, // Quote concatenation (Oracle/PostgreSQL)
   /\b\w+\s*\(\s*\)/g // Function calls without parameters
-]
+];
 
 /**
  * Main detection function for SQL injection patterns
@@ -166,52 +168,52 @@ const BYPASS_PATTERNS = [
  */
 function detectSQLInjection (input, options = {}) {
   if (typeof input !== 'string') {
-    return { detected: false, severity: null, patterns: [] }
+    return { detected: false, severity: null, patterns: [] };
   }
 
-  const detectedPatterns = []
-  let maxSeverity = null
+  const detectedPatterns = [];
+  let maxSeverity = null;
 
   // Check SQL keywords
-  const keywordResult = checkSQLKeywords(input)
+  const keywordResult = checkSQLKeywords(input);
   if (keywordResult.detected) {
-    detectedPatterns.push(...keywordResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, keywordResult.severity)
+    detectedPatterns.push(...keywordResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, keywordResult.severity);
   }
 
   // Check injection patterns
-  const injectionResult = checkInjectionPatterns(input)
+  const injectionResult = checkInjectionPatterns(input);
   if (injectionResult.detected) {
-    detectedPatterns.push(...injectionResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, injectionResult.severity)
+    detectedPatterns.push(...injectionResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, injectionResult.severity);
   }
 
   // Check comment patterns
-  const commentResult = checkCommentPatterns(input)
+  const commentResult = checkCommentPatterns(input);
   if (commentResult.detected) {
-    detectedPatterns.push(...commentResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, commentResult.severity)
+    detectedPatterns.push(...commentResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, commentResult.severity);
   }
 
   // Check database-specific patterns
-  const dbSpecificResult = checkDatabaseSpecificPatterns(input)
+  const dbSpecificResult = checkDatabaseSpecificPatterns(input);
   if (dbSpecificResult.detected) {
-    detectedPatterns.push(...dbSpecificResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, dbSpecificResult.severity)
+    detectedPatterns.push(...dbSpecificResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, dbSpecificResult.severity);
   }
 
   // Check encoded patterns
-  const encodedResult = checkEncodedPatterns(input)
+  const encodedResult = checkEncodedPatterns(input);
   if (encodedResult.detected) {
-    detectedPatterns.push(...encodedResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, encodedResult.severity)
+    detectedPatterns.push(...encodedResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, encodedResult.severity);
   }
 
   // Check bypass patterns
-  const bypassResult = checkBypassPatterns(input)
+  const bypassResult = checkBypassPatterns(input);
   if (bypassResult.detected) {
-    detectedPatterns.push(...bypassResult.patterns)
-    maxSeverity = getHigherSeverity(maxSeverity, bypassResult.severity)
+    detectedPatterns.push(...bypassResult.patterns);
+    maxSeverity = getHigherSeverity(maxSeverity, bypassResult.severity);
   }
 
   return {
@@ -221,18 +223,18 @@ function detectSQLInjection (input, options = {}) {
     message: detectedPatterns.length > 0
       ? `SQL injection patterns detected: ${detectedPatterns.join(', ')}`
       : null
-  }
+  };
 }
 
 /**
  * Check for dangerous SQL keywords
  */
 function checkSQLKeywords (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of SQL_KEYWORDS) {
     if (pattern.test(input)) {
-      detected.push(`sql_keyword:${pattern.source}`)
+      detected.push(`sql_keyword:${pattern.source}`);
     }
   }
 
@@ -240,18 +242,18 @@ function checkSQLKeywords (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.HIGH : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for SQL injection attack patterns
  */
 function checkInjectionPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of INJECTION_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`injection_pattern:${pattern.source}`)
+      detected.push(`injection_pattern:${pattern.source}`);
     }
   }
 
@@ -259,18 +261,18 @@ function checkInjectionPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.CRITICAL : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for SQL comment patterns
  */
 function checkCommentPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of COMMENT_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`comment_pattern:${pattern.source}`)
+      detected.push(`comment_pattern:${pattern.source}`);
     }
   }
 
@@ -278,19 +280,19 @@ function checkCommentPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.MEDIUM : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for database-specific patterns
  */
 function checkDatabaseSpecificPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const [db, patterns] of Object.entries(DATABASE_SPECIFIC_PATTERNS)) {
     for (const pattern of patterns) {
       if (pattern.test(input)) {
-        detected.push(`${db}_specific:${pattern.source}`)
+        detected.push(`${db}_specific:${pattern.source}`);
       }
     }
   }
@@ -299,18 +301,18 @@ function checkDatabaseSpecificPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.HIGH : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for encoded SQL patterns
  */
 function checkEncodedPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of ENCODED_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`encoded_pattern:${pattern.source}`)
+      detected.push(`encoded_pattern:${pattern.source}`);
     }
   }
 
@@ -318,18 +320,18 @@ function checkEncodedPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.MEDIUM : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Check for bypass attempt patterns
  */
 function checkBypassPatterns (input) {
-  const detected = []
+  const detected = [];
 
   for (const pattern of BYPASS_PATTERNS) {
     if (pattern.test(input)) {
-      detected.push(`bypass_pattern:${pattern.source}`)
+      detected.push(`bypass_pattern:${pattern.source}`);
     }
   }
 
@@ -337,27 +339,27 @@ function checkBypassPatterns (input) {
     detected: detected.length > 0,
     severity: detected.length > 0 ? SEVERITY_LEVELS.MEDIUM : null,
     patterns: detected
-  }
+  };
 }
 
 /**
  * Get the higher severity between two severity levels
  */
 function getHigherSeverity (current, newSeverity) {
-  if (!current) return newSeverity
-  if (!newSeverity) return current
+  if (!current) return newSeverity;
+  if (!newSeverity) return current;
 
   const severityOrder = [
     SEVERITY_LEVELS.LOW,
     SEVERITY_LEVELS.MEDIUM,
     SEVERITY_LEVELS.HIGH,
     SEVERITY_LEVELS.CRITICAL
-  ]
+  ];
 
-  const currentIndex = severityOrder.indexOf(current)
-  const newIndex = severityOrder.indexOf(newSeverity)
+  const currentIndex = severityOrder.indexOf(current);
+  const newIndex = severityOrder.indexOf(newSeverity);
 
-  return newIndex > currentIndex ? newSeverity : current
+  return newIndex > currentIndex ? newSeverity : current;
 }
 
 /**
@@ -366,7 +368,7 @@ function getHigherSeverity (current, newSeverity) {
  * @returns {boolean} True if SQL injection patterns are detected
  */
 function isSQLInjection (input) {
-  return detectSQLInjection(input).detected
+  return detectSQLInjection(input).detected;
 }
 
 module.exports = {
@@ -392,4 +394,4 @@ module.exports = {
 
   // Constants
   SEVERITY_LEVELS
-}
+};
