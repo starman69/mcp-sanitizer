@@ -18,8 +18,7 @@ const {
   detectPostgresDollarQuotes,
   detectCyrillicHomographs,
   handleEmptyStrings,
-  ensureTimingConsistency,
-  secureStringCompare,
+  // Timing functions removed - not applicable for middleware
   comprehensiveSecurityAnalysis,
   DIRECTIONAL_OVERRIDES,
   CYRILLIC_HOMOGRAPHS
@@ -208,46 +207,8 @@ describe('Security Enhancements', () => {
     });
   });
 
-  describe('Cyrillic Homograph Detection', () => {
-    test('should detect Cyrillic characters in domain names', () => {
-      const spoofedDomain = 'аpple.com'; // 'а' is Cyrillic, not Latin 'a'
-      const result = detectCyrillicHomographs(spoofedDomain);
-      
-      expect(result.detected).toBe(true);
-      expect(result.warnings.length).toBeGreaterThanOrEqual(1);
-      expect(result.warnings.some(w => w.type === 'CYRILLIC_HOMOGRAPH_ATTACK')).toBe(true);
-      expect(result.metadata.homographs.length).toBeGreaterThanOrEqual(1);
-      expect(result.normalized).toBe('apple.com');
-    });
-
-    test('should detect well-known domain spoofing', () => {
-      const spoofedGoogle = 'gооgle.com'; // Contains Cyrillic 'о' characters
-      const result = detectCyrillicHomographs(spoofedGoogle);
-      
-      expect(result.warnings.some(w => w.type === 'DOMAIN_SPOOFING_ATTEMPT')).toBe(true);
-      expect(result.warnings.some(w => w.severity === 'CRITICAL')).toBe(true);
-      expect(result.warnings.some(w => w.spoofedDomain === 'google')).toBe(true);
-    });
-
-    test('should normalize multiple Cyrillic characters', () => {
-      const cyrillicText = 'Неllо Wоrld'; // Mix of Cyrillic and Latin
-      const result = detectCyrillicHomographs(cyrillicText);
-      
-      expect(result.detected).toBe(true);
-      expect(result.metadata.homographCount).toBeGreaterThan(1);
-      expect(result.normalized).not.toContain('Н'); // Should be replaced with 'H'
-    });
-
-    test('should provide detailed homograph information', () => {
-      const result = detectCyrillicHomographs('tеst'); // Cyrillic 'е'
-      
-      expect(result.metadata.homographs.length).toBeGreaterThan(0);
-      expect(result.metadata.homographs[0]).toHaveProperty('cyrillic');
-      expect(result.metadata.homographs[0]).toHaveProperty('latin');
-      expect(result.metadata.homographs[0]).toHaveProperty('codePoint');
-      expect(result.metadata.homographs[0].codePoint).toMatch(/^U\+[0-9A-F]{4}$/);
-    });
-  });
+  // Cyrillic Homograph tests moved to security-comprehensive.test.js
+  // These tests are now covered in the comprehensive security suite
 
   describe('Empty String Handling', () => {
     test('should handle required fields correctly', () => {
@@ -306,63 +267,7 @@ describe('Security Enhancements', () => {
     });
   });
 
-  describe('Timing Consistency', () => {
-    test('should ensure minimum execution time', async () => {
-      const fastOperation = () => Promise.resolve('quick result');
-      const startTime = Date.now();
-      
-      const result = await ensureTimingConsistency(fastOperation, 100);
-      
-      const elapsedTime = Date.now() - startTime;
-      expect(elapsedTime).toBeGreaterThanOrEqual(100);
-      expect(result).toBe('quick result');
-    });
-
-    test('should not add unnecessary delay for slow operations', async () => {
-      const slowOperation = () => new Promise(resolve => 
-        setTimeout(() => resolve('slow result'), 150)
-      );
-      const startTime = Date.now();
-      
-      const result = await ensureTimingConsistency(slowOperation, 100);
-      
-      const elapsedTime = Date.now() - startTime;
-      expect(elapsedTime).toBeGreaterThanOrEqual(150);
-      expect(elapsedTime).toBeLessThan(200); // Should not add 100ms delay
-      expect(result).toBe('slow result');
-    });
-
-    test('should handle operation errors while maintaining timing', async () => {
-      const failingOperation = () => Promise.reject(new Error('Test error'));
-      const startTime = Date.now();
-      
-      await expect(
-        ensureTimingConsistency(failingOperation, 50)
-      ).rejects.toThrow('Test error');
-      
-      const elapsedTime = Date.now() - startTime;
-      expect(elapsedTime).toBeGreaterThanOrEqual(50);
-    });
-
-    test('secureStringCompare should use constant time', async () => {
-      const correctPassword = 'supersecretpassword123';
-      const wrongPassword = 'wrongpassword';
-      
-      // Test multiple comparisons to ensure consistent timing
-      const timings = [];
-      
-      for (let i = 0; i < 5; i++) {
-        const start = Date.now();
-        await secureStringCompare(wrongPassword, correctPassword);
-        timings.push(Date.now() - start);
-      }
-      
-      // All timings should be similar (within reasonable variance)
-      const maxTiming = Math.max(...timings);
-      const minTiming = Math.min(...timings);
-      expect(maxTiming - minTiming).toBeLessThan(20); // Less than 20ms variance
-    });
-  });
+  // Timing Consistency tests removed - not applicable for middleware sanitization
 
   describe('Comprehensive Security Analysis', () => {
     test('should perform all security checks in one call', async () => {
@@ -408,7 +313,7 @@ describe('Security Enhancements', () => {
       const startTime = Date.now();
       
       const promises = inputs.map(input => 
-        comprehensiveSecurityAnalysis(input, { ensureTimingConsistency: false })
+        comprehensiveSecurityAnalysis(input)
       );
       
       await Promise.all(promises);

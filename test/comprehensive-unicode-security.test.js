@@ -3,6 +3,9 @@
  * 
  * Tests the enhanced Unicode protection system to achieve >95% protection rate
  * Covers all major homograph attack vectors and confusable character types
+ * 
+ * This file complements security-comprehensive.test.js with specialized Unicode tests
+ * focusing on specific attack vectors not covered in the main security suite.
  */
 
 const MCPSanitizer = require('../src/index');
