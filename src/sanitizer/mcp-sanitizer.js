@@ -31,6 +31,8 @@
 const { stringUtils, objectUtils, validationUtils } = require('../utils')
 const { securityDecode } = require('../utils/security-decoder')
 const enterpriseSecurity = require('../utils/enterprise-security')
+// CVE-TBD-001 FIX: Import unified parser for consistent string normalization
+const { parseUnified, extractNormalized, isNormalizedString } = require('../utils/unified-parser')
 
 // Import configuration system
 const { createConfig, createConfigFromPolicy } = require('../config')
@@ -95,6 +97,9 @@ class MCPSanitizer {
   sanitize (input, context = {}) {
     const startTime = Date.now()
 
+    // Apply context mapping for top-level context
+    context = this._mapContext(context)
+
     // Handle empty input properly (Fix Issue #7)
     const emptyCheck = enterpriseSecurity.handleEmptyInput(input, context)
     if (emptyCheck.isEmpty) {
@@ -138,7 +143,7 @@ class MCPSanitizer {
           checkDirectional: true,
           checkNullBytes: true,
           checkDoubleEncoding: true,
-          checkHomographs: false // Will check after normalization
+          checkHomographs: true // Enable comprehensive homograph detection
         })
         
         if (securityChecks.blocked) {
@@ -468,63 +473,74 @@ class MCPSanitizer {
   }
 
   /**
-   * Secure string sanitization method with security decoder
+   * CVE-TBD-001 FIX: Secure string sanitization with unified parsing
+   * This method now uses unified parsing to prevent parser differential attacks
    * @param {string} str - String to sanitize
    * @param {Object} context - Context information
    * @returns {string} Sanitized string
    * @private
    */
   _sanitizeString (str, context) {
-    // SECURITY FIX: Apply security decoding BEFORE any validation
-    const decodeResult = securityDecode(str, {
-      decodeUnicode: true,
-      decodeUrl: true,
-      normalizePath: context.type === 'file_path',
-      stripDangerous: context.type === 'command',
-      normalizeUnicode: true
+    // CVE-TBD-001 FIX: Use unified parser for consistent normalization
+    const normalizedStr = parseUnified(str, {
+      type: context.type || 'generic',
+      strictMode: this.options.strictMode || false
     })
 
-    // Use decoded string for all subsequent operations
-    const decodedStr = decodeResult.decoded
+    // Get the normalized string - ALL validators MUST use this
+    const safeStr = normalizedStr.getNormalized()
+    const metadata = normalizedStr.getMetadata()
 
-    // Check for homograph attacks after normalization
-    if (str !== decodedStr && decodeResult.decodingSteps.includes('unicode-normalize')) {
-      const homographCheck = enterpriseSecurity.detectHomographs(str, decodedStr)
-      if (homographCheck.detected) {
-        throw new Error(homographCheck.warnings.join('; '))
+    // Check if normalization detected security issues
+    if (metadata.wasDecoded || metadata.warnings.length > 0) {
+      // Log security issues found during parsing
+      const warningMsg = `Security normalization applied: ${metadata.decodingSteps.join(', ')}`
+      if (metadata.warnings.length > 0) {
+        throw new Error(`${warningMsg}; Warnings: ${metadata.warnings.join('; ')}`)
       }
     }
 
-    // Log potential bypass attempts
-    if (decodeResult.wasDecoded && decodeResult.decodingSteps.length > 0) {
-      // Potential bypass attempts are tracked in result metadata instead of console
+    // Enhanced homograph detection - check ONLY normalized string (no parser differential)
+    const homographCheck = enterpriseSecurity.detectHomographs(safeStr, {
+      checkIDN: context.type === 'url',
+      multiPass: true,
+      detectZeroWidth: true,
+      strictMode: this.options.strictMode || false
+    })
+    if (homographCheck.detected) {
+      throw new Error(homographCheck.warnings.join('; '))
     }
 
-    // Validate string length on decoded content
-    stringUtils.validateStringLength(decodedStr, this.options.maxStringLength)
+    // Validate string length on normalized content ONLY
+    stringUtils.validateStringLength(safeStr, this.options.maxStringLength)
 
-    // Check for blocked patterns on decoded content  
-    stringUtils.validateAgainstBlockedPatterns(decodedStr, this.options.blockedPatterns, context)
+    // Check for blocked patterns on normalized content ONLY
+    stringUtils.validateAgainstBlockedPatterns(safeStr, this.options.blockedPatterns, context)
 
-    // Context-specific sanitization using SECURE validators (not legacy)
+    // Context-specific sanitization using SECURE validators with normalized string
+    // CRITICAL: Pass ONLY the normalized string, never the original
     if (context.type === 'file_path') {
-      return this._secureSanitizeFilePath(decodedStr)
+      return this._secureSanitizeFilePath(safeStr)
     }
 
     if (context.type === 'url') {
-      return this._secureSanitizeURL(decodedStr)
+      return this._secureSanitizeURL(safeStr)
     }
 
     if (context.type === 'command') {
-      return this._secureSanitizeCommand(decodedStr)
+      return this._secureSanitizeCommand(safeStr)
     }
 
     if (context.type === 'sql') {
-      return this._secureSanitizeSQL(decodedStr)
+      return this._secureSanitizeSQL(safeStr)
+    }
+
+    if (context.type === 'nosql') {
+      return this._secureSanitizeNoSQL(safeStr)
     }
 
     // HTML encode for safety
-    return stringUtils.htmlEncode(decodedStr)
+    return stringUtils.htmlEncode(safeStr)
   }
 
   /**
@@ -540,6 +556,27 @@ class MCPSanitizer {
     const keys = Object.keys(obj)
     if (this.options.maxObjectKeys && keys.length > this.options.maxObjectKeys) {
       throw new Error(`Object has too many keys (${keys.length} > ${this.options.maxObjectKeys})`)
+    }
+
+    // Check for NoSQL injection in objects (especially for query context)
+    if (context.type === 'nosql' || context.type === 'query') {
+      const { detectNoSQLInjection } = require('../patterns/nosql-injection')
+      const nosqlCheck = detectNoSQLInjection(obj)
+      if (nosqlCheck.detected) {
+        const vulnerabilityMessages = nosqlCheck.vulnerabilities.map(vuln => {
+          let message = `${vuln.type}: ${vuln.description}`
+          if (vuln.operator) {
+            message += ` (operator: ${vuln.operator})`
+          }
+          if (vuln.codeExecution) {
+            message += ' [CODE EXECUTION RISK]'
+          }
+          return message
+        })
+        
+        const errorMessage = `NoSQL injection in object detected (severity: ${nosqlCheck.severity}): ${vulnerabilityMessages.join(', ')}`
+        throw new Error(errorMessage)
+      }
     }
 
     // Check for prototype pollution
@@ -571,6 +608,35 @@ class MCPSanitizer {
   }
 
   /**
+   * Map context type to internal type
+   * @param {Object} context - Input context
+   * @returns {Object} Mapped context
+   * @private
+   */
+  _mapContext (context) {
+    if (!context.type) return context
+    
+    const typeMap = {
+      query: 'nosql',
+      mongodb: 'nosql',
+      mongo: 'nosql',
+      couchdb: 'nosql',
+      redis: 'nosql',
+      cassandra: 'nosql',
+      path: 'file_path',
+      uri: 'url',
+      cmd: 'command'
+    }
+
+    const mappedType = typeMap[context.type.toLowerCase()]
+    if (mappedType) {
+      return { ...context, type: mappedType }
+    }
+    
+    return context
+  }
+
+  /**
    * Get field context for object properties
    * @param {string} fieldName - Field name
    * @param {Object} parentContext - Parent context
@@ -585,7 +651,13 @@ class MCPSanitizer {
       uri: { type: 'url' },
       command: { type: 'command' },
       cmd: { type: 'command' },
-      query: { type: 'sql' },
+      query: { type: 'nosql' },
+      nosql: { type: 'nosql' },
+      mongodb: { type: 'nosql' },
+      mongo: { type: 'nosql' },
+      couchdb: { type: 'nosql' },
+      redis: { type: 'nosql' },
+      cassandra: { type: 'nosql' },
       sql: { type: 'sql' }
     }
 
@@ -651,6 +723,52 @@ class MCPSanitizer {
     )
 
     stringUtils.validateAgainstSQLKeywords(query, dangerousSQLKeywords)
+    return stringUtils.safeTrim(query)
+  }
+
+  /**
+   * Secure NoSQL query sanitization with security decoder
+   * @param {string} query - NoSQL query to sanitize (already decoded)
+   * @returns {string} Sanitized NoSQL query
+   * @private
+   */
+  _secureSanitizeNoSQL (query) {
+    // query is already decoded by _sanitizeString
+    validationUtils.validateNonEmptyString(query, 'NoSQL query')
+
+    // Import NoSQL injection detection
+    const { detectNoSQLInjection } = require('../patterns/nosql-injection')
+    
+    // Try to parse as JSON if it looks like JSON
+    let queryToCheck = query
+    if ((query.trim().startsWith('{') && query.trim().endsWith('}')) ||
+        (query.trim().startsWith('[') && query.trim().endsWith(']'))) {
+      try {
+        queryToCheck = JSON.parse(query)
+      } catch (e) {
+        // If JSON parsing fails, check as string
+      }
+    }
+    
+    // Check for NoSQL injection patterns
+    const nosqlCheck = detectNoSQLInjection(queryToCheck)
+    if (nosqlCheck.detected) {
+      // Create detailed error message based on vulnerabilities found
+      const vulnerabilityMessages = nosqlCheck.vulnerabilities.map(vuln => {
+        let message = `${vuln.type}: ${vuln.description}`
+        if (vuln.operator) {
+          message += ` (operator: ${vuln.operator})`
+        }
+        if (vuln.codeExecution) {
+          message += ' [CODE EXECUTION RISK]'
+        }
+        return message
+      })
+      
+      const errorMessage = `NoSQL injection detected (severity: ${nosqlCheck.severity}): ${vulnerabilityMessages.join(', ')}`
+      throw new Error(errorMessage)
+    }
+
     return stringUtils.safeTrim(query)
   }
 

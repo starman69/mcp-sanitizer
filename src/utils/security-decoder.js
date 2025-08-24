@@ -186,12 +186,14 @@ function stripDangerousChars (input) {
   // This prevents "cmd1\ncmd2" from becoming "cmd1cmd2"
   sanitized = sanitized.replace(/[\r\n]/g, ' ')
 
-  // Remove zero-width and directional characters
+  // CVE-TBD-001 FIX: Enhanced removal of directional and zero-width characters
   // U+200B-U+200F: Zero-width spaces and joiners
-  // U+202A-U+202E: Directional formatting (LTR, RTL overrides)
+  // U+202A-U+202E: Directional formatting (LTR, RTL overrides) - CRITICAL for CVE fix
   // U+2060-U+2069: Word joiners and directional isolates
   // U+FEFF: Zero-width no-break space
-  sanitized = sanitized.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g, '')
+  // U+061C: Arabic letter mark
+  // U+2066-U+2069: Directional isolates (LRI, RLI, FSI, PDI)
+  sanitized = sanitized.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF\u061C\u2066-\u2069]/g, '')
 
   // Remove other dangerous Unicode categories
   sanitized = sanitized.replace(/[\uFFF0-\uFFFF]/g, '') // Specials block

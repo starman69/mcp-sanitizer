@@ -9,6 +9,8 @@ const objectUtils = require('./object-utils')
 const validationUtils = require('./validation-utils')
 const securityEnhancements = require('./security-enhancements')
 const securityDecoder = require('./security-decoder')
+// CVE-TBD-001 FIX: Import unified parser
+const unifiedParser = require('./unified-parser')
 
 module.exports = {
   stringUtils,
@@ -16,6 +18,7 @@ module.exports = {
   validationUtils,
   securityEnhancements,
   securityDecoder,
+  unifiedParser,
 
   // Re-export common functions for convenience
   htmlEncode: stringUtils.htmlEncode,
@@ -45,5 +48,11 @@ module.exports = {
 
   // Security decoder functions
   enhancedSecurityDecode: securityDecoder.enhancedSecurityDecode,
-  securityDecode: securityDecoder.securityDecode
+  securityDecode: securityDecoder.securityDecode,
+  
+  // CVE-TBD-001 FIX: Unified parser functions
+  parseUnified: unifiedParser.parseUnified,
+  extractNormalized: unifiedParser.extractNormalized,
+  isNormalizedString: unifiedParser.isNormalizedString,
+  wrapValidator: unifiedParser.wrapValidator
 }

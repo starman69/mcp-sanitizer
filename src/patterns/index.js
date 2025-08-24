@@ -20,6 +20,7 @@ const commandInjection = require('./command-injection')
 const sqlInjection = require('./sql-injection')
 const prototypePollution = require('./prototype-pollution')
 const templateInjection = require('./template-injection')
+const nosqlInjection = require('./nosql-injection')
 
 /**
  * Combined severity levels from all modules
@@ -38,7 +39,8 @@ const PATTERN_TYPES = {
   COMMAND_INJECTION: 'command_injection',
   SQL_INJECTION: 'sql_injection',
   PROTOTYPE_POLLUTION: 'prototype_pollution',
-  TEMPLATE_INJECTION: 'template_injection'
+  TEMPLATE_INJECTION: 'template_injection',
+  NOSQL_INJECTION: 'nosql_injection'
 }
 
 /**
@@ -67,7 +69,8 @@ function detectAllPatterns (input, options = {}) {
     { name: PATTERN_TYPES.COMMAND_INJECTION, module: commandInjection },
     { name: PATTERN_TYPES.SQL_INJECTION, module: sqlInjection },
     { name: PATTERN_TYPES.PROTOTYPE_POLLUTION, module: prototypePollution },
-    { name: PATTERN_TYPES.TEMPLATE_INJECTION, module: templateInjection }
+    { name: PATTERN_TYPES.TEMPLATE_INJECTION, module: templateInjection },
+    { name: PATTERN_TYPES.NOSQL_INJECTION, module: nosqlInjection }
   ]
 
   for (const { name, module } of detectionModules) {
@@ -82,6 +85,8 @@ function detectAllPatterns (input, options = {}) {
       detectResult = module.detectPrototypePollution(input, options)
     } else if (name === PATTERN_TYPES.TEMPLATE_INJECTION) {
       detectResult = module.detectTemplateInjection(input, options)
+    } else if (name === PATTERN_TYPES.NOSQL_INJECTION) {
+      detectResult = module.detectNoSQLInjection(input, options)
     }
 
     // Store individual results
@@ -161,6 +166,10 @@ function analyzeSecurityPatterns (input, options = {}) {
     analysis.recommendations.push('Input contains template injection patterns. Sanitize template syntax and use safe template engines.')
   }
 
+  if (detection.detectionResults[PATTERN_TYPES.NOSQL_INJECTION]?.detected) {
+    analysis.recommendations.push('Input contains NoSQL injection patterns. Validate database operators, sanitize user input, and use parameterized queries.')
+  }
+
   return analysis
 }
 
@@ -213,6 +222,7 @@ function createPatternDetector (config = {}) {
     enableSQLInjection = true,
     enablePrototypePollution = true,
     enableTemplateInjection = true,
+    enableNoSQLInjection = true,
     strictMode = false,
     customPatterns = []
   } = config
@@ -224,7 +234,8 @@ function createPatternDetector (config = {}) {
       if (!enableCommandInjection &&
           !enableSQLInjection &&
           !enablePrototypePollution &&
-          !enableTemplateInjection) {
+          !enableTemplateInjection &&
+          !enableNoSQLInjection) {
         return { detected: false, severity: null, patterns: [] }
       }
 
@@ -276,6 +287,16 @@ function createPatternDetector (config = {}) {
         results.detectionResults.templateInjection = result
       }
 
+      if (enableNoSQLInjection) {
+        const result = nosqlInjection.detectNoSQLInjection(input, mergedOptions)
+        if (result.detected) {
+          results.detected = true
+          results.patterns.push(...result.patterns)
+          results.severity = getHigherSeverity(results.severity, result.severity)
+        }
+        results.detectionResults.nosqlInjection = result
+      }
+
       return results
     },
 
@@ -292,6 +313,7 @@ module.exports = {
   sqlInjection,
   prototypePollution,
   templateInjection,
+  nosqlInjection,
 
   // Combined detection functions
   detectAllPatterns,

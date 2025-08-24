@@ -31,6 +31,8 @@ const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns')
 const sanitizeFilename = require('sanitize-filename')
 const pathIsInside = require('path-is-inside')
 const { securityDecode } = require('../../utils/security-decoder')
+// CVE-TBD-001 FIX: Import unified parser for consistent string normalization
+const { parseUnified, extractNormalized } = require('../../utils/unified-parser')
 
 /**
  * File path validation severity levels
@@ -147,23 +149,28 @@ class FilePathValidator {
         return result
       }
 
-      // SECURITY: Decode and normalize the path first
-      const decodedResult = securityDecode(filePath, {
-        decodeUnicode: true,
-        decodeUrl: true,
-        normalizePath: true,
-        stripDangerous: false // Don't strip for paths, we want to detect them
+      // CVE-TBD-001 FIX: Use unified parser for consistent normalization
+      const normalizedStr = parseUnified(filePath, { 
+        type: 'file_path',
+        strictMode: this.config.strictMode || false
       })
 
-      if (decodedResult.wasDecoded) {
+      const metadata = normalizedStr.getMetadata()
+      let normalizedPath = normalizedStr.getNormalized()
+
+      // Update result metadata with parsing information
+      if (metadata.wasDecoded) {
         result.metadata.wasDecoded = true
-        result.metadata.decodingSteps = decodedResult.decodingSteps
-        result.warnings.push(`Encoded sequences detected and decoded: ${decodedResult.decodingSteps.join(', ')}`)
+        result.metadata.decodingSteps = metadata.decodingSteps
+        result.warnings.push(`Encoded sequences detected and decoded: ${metadata.decodingSteps.join(', ')}`)
       }
 
-      let normalizedPath = decodedResult.decoded
+      // Check for security warnings from unified parser
+      if (metadata.warnings && metadata.warnings.length > 0) {
+        result.warnings.push(...metadata.warnings)
+      }
 
-      // Normalize path if configured
+      // Normalize path if configured (unified parser already did basic normalization)
       if (this.config.normalizeBeforeValidation) {
         normalizedPath = path.normalize(normalizedPath)
         result.metadata.normalizedPath = normalizedPath

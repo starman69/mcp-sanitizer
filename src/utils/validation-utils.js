@@ -3,10 +3,15 @@
  *
  * This module provides reusable validation functions that are
  * used across different validators and sanitizers.
+ *
+ * CVE-TBD-001 FIX: All functions now use unified parsing to prevent
+ * parser differential attacks. Original strings are never accessed.
  */
 
 const path = require('path')
 const { URL } = require('url')
+// CVE-TBD-001 FIX: Import unified parser for consistent string normalization
+const { parseUnified, extractNormalized, wrapValidator } = require('./unified-parser')
 
 /**
  * Validate that a value is a non-empty string
@@ -81,19 +86,23 @@ function validateRegExp (value, paramName = 'value') {
 }
 
 /**
- * Validate file path for security issues using path-is-inside library
- * @param {string} filePath - The file path to validate
+ * CVE-TBD-001 FIX: Validate file path using unified parsing
+ * @param {string} filePath - The file path to validate (will be normalized)
  * @returns {string} - Normalized file path
  * @throws {Error} - If file path is unsafe
  */
 function validateFilePath (filePath) {
   validateNonEmptyString(filePath, 'filePath')
 
+  // CVE-TBD-001 FIX: Use unified parser to ensure consistent normalization
+  const normalizedStr = parseUnified(filePath, { type: 'file_path' })
+  const safePath = normalizedStr.getNormalized()
+
   // SECURITY FIX 2: Use path-is-inside for proper path validation
   const pathIsInside = require('path-is-inside')
 
-  // Normalize the path for security checks (handles ./ ../ and mixed separators)
-  const normalizedPath = path.normalize(filePath)
+  // Normalize the path for security checks (handles ./ ../ and mixed separators)  
+  const normalizedPath = path.normalize(safePath)
 
   // Check for directory traversal attempts
   if (normalizedPath.includes('..')) {
@@ -126,15 +135,16 @@ function validateFilePath (filePath) {
   const dangerousUnixPaths = ['/etc/', '/proc/', '/sys/', '/dev/', '/root/', '/boot/', '/usr/bin/', '/sbin/']
 
   const lowerPath = normalizedPath.toLowerCase()
-  const lowerOriginal = filePath.toLowerCase()
+  // CVE-TBD-001 FIX: Only check normalized path, not original (prevents parser differential)
+  const lowerSafe = safePath.toLowerCase()
 
-  // Check against all dangerous paths (both normalized and original)
+  // Check against all dangerous paths (ONLY normalized versions)
   for (const dangerousPath of [...dangerousUnixPaths, ...windowsSystemPaths]) {
     const lowerDangerous = dangerousPath.toLowerCase()
     if (lowerPath.startsWith(lowerDangerous) ||
-        lowerOriginal.startsWith(lowerDangerous) ||
+        lowerSafe.startsWith(lowerDangerous) ||
         // Also check with backslashes converted to forward slashes
-        lowerOriginal.replace(/\\/g, '/').startsWith(lowerDangerous)) {
+        lowerSafe.replace(/\\/g, '/').startsWith(lowerDangerous)) {
       throw new Error(`Access to system directory not allowed: ${dangerousPath}`)
     }
   }
@@ -187,8 +197,8 @@ function validateFilePath (filePath) {
     }
   }
 
-  // Return original path if safe, not normalized
-  return filePath
+  // CVE-TBD-001 FIX: Return normalized path, never original
+  return safePath
 }
 
 /**
@@ -209,8 +219,8 @@ function validateFileExtension (filePath, allowedExtensions) {
 }
 
 /**
- * Validate URL for security issues
- * @param {string} url - The URL to validate
+ * CVE-TBD-001 FIX: Validate URL using unified parsing
+ * @param {string} url - The URL to validate (will be normalized)
  * @param {string[]} [allowedProtocols=['http', 'https']] - Array of allowed protocols
  * @returns {URL} - Parsed URL object
  * @throws {Error} - If URL is unsafe
@@ -219,10 +229,14 @@ function validateURL (url, allowedProtocols = ['http', 'https']) {
   validateNonEmptyString(url, 'url')
   validateArray(allowedProtocols, 'allowedProtocols')
 
+  // CVE-TBD-001 FIX: Use unified parser to ensure consistent normalization
+  const normalizedStr = parseUnified(url, { type: 'url' })
+  const safeUrl = normalizedStr.getNormalized()
+
   let parsedUrl
 
   try {
-    parsedUrl = new URL(url)
+    parsedUrl = new URL(safeUrl)
   } catch (error) {
     throw new Error('Invalid URL format')
   }
@@ -283,20 +297,24 @@ function validateURLLocation (url) {
 }
 
 /**
- * Validate command string for injection patterns using shell-quote library
- * @param {string} command - The command string to validate
+ * CVE-TBD-001 FIX: Validate command using unified parsing
+ * @param {string} command - The command string to validate (will be normalized)
  * @returns {string} - Trimmed command string
  * @throws {Error} - If command contains dangerous patterns
  */
 function validateCommand (command) {
   validateNonEmptyString(command, 'command')
 
+  // CVE-TBD-001 FIX: Use unified parser to ensure consistent normalization
+  const normalizedStr = parseUnified(command, { type: 'command' })
+  const safeCommand = normalizedStr.getNormalized()
+
   // SECURITY FIX 1: Use shell-quote to properly parse and validate commands
   const shellQuote = require('shell-quote')
 
   try {
-    // Parse the command to detect injection attempts
-    const parsed = shellQuote.parse(command)
+    // Parse the NORMALIZED command to detect injection attempts
+    const parsed = shellQuote.parse(safeCommand)
 
     // Check for command injection by examining parsed tokens
     for (const token of parsed) {
@@ -337,7 +355,8 @@ function validateCommand (command) {
     throw new Error('Invalid or malicious command syntax')
   }
 
-  return command.trim()
+  // CVE-TBD-001 FIX: Return normalized command, never original
+  return safeCommand.trim()
 }
 
 /**
