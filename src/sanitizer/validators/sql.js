@@ -90,9 +90,9 @@ const SQL_INJECTION_PATTERNS = [
   /('|(\\))|(\s*(or|and)\s+[\w\s]*[=<>]+)/i, // Basic SQL injection
   /union\s+select/i, // Union-based injection
   /;\s*(drop|delete|update|insert)/i, // Stacked queries
-  /\/\*.*?\*\//gs, // Block comments
-  /--[\s\S]*?$/gm, // Line comments
-  /#[\s\S]*?$/gm, // MySQL comments
+  /\/\*(?:[^*]|\*(?!\/))*\*\//g, // Block comments (optimized - no backtracking)
+  /--[^\n\r]*(?:[\n\r]|$)/gm, // Line comments (bounded)
+  /#[^\n\r]*(?:[\n\r]|$)/gm, // MySQL comments (bounded)
   /\bchar\s*\(/i, // CHAR function
   /\bascii\s*\(/i, // ASCII function
   /\bbenchmark\s*\(/i, // BENCHMARK function
@@ -606,7 +606,7 @@ class SQLValidator {
       const functionMatches = query.match(/\b\w+\s*\(/g);
       if (functionMatches) {
         for (const match of functionMatches) {
-          const funcName = match.replace(/\s*\(.*$/, '').trim();
+          const funcName = match.replace(/\s*\($/, '').trim();
           if (!this.config.allowedFunctions.some(allowed =>
             funcName.toUpperCase().includes(allowed.toUpperCase()))) {
             result.warnings.push(`SQL function '${funcName}' is not in allowed list`);
@@ -636,7 +636,7 @@ class SQLValidator {
     if (!this.config.allowComments) {
       // Check for various comment types
       const commentPatterns = [
-        /\/\*.*?\*\//gs, // Block comments
+        /\/\*(?:[^*]|\*(?!\/))*\*\//g, // Block comments (optimized - no backtracking)
         /--.*$/gm, // SQL line comments
         /#.*$/gm // MySQL comments
       ];
@@ -794,7 +794,7 @@ class SQLValidator {
    */
   _removeComments (query) {
     return query
-      .replace(/\/\*.*?\*\//gs, ' ') // Block comments
+      .replace(/\/\*(?:[^*]|\*(?!\/))*\*\//g, ' ') // Block comments (optimized - no backtracking)
       .replace(/--.*$/gm, '') // Line comments
       .replace(/#.*$/gm, '') // MySQL comments
       .replace(/\s+/g, ' ') // Normalize whitespace

@@ -50,7 +50,7 @@ function detectDirectionalOverride (input) {
     warnings.push('Potential Trojan Source attack: bidirectional text manipulation detected');
 
     // Check if it's trying to reverse sensitive paths
-    if (input.match(/[\u202E].*\/(etc|usr|bin|var|sys|proc)/)) {
+    if (input.match(/[\u202E][^\n]{0,500}\/(etc|usr|bin|var|sys|proc)/)) {
       warnings.push('Critical: Directional override attempting to hide system path access');
     }
   }
@@ -90,7 +90,7 @@ function detectNullBytes (input) {
     }
 
     // eslint-disable-next-line no-control-regex
-    if (input.match(/\/etc\/.*\x00/)) {
+    if (input.match(/\/etc\/[^\x00]{0,500}\x00/)) {
       warnings.push('Critical: Null byte in system path - potential path traversal');
     }
   }
@@ -183,8 +183,8 @@ function detectPostgreSQLDollarQuoting (input) {
   let detected = false;
 
   // Pattern for dollar quoting: $$ or $tag$
-  const dollarQuotePattern = /\$([a-zA-Z_][a-zA-Z0-9_]*)?\$.*?\$\1\$/g;
-  const simpleDollarPattern = /\$\$.*?\$\$/g;
+  const dollarQuotePattern = /\$([a-zA-Z_][a-zA-Z0-9_]*)?\$[^$]{0,10000}\$\1\$/g;
+  const simpleDollarPattern = /\$\$[^$]{0,10000}\$\$/g;
 
   if (dollarQuotePattern.test(input) || simpleDollarPattern.test(input)) {
     detected = true;

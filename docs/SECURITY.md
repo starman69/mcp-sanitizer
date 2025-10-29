@@ -114,12 +114,13 @@ Normalizes look-alike characters used in phishing:
 - Unicode-based bypasses
 - Encoding-based evasion
 - Homograph/phishing attacks
+- ReDoS (Regular Expression Denial of Service) attacks
 
 ### Assumptions
 - Input is untrusted by default
 - Attackers may use sophisticated encoding/obfuscation
 - Multiple attack vectors may be combined
-- Timing attacks are not a primary concern for middleware
+- Validation patterns themselves must be hardened against pathological inputs
 
 ### Out of Scope
 - DDoS protection (infrastructure concern)
@@ -131,7 +132,7 @@ Normalizes look-alike characters used in phishing:
 ## Testing
 
 The library includes comprehensive test coverage:
-- **517 security tests** covering all major attack vectors
+- **559 security tests** covering all major attack vectors
 - **Unicode security tests** for homograph attacks
 - **Database-specific tests** for SQL injection variants
 - **Performance benchmarks** ensuring <10ms latency

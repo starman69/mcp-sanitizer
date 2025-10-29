@@ -99,11 +99,11 @@ const INJECTION_PATTERNS = [
   /[;&|`$(){}[\]<>*?]/, // Shell metacharacters
   /\|\s*(nc|netcat|telnet|ssh)\s+/i, // Network command pipes
   />\s*\/dev\/|<\s*\/dev\//, // Device redirection
-  /\$\([^)]*\)|`[^`]*`/, // Command substitution
+  /\$\([^)]{0,200}\)|`[^`]{0,200}`/, // Command substitution (bounded for safety)
   /&&|\|\||;/, // Command chaining
   />\s*&\s*\d+|<\s*&\s*\d+/, // File descriptor redirection
   /\\\w+/, // Escape sequences
-  /\${[^}]+}/, // Variable expansion
+  /\${[^}]{0,200}}/, // Variable expansion (bounded)
   /\s+-[^-\s]*e[^-\s]*\s+/, // Execute flags in various commands
   // Sensitive file access patterns
   /\/etc\/(passwd|shadow|sudoers|hosts)/i, // Unix sensitive files

@@ -446,7 +446,7 @@ function detectCyrillicHomographs (input) {
 
   if (detected) {
     // Special analysis for domain names
-    const domainPattern = /(?:^|\s|[^\w.-])((?:[a-zA-Zа-яё0-9](?:[a-zA-Zа-яё0-9-]*[a-zA-Zа-яё0-9])?\.)+[a-zA-Zа-яё]{2,})(?:\s|[^\w.-]|$)/gi;
+    const domainPattern = /(?:^|\s|[^\w.-])([a-zA-Zа-яё0-9]+(?:-[a-zA-Zа-яё0-9]+)*(?:\.[a-zA-Zа-яё0-9]+(?:-[a-zA-Zа-яё0-9]+)*)*\.[a-zA-Zа-яё]{2,})(?=\s|[^\w.-]|$)/gi;
     const domains = [...input.matchAll(domainPattern)];
 
     for (const domainMatch of domains) {

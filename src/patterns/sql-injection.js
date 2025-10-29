@@ -68,11 +68,11 @@ const INJECTION_PATTERNS = [
  */
 const COMMENT_PATTERNS = [
   /--\s*.*$/gm, // SQL line comments
-  /\/\*[\s\S]*?\*\//g, // SQL block comments
+  /\/\*(?:[^*]|\*(?!\/))*\*\//g, // SQL block comments (optimized - no backtracking)
   /\/\*.*$/gm, // Unclosed block comments
   /#.*$/gm, // MySQL comments
   /--\+.*$/gm, // Oracle hints
-  /\/\*!\d+.*?\*\//g // MySQL version-specific comments
+  /\/\*!\d+[^*]*\*\//g // MySQL version-specific (bounded)
 ];
 
 /**
@@ -152,9 +152,9 @@ const ENCODED_PATTERNS = [
  */
 const BYPASS_PATTERNS = [
   /\s+/g, // Multiple spaces
-  /\/\*.*?\*\//g, // Inline comments
-  /\bunion\s*\/\*.*?\*\//gi, // Comment-separated keywords
-  /\bselect\s*\/\*.*?\*\//gi,
+  /\/\*(?:[^*]|\*(?!\/))*\*\//g, // Inline comments (optimized)
+  /\bunion\s*\/\*[^*]{0,50}\*\//gi, // Comment-separated keywords (bounded)
+  /\bselect\s*\/\*[^*]{0,50}\*\//gi, // Bounded to prevent backtracking
   /['"]\s*\+\s*['"]/g, // Quote concatenation
   /['"]\s*\|\|\s*['"]/g, // Quote concatenation (Oracle/PostgreSQL)
   /\b\w+\s*\(\s*\)/g // Function calls without parameters

@@ -21,9 +21,9 @@ const SEVERITY_LEVELS = {
 const SHELL_METACHARACTERS = [
   /[;&|`$(){}[\]]/, // Basic shell metacharacters
   /\|\s*\w+|&&|\|\||;|`/, // Command chaining patterns
-  /\$\(.*?\)|\$\{.*?\}/, // Command substitution
+  /\$\([^)]{0,200}\)|\$\{[^}]{0,200}\}/, // Command substitution (bounded)
   />\s*\/dev\/|<\s*\/dev\//, // Device redirection
-  /<<\s*EOF|<<\s*\w+/, // Here documents
+  /<<\s*(?:EOF|\w{1,20})/, // Here documents (bounded)
   /\*|\?|~|\^/ // Wildcards and expansion
 ];
 

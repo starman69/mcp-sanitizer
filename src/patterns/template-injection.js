@@ -21,21 +21,21 @@ const SEVERITY_LEVELS = {
  */
 const GENERIC_TEMPLATE_PATTERNS = [
   // JavaScript template literals
-  /\$\{.*?\}/g,
-  /`.*?\$\{.*?\}.*?`/g,
+  /\$\{[^}]{0,500}\}/g, // Bounded to prevent ReDoS
+  /`[^`]{0,500}\$\{[^}]{0,500}\}[^`]{0,500}`/g, // Bounded
 
   // Common template delimiters
-  /\{\{.*?\}\}/g, // Handlebars, Angular, Vue
-  /\{%.*?%\}/g, // Jinja2, Django, Twig
-  /\{#.*?#\}/g, // Jinja2 comments
-  /<%.*?%>/g, // EJS, ERB
-  /\{@.*?@\}/g, // Dust.js
-  /\{!.*?!\}/g, // Mustache comments
+  /\{\{[^}]{0,500}\}\}/g, // Handlebars, Angular, Vue (bounded)
+  /\{%[^%]{0,500}%\}/g, // Jinja2, Django, Twig (bounded)
+  /\{#[^#]{0,500}#\}/g, // Jinja2 comments (bounded)
+  /<%[^%]{0,500}%>/g, // EJS, ERB (bounded)
+  /\{@[^@]{0,500}@\}/g, // Dust.js (bounded)
+  /\{![^!]{0,500}!\}/g, // Mustache comments (bounded)
 
-  // Expression patterns
-  /\{\{[^}]*[+\-*/=<>!&|][^}]*\}\}/g, // Expressions in templates
-  /\{%[^%]*[+\-*/=<>!&|][^%]*%\}/g,
-  /<%[^%]*[+\-*/=<>!&|][^%]*%>/g
+  // Expression patterns (use reluctant quantifiers)
+  /\{\{[^}]*?[+\-*/=<>!&|][^}]*?\}\}/g, // Reluctant quantifiers
+  /\{%[^%]*?[+\-*/=<>!&|][^%]*?%\}/g, // Reluctant quantifiers
+  /<%[^%]*?[+\-*/=<>!&|][^%]*?%>/g // Reluctant quantifiers
 ];
 
 /**
@@ -195,21 +195,21 @@ const SSTI_PAYLOAD_PATTERNS = [
  */
 const EXPRESSION_LANGUAGE_PATTERNS = [
   // Spring EL
-  /T\(.*?\)/g, // Type references
-  /@.*?\(/g, // Bean references
-  /#.*?\(/g, // Variable references
-  /\$\{.*?T\(.*?\).*?\}/g,
+  /T\([^)]{0,200}\)/g, // Type references (bounded)
+  /@[^(]{0,100}\(/g, // Bean references (bounded)
+  /#[^(]{0,100}\(/g, // Variable references (bounded)
+  /\$\{[^}]{0,500}T\([^)]{0,200}\)[^}]{0,500}\}/g, // Bounded
 
   // OGNL (Object-Graph Navigation Language)
-  /@.*?@/g, // Static method calls
-  /#.*?#/g, // Context variables
-  /\(#.*?\)/g, // Variable assignment
+  /@[^@]{0,200}@/g, // Static method calls (bounded)
+  /#[^#]{0,200}#/g, // Context variables (bounded)
+  /\(#[^)]{0,200}\)/g, // Variable assignment (bounded)
 
   // MVEL
   /with\s*\(/gi,
   /import\s+/gi,
   /new\s+/gi,
-  /\$\{.*?with\s*\(.*?\).*?\}/gi,
+  /\$\{[^}]{0,500}with\s*\([^)]{0,200}\)[^}]{0,500}\}/gi, // Bounded
 
   // SpEL (Spring Expression Language)
   /#root/gi,
