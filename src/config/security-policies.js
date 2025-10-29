@@ -33,7 +33,7 @@ const STRICT_POLICY = {
   // Minimal file type support
   allowedFileExtensions: ['.txt', '.json'],
 
-  // Comprehensive pattern blocking
+  // These patterns provide fast heuristic detection as part of defense-in-depth.
   blockedPatterns: [
     // All template injection patterns
     /\$\{.*?\}|\{\{.*?\}\}|<%.*?%>|\[\[.*?\]\]/,
@@ -44,8 +44,13 @@ const STRICT_POLICY = {
     // All code execution patterns
     /require\s*\(|import\s*\(|eval\s*\(|Function\s*\(|setTimeout\s*\(|setInterval\s*\(/i,
 
-    // All script patterns
-    /<!--[\s\S]*?-->|<script[\s\S]*?<\/script>|<[^>]*on\w+\s*=|javascript:|data:/i,
+    // XSS patterns (heuristic detection - see docs for limitations)
+    /<!--[\s\S]*?-->/i, // HTML comments
+    /<script[\s\S]*?<\/script>/i, // Well-formed script tags
+    /<script[^>]*>/i, // Unclosed/malformed script tags
+    /<[^>]*[\s/]on\w+\s*=/i, // Event handlers (improved pattern)
+    /javascript:/i, // JavaScript protocol
+    /data:/i, // Data protocol (can contain scripts)
 
     // All command patterns
     /\|\s*\w+|&&|\|\||;|`|\$\(|\$\{/,
@@ -148,7 +153,12 @@ const MODERATE_POLICY = {
     /\$\{.*?\}|\{\{.*?\}\}|<%.*?%>/,
     /__proto__|constructor\.prototype|prototype\.constructor/i,
     /require\s*\(|import\s*\(|eval\s*\(|Function\s*\(/i,
-    /<!--[\s\S]*?-->|<script[\s\S]*?<\/script>|<[^>]*on\w+\s*=|javascript:/i,
+    // XSS patterns (heuristic detection)
+    /<!--[\s\S]*?-->/i, // HTML comments
+    /<script[\s\S]*?<\/script>/i, // Well-formed script tags
+    /<script[^>]*>/i, // Unclosed/malformed script tags
+    /<[^>]*[\s/]on\w+\s*=/i, // Event handlers (improved pattern)
+    /javascript:/i, // JavaScript protocol
     /\|\s*\w+|&&|\|\||;|`/,
     /\.\.\//
   ],
@@ -237,7 +247,8 @@ const PERMISSIVE_POLICY = {
   // Minimal pattern blocking - only the most dangerous
   blockedPatterns: [
     /eval\s*\(/i, // Direct eval calls
-    /<script[\s\S]*?<\/script>/i, // Script tags
+    /<script[\s\S]*?<\/script>/i, // Well-formed script tags
+    /<script[^>]*>/i, // Unclosed script tags
     /__proto__\s*:/ // Direct prototype pollution
   ],
 
@@ -324,7 +335,8 @@ const DEVELOPMENT_POLICY = {
   blockedPatterns: [
     /__proto__|constructor\.prototype/i,
     /eval\s*\(/i,
-    /<script[\s\S]*?<\/script>/i,
+    /<script[\s\S]*?<\/script>/i, // Well-formed script tags
+    /<script[^>]*>/i, // Unclosed script tags
     /\|\s*rm|\|\s*del/
   ],
 

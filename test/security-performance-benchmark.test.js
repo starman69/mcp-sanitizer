@@ -293,4 +293,194 @@ describe('Security Performance Benchmark', () => {
       });
     });
   });
+
+  describe('ReDoS Protection (CodeQL Pattern Improvements)', () => {
+    it('should handle long script tags without catastrophic backtracking', () => {
+      const pathological = {
+        html: '<script>' + 'a'.repeat(10000) + '</script>'
+      };
+
+      const start = Date.now();
+      sanitizer.sanitize(pathological);
+      const elapsed = Date.now() - start;
+
+      console.log(`Long script tag (10k chars): ${elapsed}ms`);
+      expect(elapsed).toBeLessThan(100); // Should complete quickly
+    });
+
+    it('should handle nested script tags efficiently', () => {
+      const nested = '<script>' + '<script>'.repeat(100) + 'alert(1)' +
+                     '</script>'.repeat(100) + '</script>';
+
+      const start = Date.now();
+      sanitizer.sanitize({ html: nested });
+      const elapsed = Date.now() - start;
+
+      console.log(`Nested script tags (100 deep): ${elapsed}ms`);
+      expect(elapsed).toBeLessThan(100);
+    });
+
+    it('should handle deeply nested objects within limit', () => {
+      let nested = { value: 'test' };
+      for (let i = 0; i < 20; i++) {
+        nested = { nested };
+      }
+
+      const start = Date.now();
+      sanitizer.sanitize(nested);
+      const elapsed = Date.now() - start;
+
+      console.log(`Deep nesting (20 levels): ${elapsed}ms`);
+      expect(elapsed).toBeLessThan(50);
+    });
+  });
+
+  describe('Pattern Detection Performance (Split Patterns)', () => {
+    it('should efficiently check multiple XSS patterns', () => {
+      const xssInput = {
+        html: '<script>alert(1)</script><img onload=alert(2)><!-- comment -->'
+      };
+
+      const iterations = 100;
+      const start = Date.now();
+
+      for (let i = 0; i < iterations; i++) {
+        sanitizer.sanitize(xssInput);
+      }
+
+      const elapsed = Date.now() - start;
+      const avgTime = elapsed / iterations;
+
+      console.log(`XSS pattern detection average: ${avgTime.toFixed(3)}ms`);
+      expect(avgTime).toBeLessThan(50);
+    });
+
+    it('should efficiently check SQL injection patterns', () => {
+      const sqlInput = {
+        sql: "'; DROP TABLE users; --"
+      };
+
+      const iterations = 100;
+      const start = Date.now();
+
+      for (let i = 0; i < iterations; i++) {
+        sanitizer.sanitize(sqlInput);
+      }
+
+      const elapsed = Date.now() - start;
+      const avgTime = elapsed / iterations;
+
+      console.log(`SQL injection detection average: ${avgTime.toFixed(3)}ms`);
+      expect(avgTime).toBeLessThan(50);
+    });
+
+    it('should efficiently check command injection patterns', () => {
+      const cmdInput = {
+        command: 'ls; rm -rf /'
+      };
+
+      const iterations = 100;
+      const start = Date.now();
+
+      for (let i = 0; i < iterations; i++) {
+        sanitizer.sanitize(cmdInput);
+      }
+
+      const elapsed = Date.now() - start;
+      const avgTime = elapsed / iterations;
+
+      console.log(`Command injection detection average: ${avgTime.toFixed(3)}ms`);
+      expect(avgTime).toBeLessThan(50);
+    });
+  });
+
+  describe('Performance Across Security Policies', () => {
+    it('STRICT policy should maintain reasonable performance', () => {
+      const strict = new MCPSanitizer('STRICT');
+      const input = {
+        html: '<script>alert(1)</script>',
+        command: 'ls; rm -rf /'
+      };
+
+      const iterations = 50;
+      const start = Date.now();
+
+      for (let i = 0; i < iterations; i++) {
+        strict.sanitize(input);
+      }
+
+      const elapsed = Date.now() - start;
+      const avgTime = elapsed / iterations;
+
+      console.log(`STRICT policy average: ${avgTime.toFixed(3)}ms`);
+      expect(avgTime).toBeLessThan(100);
+    });
+
+    it('MODERATE policy should maintain reasonable performance', () => {
+      const moderate = new MCPSanitizer('MODERATE');
+      const input = {
+        html: '<script>alert(1)</script>',
+        command: 'ls; rm -rf /'
+      };
+
+      const iterations = 50;
+      const start = Date.now();
+
+      for (let i = 0; i < iterations; i++) {
+        moderate.sanitize(input);
+      }
+
+      const elapsed = Date.now() - start;
+      const avgTime = elapsed / iterations;
+
+      console.log(`MODERATE policy average: ${avgTime.toFixed(3)}ms`);
+      expect(avgTime).toBeLessThan(100);
+    });
+
+    it('PERMISSIVE policy should be faster with fewer patterns', () => {
+      const permissive = new MCPSanitizer('PERMISSIVE');
+      const input = {
+        html: '<div>Normal content</div>',
+        text: 'Hello world'
+      };
+
+      const iterations = 100;
+      const start = Date.now();
+
+      for (let i = 0; i < iterations; i++) {
+        permissive.sanitize(input);
+      }
+
+      const elapsed = Date.now() - start;
+      const avgTime = elapsed / iterations;
+
+      console.log(`PERMISSIVE policy average: ${avgTime.toFixed(3)}ms`);
+      expect(avgTime).toBeLessThan(50);
+    });
+  });
+
+  describe('Concurrent Operations', () => {
+    it('should handle concurrent sanitizations efficiently', async () => {
+      const input = {
+        html: '<script>alert(1)</script>',
+        command: 'ls && pwd'
+      };
+
+      const concurrentOps = 50;
+      const start = Date.now();
+
+      const promises = [];
+      for (let i = 0; i < concurrentOps; i++) {
+        promises.push(Promise.resolve(sanitizer.sanitize(input)));
+      }
+
+      await Promise.all(promises);
+
+      const elapsed = Date.now() - start;
+      const avgTime = elapsed / concurrentOps;
+
+      console.log(`Concurrent operations (${concurrentOps}): ${avgTime.toFixed(3)}ms avg`);
+      expect(avgTime).toBeLessThan(100);
+    });
+  });
 });

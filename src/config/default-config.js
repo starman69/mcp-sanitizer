@@ -49,8 +49,17 @@ const DEFAULT_CONFIG = {
     // Code execution patterns
     /require\s*\(|import\s*\(|eval\s*\(|Function\s*\(/i,
 
-    // Script injection patterns (XSS)
-    /<!--[\s\S]*?-->|<script[\s\S]*?<\/script>|<[^>]*on\w+\s*=|javascript:/i,
+    // Script injection patterns (XSS) - Heuristic detection
+    // Detects HTML comments
+    /<!--[\s\S]*?-->/i,
+    // Detects well-formed script tags
+    /<script[\s\S]*?<\/script>/i,
+    // Detects unclosed or malformed script tags
+    /<script[^>]*>/i,
+    // Detects event handlers (improved to catch <img onload=alert(1)>)
+    /<[^>]*[\s/]on\w+\s*=/i,
+    // Detects javascript: protocol
+    /javascript:/i,
 
     // Command chaining patterns
     /\|\s*\w+|&&|\|\||;|`/,
