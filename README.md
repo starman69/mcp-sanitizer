@@ -17,7 +17,7 @@ MCP Sanitizer provides comprehensive, defense-in-depth protection:
 - ✅ **Framework Integration**: Express, Fastify, and Koa middleware with `skipPaths` support
 - ✅ **Security Policies**: Pre-configured policies (STRICT, MODERATE, PERMISSIVE, DEVELOPMENT, PRODUCTION)
 - ✅ **Performance Optimized**: Sub-millisecond operations, <0.5ms latency, C++ backed libraries
-- ✅ **Comprehensive Testing**: 669 tests with 78% coverage, 42+ attack vector validations
+- ✅ **Comprehensive Testing**: 673 tests with 78% coverage, 42+ attack vector validations
 
 ### Security Philosophy
 

@@ -132,7 +132,7 @@ Normalizes look-alike characters used in phishing:
 ## Testing
 
 The library includes comprehensive test coverage:
-- **669 security tests** covering all major attack vectors
+- **673 security tests** covering all major attack vectors
 - **Unicode security tests** for homograph attacks
 - **Database-specific tests** for SQL injection variants
 - **Performance benchmarks** ensuring <10ms latency
