@@ -9,11 +9,13 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read  # Required for actions/checkout
+
     strategy:
       matrix:
         node-version: [18.x, 20.x]
-    
+
     steps:
     - uses: actions/checkout@v4
     
@@ -41,7 +43,9 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read  # Required for actions/checkout
+
     steps:
     - uses: actions/checkout@v4
     
