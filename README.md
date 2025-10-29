@@ -4,20 +4,20 @@ A comprehensive security sanitization library for Model Context Protocol (MCP) s
 
 [![npm version](https://badge.fury.io/js/mcp-sanitizer.svg)](https://badge.fury.io/js/mcp-sanitizer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Test Coverage](https://img.shields.io/badge/Test%20Coverage-Comprehensive-brightgreen)](./test)
-[![Security Tests](https://img.shields.io/badge/Security%20Tests-500%2B-brightgreen)](./test)
+[![Security Tests](https://img.shields.io/badge/Security%20Tests-600%2B-brightgreen)](./test)
 
 ## 🔒 Security Features
 
-MCP Sanitizer provides comprehensive, defense-in-depth protection against common attack vectors:
+MCP Sanitizer provides comprehensive, defense-in-depth protection:
 
-- ✅ **Multi-layered validation** for command injection, SQL injection, and XSS
-- ✅ **Advanced Unicode normalization** to prevent homograph attacks
-- ✅ **Context-aware sanitization** for different input types
-- ✅ **NoSQL injection protection** for MongoDB and similar databases
-- ✅ **Path traversal prevention** with robust normalization
-- ✅ **Database-specific SQL protection** for PostgreSQL, MySQL, MSSQL, Oracle
-- ✅ **Comprehensive test coverage** with 500+ security tests
+- ✅ **Multi-layered Protection**: Command injection, SQL injection, XSS, NoSQL injection, path traversal
+- ✅ **Advanced Unicode Defense**: Homograph detection, normalization (NFC/NFD/NFKC/NFKD), zero-width character removal
+- ✅ **Context-aware Validation**: Specialized rules for file paths, URLs, commands, and SQL queries
+- ✅ **Database-specific SQL Protection**: PostgreSQL, MySQL, MSSQL, Oracle validation and escaping
+- ✅ **Framework Integration**: Express, Fastify, and Koa middleware with `skipPaths` support
+- ✅ **Security Policies**: Pre-configured policies (STRICT, MODERATE, PERMISSIVE, DEVELOPMENT, PRODUCTION)
+- ✅ **Performance Optimized**: Sub-millisecond operations, <0.5ms latency, C++ backed libraries
+- ✅ **Comprehensive Testing**: 669 tests with 78% coverage, 42+ attack vector validations
 
 ### Security Philosophy
 
@@ -28,17 +28,6 @@ While we maintain rigorous security standards and comprehensive test coverage, w
 - Regular updates are crucial
 
 We encourage responsible disclosure of any security issues via GitHub Security Advisories.
-
-## Features
-
-### Core Capabilities
-- **Multi-layered Protection**: Command injection, SQL injection, XSS, NoSQL injection, path traversal
-- **Advanced Unicode Defense**: Homograph detection, normalization, zero-width character removal  
-- **Context-aware Validation**: Different rules for file paths, URLs, commands, and SQL queries
-- **Framework Integration**: Express, Fastify, and Koa middleware with `skipPaths` support
-- **Security Policies**: Pre-configured (STRICT, MODERATE, PERMISSIVE, DEVELOPMENT, PRODUCTION)
-- **Performance Optimized**: Sub-millisecond operations, <10ms latency
-- **Comprehensive Testing**: 500+ security tests
 
 ## Installation
 
