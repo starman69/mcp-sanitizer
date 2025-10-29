@@ -128,7 +128,7 @@ function findSQLKeyword (str, keywords) {
 
     // Handle pattern keywords like 'SELECT.*FROM'
     if (keyword.includes('.*')) {
-      const pattern = new RegExp(keyword.replace(/\.\*/g, '.*'), 'i');
+      const pattern = new RegExp(keyword, 'i');
       if (pattern.test(str)) {
         return keyword;
       }
