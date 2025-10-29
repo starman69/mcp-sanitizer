@@ -37,7 +37,7 @@
     "shell-quote": "^1.8.3",
     "sqlstring": "^2.3.3",
     "unorm": "^1.6.0",
-    "validator": "^13.15.15"
+    "validator": "^13.15.20"
   },
   "devDependencies": {
     "benchmark": "^2.1.4",
