@@ -1,0 +1,19 @@
+name: "CodeQL Config"
+
+# Paths to ignore during analysis
+paths-ignore:
+  - 'test/**'
+  - '**/*.test.js'
+  - '**/*.spec.js'
+
+# Query filters
+query-filters:
+  - exclude:
+      id: js/polynomial-redos
+      paths:
+        - 'test/**'
+        - '**/*.test.js'
+
+# Only run security queries, not all code quality queries
+queries:
+  - uses: security-extended
