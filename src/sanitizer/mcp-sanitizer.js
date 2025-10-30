@@ -153,8 +153,6 @@ class MCPSanitizer {
           result.sanitized = null;
           this.stats.blockedCount++;
 
-          // Apply timing protection and return early
-          this._applyTimingProtection(startTime);
           result.metadata.processingTime = Date.now() - startTime;
           return result;
         }
@@ -168,9 +166,6 @@ class MCPSanitizer {
       result.sanitized = null;
       this.stats.blockedCount++;
     }
-
-    // Apply timing protection
-    this._applyTimingProtection(startTime);
 
     // Update performance stats
     const processingTime = Date.now() - startTime;
@@ -860,33 +855,6 @@ class MCPSanitizer {
       this.stats.averageProcessingTime = (
         (this.stats.averageProcessingTime * (totalOperations - 1) + processingTime) / totalOperations
       );
-    }
-  }
-
-  /**
-   * Apply timing protection to prevent timing attacks
-   * @param {number} startTime - Start time of operation
-   * @private
-   */
-  _applyTimingProtection (startTime) {
-    if (this.options.enableTimingProtection === false) {
-      return;
-    }
-
-    const elapsed = Date.now() - startTime;
-    const targetTime = 10; // Target 10ms for all operations
-
-    if (elapsed < targetTime) {
-      // Add variable delay to reach target time
-      const remainingTime = targetTime - elapsed;
-      const variance = (Math.random() - 0.5) * 0.4 * remainingTime; // ±20% variance
-      const finalDelay = Math.max(0, remainingTime + variance);
-
-      const endTime = Date.now() + finalDelay;
-      while (Date.now() < endTime) {
-        // CPU work to prevent optimization
-        Math.sqrt(Math.random());
-      }
     }
   }
 }

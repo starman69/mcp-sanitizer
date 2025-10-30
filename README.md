@@ -16,8 +16,8 @@ MCP Sanitizer provides comprehensive, defense-in-depth protection:
 - ✅ **Database-specific SQL Protection**: PostgreSQL, MySQL, MSSQL, Oracle validation and escaping
 - ✅ **Framework Integration**: Express, Fastify, and Koa middleware with `skipPaths` support
 - ✅ **Security Policies**: Pre-configured policies (STRICT, MODERATE, PERMISSIVE, DEVELOPMENT, PRODUCTION)
-- ✅ **Performance Optimized**: Sub-millisecond operations, <0.5ms latency, C++ backed libraries
-- ✅ **Comprehensive Testing**: 673 tests with 78% coverage, 42+ attack vector validations
+- ✅ **Comprehensive Validation**: Checking 42+ attack vectors across 12 validation layers
+- ✅ **Comprehensive Testing**: 670 tests with 78% coverage, 42+ attack vector validations
 
 ### Security Philosophy
 
@@ -322,10 +322,13 @@ npm run security-audit
 
 ## Performance
 
-- **Low Latency**: All operations complete in <0.5ms
-- **Memory Efficient**: Configurable limits prevent memory exhaustion
+- **Fast & Comprehensive**: ~1ms average latency for complete validation (12 layers checking 40+ attack vectors)
+- **Individual Operations**: Highly optimized - escape-html (31M ops/sec), sqlstring (44M ops/sec), shell-quote (2.5M ops/sec)
+- **Optimization Options**: Use `skipPaths` to exempt low-risk routes (health checks, static assets, metrics)
+- **Memory Efficient**: Configurable limits prevent memory exhaustion (<100MB under attack)
 - **Scalable**: Stateless design allows horizontal scaling
-- **Optimized**: Using C++ backed libraries where available
+
+**Validation Layers**: Command injection, SQL injection (4 databases), NoSQL injection, XSS, path traversal, prototype pollution, template injection, Unicode normalization (4 passes), multi-layer encoding detection, file extension validation, protocol validation
 
 ## Examples
 
