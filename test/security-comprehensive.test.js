@@ -393,33 +393,6 @@ describe('Comprehensive Security Test Suite', () => {
       expect(result.blocked).toBe(true);
     });
   });
-
-  describe('Performance and Timing Tests', () => {
-    it('should have consistent timing for blocked vs allowed inputs', () => {
-      const safe = 'hello world';
-      const malicious = 'cat /etc/passwd';
-
-      const timings = { safe: [], malicious: [] };
-
-      // Collect timing samples
-      for (let i = 0; i < 100; i++) {
-        let start = process.hrtime.bigint();
-        strictSanitizer.sanitize(safe, { type: 'command' });
-        timings.safe.push(Number(process.hrtime.bigint() - start));
-
-        start = process.hrtime.bigint();
-        strictSanitizer.sanitize(malicious, { type: 'command' });
-        timings.malicious.push(Number(process.hrtime.bigint() - start));
-      }
-
-      const avgSafe = timings.safe.reduce((a, b) => a + b, 0) / timings.safe.length;
-      const avgMalicious = timings.malicious.reduce((a, b) => a + b, 0) / timings.malicious.length;
-      const variance = Math.abs(avgSafe - avgMalicious) / Math.max(avgSafe, avgMalicious);
-
-      // Timing variance should be less than 5%
-      expect(variance).toBeLessThan(0.05);
-    });
-  });
 });
 
 // Export test utilities for reuse

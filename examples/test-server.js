@@ -354,9 +354,12 @@ const handleRequest = async (req, res) => {
 
   } catch (error) {
     console.error('Request error:', error)
-    sendJson(res, 500, { 
-      error: 'Internal Server Error', 
+    sendJson(res, 500, {
+      error: 'Internal Server Error',
       message: error.message,
+      // codeql[js/stack-trace-exposure] - This is a test/example server for development and testing.
+      // Stack traces are intentionally shown only in development mode (NODE_ENV === 'development').
+      // In production, this server should not be used - use production frameworks with proper error handling.
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })
   }

@@ -9,6 +9,8 @@
  * and common attack patterns across different template engines.
  */
 
+const { safeBatchTest } = require('../utils/redos-safe-patterns');
+
 const SEVERITY_LEVELS = {
   CRITICAL: 'critical',
   HIGH: 'high',
@@ -18,24 +20,25 @@ const SEVERITY_LEVELS = {
 
 /**
  * Generic template injection patterns
+ * Using atomic patterns to prevent ReDoS - detect opening only
  */
 const GENERIC_TEMPLATE_PATTERNS = [
-  // JavaScript template literals
-  /\$\{.*?\}/g,
-  /`.*?\$\{.*?\}.*?`/g,
+  // JavaScript template literals - detect opening only
+  /\$\{/, // Template literal start
+  /`.*\$\{/, // Backtick with template
 
-  // Common template delimiters
-  /\{\{.*?\}\}/g, // Handlebars, Angular, Vue
-  /\{%.*?%\}/g, // Jinja2, Django, Twig
-  /\{#.*?#\}/g, // Jinja2 comments
-  /<%.*?%>/g, // EJS, ERB
-  /\{@.*?@\}/g, // Dust.js
-  /\{!.*?!\}/g, // Mustache comments
+  // Common template delimiters - detect opening only
+  /\{\{/, // Handlebars, Angular, Vue start
+  /\{%/, // Jinja2, Django, Twig start
+  /\{#/, // Jinja2 comments start
+  /<%/, // EJS, ERB start
+  /\{@/, // Dust.js start
+  /\{!/, // Mustache comments start
 
-  // Expression patterns
-  /\{\{[^}]*[+\-*/=<>!&|][^}]*\}\}/g, // Expressions in templates
-  /\{%[^%]*[+\-*/=<>!&|][^%]*%\}/g,
-  /<%[^%]*[+\-*/=<>!&|][^%]*%>/g
+  // Expression patterns - simplified detection
+  /\{\{[^}]*[+\-*/=<>!&|]/, // Expression in braces
+  /\{%[^%]*[+\-*/=<>!&|]/, // Expression in percent
+  /<%[^%]*[+\-*/=<>!&|]/ // Expression in angle percent
 ];
 
 /**
@@ -195,21 +198,21 @@ const SSTI_PAYLOAD_PATTERNS = [
  */
 const EXPRESSION_LANGUAGE_PATTERNS = [
   // Spring EL
-  /T\(.*?\)/g, // Type references
-  /@.*?\(/g, // Bean references
-  /#.*?\(/g, // Variable references
-  /\$\{.*?T\(.*?\).*?\}/g,
+  /T\([^)]{0,200}\)/g, // Type references (bounded)
+  /@[^(]{0,100}\(/g, // Bean references (bounded)
+  /#[^(]{0,100}\(/g, // Variable references (bounded)
+  /\$\{[^}]{0,500}T\([^)]{0,200}\)[^}]{0,500}\}/g, // Bounded
 
   // OGNL (Object-Graph Navigation Language)
-  /@.*?@/g, // Static method calls
-  /#.*?#/g, // Context variables
-  /\(#.*?\)/g, // Variable assignment
+  /@[^@]{0,200}@/g, // Static method calls (bounded)
+  /#[^#]{0,200}#/g, // Context variables (bounded)
+  /\(#[^)]{0,200}\)/g, // Variable assignment (bounded)
 
   // MVEL
   /with\s*\(/gi,
   /import\s+/gi,
   /new\s+/gi,
-  /\$\{.*?with\s*\(.*?\).*?\}/gi,
+  /\$\{[^}]{0,500}with\s*\([^)]{0,200}\)[^}]{0,500}\}/gi, // Bounded
 
   // SpEL (Spring Expression Language)
   /#root/gi,
@@ -309,15 +312,18 @@ function detectTemplateInjection (input, options = {}) {
 
 /**
  * Check for generic template patterns
+ * Uses safeBatchTest to prevent ReDoS attacks
  */
 function checkGenericTemplatePatterns (input) {
   const detected = [];
 
-  for (const pattern of GENERIC_TEMPLATE_PATTERNS) {
-    if (pattern.test(input)) {
-      detected.push(`generic_template:${pattern.source}`);
-    }
-  }
+  // Use safeBatchTest to prevent ReDoS - enforces 10ms timeout per pattern
+  const results = safeBatchTest(GENERIC_TEMPLATE_PATTERNS, input, 100);
+
+  // Add matched patterns to detected list (safeBatchTest returns actual patterns, not indices)
+  results.matched.forEach(pattern => {
+    detected.push(`generic_template:${pattern.source}`);
+  });
 
   return {
     detected: detected.length > 0,
@@ -328,16 +334,19 @@ function checkGenericTemplatePatterns (input) {
 
 /**
  * Check for template engine specific patterns
+ * Uses safeBatchTest to prevent ReDoS attacks
  */
 function checkTemplateEnginePatterns (input) {
   const detected = [];
 
   for (const [engine, patterns] of Object.entries(TEMPLATE_ENGINE_PATTERNS)) {
-    for (const pattern of patterns) {
-      if (pattern.test(input)) {
-        detected.push(`${engine}_template:${pattern.source}`);
-      }
-    }
+    // Use safeBatchTest with timeout to prevent ReDoS
+    const results = safeBatchTest(patterns, input, 100);
+
+    // Add matched patterns to detected list (safeBatchTest returns actual patterns, not indices)
+    results.matched.forEach(pattern => {
+      detected.push(`${engine}_template:${pattern.source}`);
+    });
   }
 
   return {

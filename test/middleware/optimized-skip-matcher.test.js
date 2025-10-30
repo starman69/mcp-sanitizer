@@ -308,4 +308,65 @@ describe('OptimizedSkipMatcher', () => {
       }).not.toThrow();
     });
   });
+
+  describe('Security - Prototype Pollution Protection (CVE-TBD-006)', () => {
+    it('should prevent prototype pollution via __proto__ in paths', () => {
+      const trie = new PrefixTrie();
+
+      // Attempt to pollute via __proto__
+      trie.insert('/__proto__/polluted');
+
+      // Verify Object.prototype is not polluted
+      const testObj = {};
+      expect(testObj.polluted).toBeUndefined();
+      expect(testObj.isEndOfPath).toBeUndefined();
+
+      // Verify trie still works correctly
+      expect(trie.hasPrefix('/__proto__/polluted/test')).toBe(true);
+    });
+
+    it('should prevent prototype pollution via constructor in paths', () => {
+      const trie = new PrefixTrie();
+
+      trie.insert('/constructor/prototype/polluted');
+
+      // Verify Object.prototype is not polluted
+      const testObj = {};
+      expect(testObj.polluted).toBeUndefined();
+
+      // Verify functionality preserved
+      expect(trie.hasPrefix('/constructor/prototype/polluted/test')).toBe(true);
+    });
+
+    it('should handle paths with dangerous property names safely', () => {
+      const matcher = new OptimizedSkipMatcher([
+        '/__proto__/',
+        '/constructor/',
+        '/prototype/',
+        '/hasOwnProperty/'
+      ]);
+
+      // Should work without polluting prototypes
+      expect(matcher.shouldSkip('/__proto__/test')).toBe(true);
+      expect(matcher.shouldSkip('/constructor/test')).toBe(true);
+      expect(matcher.shouldSkip('/prototype/test')).toBe(true);
+      expect(matcher.shouldSkip('/hasOwnProperty/test')).toBe(true);
+
+      // Verify no pollution occurred
+      const testObj = {};
+      expect(testObj.polluted).toBeUndefined();
+      expect(({}).constructor).toBe(Object);
+    });
+
+    it('should use null-prototype objects in trie structure', () => {
+      const trie = new PrefixTrie();
+      trie.insert('/api/users');
+
+      // Verify root has no prototype
+      expect(Object.getPrototypeOf(trie.root)).toBeNull();
+
+      // Verify child nodes have no prototype
+      expect(Object.getPrototypeOf(trie.root['/'])).toBeNull();
+    });
+  });
 });

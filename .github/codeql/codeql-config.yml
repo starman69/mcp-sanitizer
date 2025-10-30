@@ -1,0 +1,15 @@
+name: "CodeQL Config"
+
+# Paths to ignore during analysis
+paths-ignore:
+  - 'test/fixtures/**'
+  - 'node_modules/**'
+  - 'coverage/**'
+
+# Query filters - exclude specific patterns from test files
+query-filters:
+  - exclude:
+      id: js/polynomial-redos
+      paths:
+        - 'test/**/*.test.js'
+        - 'test/fixtures/**'

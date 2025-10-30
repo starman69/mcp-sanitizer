@@ -504,7 +504,7 @@ class NoSQLValidator {
       /false,\s*\$where:/i,
       /['"]\s*,\s*\$where:/i,
       /admin['"]\s*,\s*\$where:/i,
-      /return\s+true\s*;?\s*\/\//i,
+      /return\s+true\s{0,5};?\s{0,5}\/\//i, // Bounded quantifiers
       /\|\|\s*true/i
     ];
 
@@ -527,7 +527,7 @@ class NoSQLValidator {
       /db\.\w+\.(drop|remove|insert)/i,
       /this\.constructor\.constructor/i,
       /process\(\)\.exit/i,
-      /['"]\s*;\s*.*?;\s*\/\//i
+      /['"]\s*;\s*[^;]{0,100};\s*\/\//i // Bounded to prevent ReDoS
     ];
 
     for (const pattern of ssjsPatterns) {

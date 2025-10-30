@@ -90,16 +90,16 @@ const JSON_POLLUTION_PATTERNS = [
  */
 const LODASH_POLLUTION_PATTERNS = [
   // Path-based pollution via lodash
-  /lodash.*set.*__proto__/gi,
-  /lodash.*merge.*__proto__/gi,
-  /lodash.*defaults.*__proto__/gi,
-  /_.set.*__proto__/g,
-  /_.merge.*__proto__/g,
-  /_.defaults.*__proto__/g,
+  /lodash[^;]{0,200}set[^;]{0,200}__proto__/gi, // Bounded
+  /lodash[^;]{0,200}merge[^;]{0,200}__proto__/gi, // Bounded
+  /lodash[^;]{0,200}defaults[^;]{0,200}__proto__/gi, // Bounded
+  /_.set[^;]{0,100}__proto__/g, // Bounded
+  /_.merge[^;]{0,100}__proto__/g, // Bounded
+  /_.defaults[^;]{0,100}__proto__/g, // Bounded
 
-  // Property path pollution
-  /\[\s*'__proto__\..*'\s*\]/g,
-  /\[\s*"__proto__\..*"\s*\]/g
+  // Property path pollution (bounded to prevent ReDoS)
+  /\[\s*'__proto__\.[^']{0,200}'\s*\]/g, // Use [^'] instead of .*
+  /\[\s*"__proto__\.[^"]{0,200}"\s*\]/g // Use [^"] instead of .*
 ];
 
 /**
@@ -111,8 +111,8 @@ const EXPRESS_POLLUTION_PATTERNS = [
   /req\.query\.__proto__/g,
   /req\.params\.__proto__/g,
 
-  // URL-encoded pollution
-  /__proto__\[.*\]/g,
+  // URL-encoded pollution (bounded to prevent ReDoS)
+  /__proto__\[[^\]]{0,200}\]/g, // Use [^\]] instead of .*
   /constructor\[prototype\]/g,
   /constructor\.prototype\[/g
 ];
@@ -146,13 +146,13 @@ const ENCODING_BYPASS_PATTERNS = [
  * Property access patterns that might indicate pollution
  */
 const PROPERTY_ACCESS_PATTERNS = [
-  // Dynamic property access
-  /\[\s*.*proto.*\s*\]/gi,
-  /\[\s*.*constructor.*\s*\]/gi,
+  // Dynamic property access (bounded to prevent ReDoS)
+  /\[\s*[^\]]{0,200}proto[^\]]{0,200}\s*\]/gi, // Use [^\]] instead of .*
+  /\[\s*[^\]]{0,200}constructor[^\]]{0,200}\s*\]/gi, // Bounded
 
-  // Template literal access
-  /\$\{.*__proto__.*\}/g,
-  /\$\{.*constructor.*\}/g,
+  // Template literal access (bounded)
+  /\$\{[^}]{0,200}__proto__[^}]{0,200}\}/g, // Use [^}] instead of .*
+  /\$\{[^}]{0,200}constructor[^}]{0,200}\}/g, // Bounded
 
   // Computed property names
   /\[\s*['"]\w*proto\w*['"]\s*\]/gi,

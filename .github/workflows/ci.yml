@@ -9,11 +9,13 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read  # Required for actions/checkout
+
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
-    
+        node-version: [20.x, 22.x]
+
     steps:
     - uses: actions/checkout@v4
     
@@ -33,7 +35,7 @@ jobs:
       run: npm run test:coverage
     
     - name: Upload coverage to Codecov
-      if: matrix.node-version == '18.x'
+      if: matrix.node-version == '20.x'
       uses: codecov/codecov-action@v3
       with:
         file: ./coverage/lcov.info
@@ -41,14 +43,16 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read  # Required for actions/checkout
+
     steps:
     - uses: actions/checkout@v4
     
-    - name: Use Node.js 18
+    - name: Use Node.js 20
       uses: actions/setup-node@v4
       with:
-        node-version: 18
+        node-version: 20
         cache: 'npm'
     
     - name: Install dependencies

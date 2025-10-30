@@ -133,10 +133,11 @@ class OptimizedSkipMatcher {
 
 /**
  * Prefix Trie for efficient prefix matching
+ * Uses null-prototype objects to prevent prototype pollution (CVE-TBD-006)
  */
 class PrefixTrie {
   constructor () {
-    this.root = {};
+    this.root = Object.create(null);
     this._size = 0;
   }
 
@@ -153,7 +154,8 @@ class PrefixTrie {
 
     for (const char of normalizedPath) {
       if (!node[char]) {
-        node[char] = {};
+        // Use Object.create(null) to prevent prototype pollution
+        node[char] = Object.create(null);
       }
       node = node[char];
     }
