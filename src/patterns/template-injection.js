@@ -18,24 +18,25 @@ const SEVERITY_LEVELS = {
 
 /**
  * Generic template injection patterns
+ * Using atomic patterns to prevent ReDoS - detect opening only
  */
 const GENERIC_TEMPLATE_PATTERNS = [
-  // JavaScript template literals
-  /\$\{[^}]{0,500}\}/g, // Bounded to prevent ReDoS
-  /`[^`]{0,500}\$\{[^}]{0,500}\}[^`]{0,500}`/g, // Bounded
+  // JavaScript template literals - detect opening only
+  /\$\{/, // Template literal start
+  /`.*\$\{/, // Backtick with template
 
-  // Common template delimiters
-  /\{\{[^}]{0,500}\}\}/g, // Handlebars, Angular, Vue (bounded)
-  /\{%[^%]{0,500}%\}/g, // Jinja2, Django, Twig (bounded)
-  /\{#[^#]{0,500}#\}/g, // Jinja2 comments (bounded)
-  /<%[^%]{0,500}%>/g, // EJS, ERB (bounded)
-  /\{@[^@]{0,500}@\}/g, // Dust.js (bounded)
-  /\{![^!]{0,500}!\}/g, // Mustache comments (bounded)
+  // Common template delimiters - detect opening only
+  /\{\{/, // Handlebars, Angular, Vue start
+  /\{%/, // Jinja2, Django, Twig start
+  /\{#/, // Jinja2 comments start
+  /<%/, // EJS, ERB start
+  /\{@/, // Dust.js start
+  /\{!/, // Mustache comments start
 
-  // Expression patterns (use reluctant quantifiers)
-  /\{\{[^}]*?[+\-*/=<>!&|][^}]*?\}\}/g, // Reluctant quantifiers
-  /\{%[^%]*?[+\-*/=<>!&|][^%]*?%\}/g, // Reluctant quantifiers
-  /<%[^%]*?[+\-*/=<>!&|][^%]*?%>/g // Reluctant quantifiers
+  // Expression patterns - simplified detection
+  /\{\{[^}]*[+\-*/=<>!&|]/, // Expression in braces
+  /\{%[^%]*[+\-*/=<>!&|]/, // Expression in percent
+  /<%[^%]*[+\-*/=<>!&|]/ // Expression in angle percent
 ];
 
 /**

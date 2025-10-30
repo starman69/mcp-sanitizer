@@ -52,8 +52,8 @@ const DEFAULT_CONFIG = {
     // Script injection patterns (XSS) - Heuristic detection
     // Detects HTML comments
     /<!--[\s\S]*?-->/i,
-    // Detects well-formed script tags
-    /<script[\s\S]*?<\/script>/i,
+    // Detects well-formed script tags (handles spaces before >)
+    /<script[\s\S]*?<\/script\s*>/i,
     // Detects unclosed or malformed script tags
     /<script[^>]*>/i,
     // Detects event handlers (improved to catch <img onload=alert(1)>)

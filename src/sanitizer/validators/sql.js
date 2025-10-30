@@ -606,7 +606,8 @@ class SQLValidator {
       const functionMatches = query.match(/\b\w+\s*\(/g);
       if (functionMatches) {
         for (const match of functionMatches) {
-          const funcName = match.replace(/\s*\($/, '').trim();
+          // Remove opening paren and all whitespace - no backtracking possible
+          const funcName = match.replace(/\s+/g, '').replace(/\($/, '');
           if (!this.config.allowedFunctions.some(allowed =>
             funcName.toUpperCase().includes(allowed.toUpperCase()))) {
             result.warnings.push(`SQL function '${funcName}' is not in allowed list`);

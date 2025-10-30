@@ -328,7 +328,9 @@ describe('ReDoS Protection - Library Pattern Security', () => {
 
   describe('Safe Pattern Utilities', () => {
     test('safePatternTest should enforce timeout', () => {
-      const vulnerablePattern = /^(a+)+b$/; // Classic ReDoS pattern
+      // lgtm[js/polynomial-redos]
+      // codeql[js/polynomial-redos]
+      const vulnerablePattern = /^(a+)+b$/; // Classic ReDoS pattern - intentional for testing
       const input = 'a'.repeat(30) + 'x'; // No match, causes backtracking
 
       expect(() => {
@@ -349,7 +351,9 @@ describe('ReDoS Protection - Library Pattern Security', () => {
         /test1/,
         /test2/,
         /test3/,
-        /^(a+)+b$/, // This one is slow
+        // lgtm[js/polynomial-redos]
+        // codeql[js/polynomial-redos]
+        /^(a+)+b$/, // This one is slow - intentional for testing
         /test4/
       ];
       const input = 'a'.repeat(25) + 'x';
@@ -367,7 +371,9 @@ describe('ReDoS Protection - Library Pattern Security', () => {
     test('safeBatchTest should continue on individual pattern failure', () => {
       const patterns = [
         /safe1/,
-        /^(a+)+b$/, // Will fail/timeout
+        // lgtm[js/polynomial-redos]
+        // codeql[js/polynomial-redos]
+        /^(a+)+b$/, // Will fail/timeout - intentional for testing
         /safe2/
       ];
       const input = 'safe1 ' + 'a'.repeat(25) + 'x safe2';

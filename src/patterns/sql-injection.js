@@ -65,14 +65,14 @@ const INJECTION_PATTERNS = [
 
 /**
  * SQL comment patterns used to bypass filters
+ * Note: Using simpler patterns to avoid ReDoS, wrapped with safePatternTest for extra protection
  */
 const COMMENT_PATTERNS = [
-  /--\s*.*$/gm, // SQL line comments
-  /\/\*(?:[^*]|\*(?!\/))*\*\//g, // SQL block comments (optimized - no backtracking)
-  /\/\*.*$/gm, // Unclosed block comments
-  /#.*$/gm, // MySQL comments
-  /--\+.*$/gm, // Oracle hints
-  /\/\*!\d+[^*]*\*\//g // MySQL version-specific (bounded)
+  /--\s/, // SQL line comments (start only)
+  /\/\*/, // SQL block comment start
+  /#/, // MySQL comment start
+  /--\+/, // Oracle hint start
+  /\/\*!\d+/ // MySQL version-specific start
 ];
 
 /**
