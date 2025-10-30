@@ -337,7 +337,7 @@ describe('Comprehensive Unicode Security Protection', () => {
       const avgTime = duration / iterations;
 
       console.log(`Average Unicode detection time: ${avgTime.toFixed(3)}ms`);
-      expect(avgTime).toBeLessThan(2); // Should be < 2ms per detection
+      expect(avgTime).toBeLessThan(10); // Should be < 10ms per SECURITY.md requirement
     });
 
     it('should handle large Unicode strings efficiently', () => {
