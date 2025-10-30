@@ -46,7 +46,7 @@ const STRICT_POLICY = {
 
     // XSS patterns (heuristic detection - see docs for limitations)
     /<!--[\s\S]*?-->/i, // HTML comments
-    /<script[\s\S]*?<\/script\s*>/i, // Well-formed script tags (handles spaces)
+    /<script\b[\s\S]*?<\/script\b[^>]*>/i, // Script tags (handles malformed closing)
     /<script[^>]*>/i, // Unclosed/malformed script tags
     /<[^>]*[\s/]on\w+\s*=/i, // Event handlers (improved pattern)
     /javascript:/i, // JavaScript protocol
@@ -155,7 +155,7 @@ const MODERATE_POLICY = {
     /require\s*\(|import\s*\(|eval\s*\(|Function\s*\(/i,
     // XSS patterns (heuristic detection)
     /<!--[\s\S]*?-->/i, // HTML comments
-    /<script[\s\S]*?<\/script\s*>/i, // Well-formed script tags (handles spaces)
+    /<script\b[\s\S]*?<\/script\b[^>]*>/i, // Script tags (handles malformed closing)
     /<script[^>]*>/i, // Unclosed/malformed script tags
     /<[^>]*[\s/]on\w+\s*=/i, // Event handlers (improved pattern)
     /javascript:/i, // JavaScript protocol
@@ -247,7 +247,7 @@ const PERMISSIVE_POLICY = {
   // Minimal pattern blocking - only the most dangerous
   blockedPatterns: [
     /eval\s*\(/i, // Direct eval calls
-    /<script[\s\S]*?<\/script\s*>/i, // Well-formed script tags (handles spaces)
+    /<script\b[\s\S]*?<\/script\b[^>]*>/i, // Script tags (handles malformed closing)
     /<script[^>]*>/i, // Unclosed script tags
     /__proto__\s*:/ // Direct prototype pollution
   ],
@@ -335,7 +335,7 @@ const DEVELOPMENT_POLICY = {
   blockedPatterns: [
     /__proto__|constructor\.prototype/i,
     /eval\s*\(/i,
-    /<script[\s\S]*?<\/script\s*>/i, // Well-formed script tags (handles spaces)
+    /<script\b[\s\S]*?<\/script\b[^>]*>/i, // Script tags (handles malformed closing)
     /<script[^>]*>/i, // Unclosed script tags
     /\|\s*rm|\|\s*del/
   ],
