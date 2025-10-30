@@ -8,6 +8,8 @@
  * OWASP guidelines, and common attack vectors in JavaScript applications.
  */
 
+const { safeBatchTest } = require('../utils/redos-safe-patterns');
+
 const SEVERITY_LEVELS = {
   CRITICAL: 'critical',
   HIGH: 'high',
@@ -285,11 +287,11 @@ function checkObjectKeys (obj, prefix = '', visited = new WeakSet()) {
 function checkPollutionPatterns (input) {
   const detected = [];
 
-  for (const pattern of POLLUTION_PATTERNS) {
-    if (pattern.test(input)) {
-      detected.push(`pollution_pattern:${pattern.source}`);
-    }
-  }
+  // Use safeBatchTest to prevent ReDoS attacks
+  const results = safeBatchTest(POLLUTION_PATTERNS, input, 100);
+  results.matched.forEach(pattern => {
+    detected.push(`pollution_pattern:${pattern.source}`);
+  });
 
   return {
     detected: detected.length > 0,
@@ -380,11 +382,11 @@ function checkEncodingBypassPatterns (input) {
 function checkPropertyAccessPatterns (input) {
   const detected = [];
 
-  for (const pattern of PROPERTY_ACCESS_PATTERNS) {
-    if (pattern.test(input)) {
-      detected.push(`property_access:${pattern.source}`);
-    }
-  }
+  // Use safeBatchTest to prevent ReDoS attacks
+  const results = safeBatchTest(PROPERTY_ACCESS_PATTERNS, input, 100);
+  results.matched.forEach(pattern => {
+    detected.push(`property_access:${pattern.source}`);
+  });
 
   return {
     detected: detected.length > 0,

@@ -29,6 +29,7 @@
 // const { validationUtils, stringUtils } = require('../../utils') // Unused - commented to fix ESLint
 const { commandInjection, detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
 const shellQuote = require('shell-quote');
+const { safeBatchTest } = require('../../utils/redos-safe-patterns');
 // const { securityDecode } = require('../../utils/security-decoder') // Unused
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified } = require('../../utils/unified-parser');
@@ -493,13 +494,14 @@ class CommandValidator {
       }
     }
 
-    // Check for specific injection patterns
-    for (const pattern of INJECTION_PATTERNS) {
-      if (pattern.test(command)) {
-        result.isValid = false;
+    // Check for specific injection patterns using safeBatchTest
+    const injectionResults = safeBatchTest(INJECTION_PATTERNS, command, 50);
+    if (injectionResults.matched.length > 0) {
+      result.isValid = false;
+      injectionResults.matched.forEach(pattern => {
         result.warnings.push(`Command injection pattern detected: ${pattern.source}`);
-        result.severity = SEVERITY.CRITICAL;
-      }
+      });
+      result.severity = SEVERITY.CRITICAL;
     }
 
     return result;
