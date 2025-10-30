@@ -9,6 +9,8 @@
  * and common attack patterns across different template engines.
  */
 
+const { safeBatchTest } = require('../utils/redos-safe-patterns');
+
 const SEVERITY_LEVELS = {
   CRITICAL: 'critical',
   HIGH: 'high',
@@ -310,15 +312,18 @@ function detectTemplateInjection (input, options = {}) {
 
 /**
  * Check for generic template patterns
+ * Uses safeBatchTest to prevent ReDoS attacks
  */
 function checkGenericTemplatePatterns (input) {
   const detected = [];
 
-  for (const pattern of GENERIC_TEMPLATE_PATTERNS) {
-    if (pattern.test(input)) {
-      detected.push(`generic_template:${pattern.source}`);
-    }
-  }
+  // Use safeBatchTest to prevent ReDoS - enforces 10ms timeout per pattern
+  const results = safeBatchTest(GENERIC_TEMPLATE_PATTERNS, input, 100);
+
+  // Add matched patterns to detected list (safeBatchTest returns actual patterns, not indices)
+  results.matched.forEach(pattern => {
+    detected.push(`generic_template:${pattern.source}`);
+  });
 
   return {
     detected: detected.length > 0,
@@ -329,16 +334,19 @@ function checkGenericTemplatePatterns (input) {
 
 /**
  * Check for template engine specific patterns
+ * Uses safeBatchTest to prevent ReDoS attacks
  */
 function checkTemplateEnginePatterns (input) {
   const detected = [];
 
   for (const [engine, patterns] of Object.entries(TEMPLATE_ENGINE_PATTERNS)) {
-    for (const pattern of patterns) {
-      if (pattern.test(input)) {
-        detected.push(`${engine}_template:${pattern.source}`);
-      }
-    }
+    // Use safeBatchTest with timeout to prevent ReDoS
+    const results = safeBatchTest(patterns, input, 100);
+
+    // Add matched patterns to detected list (safeBatchTest returns actual patterns, not indices)
+    results.matched.forEach(pattern => {
+      detected.push(`${engine}_template:${pattern.source}`);
+    });
   }
 
   return {

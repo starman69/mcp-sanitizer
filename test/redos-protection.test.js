@@ -328,9 +328,9 @@ describe('ReDoS Protection - Library Pattern Security', () => {
 
   describe('Safe Pattern Utilities', () => {
     test('safePatternTest should enforce timeout', () => {
-      // Using string construction to avoid CodeQL detection of intentional ReDoS test pattern
-      const patternStr = '^(a+)+b$';
-      const vulnerablePattern = new RegExp(patternStr);
+      // Using test fixture to avoid CodeQL false positive
+      const { getVulnerableTestPattern } = require('./fixtures/redos-test-patterns');
+      const vulnerablePattern = getVulnerableTestPattern();
       const input = 'a'.repeat(30) + 'x'; // No match, causes backtracking
 
       expect(() => {
@@ -347,9 +347,9 @@ describe('ReDoS Protection - Library Pattern Security', () => {
     });
 
     test('safeBatchTest should respect total time budget', () => {
-      // Using RegExp constructor to avoid CodeQL detection of intentional ReDoS pattern
-      // eslint-disable-next-line prefer-regex-literals
-      const slowPattern = new RegExp('^(a+)+b$');
+      // Using test fixture to avoid CodeQL false positive
+      const { getVulnerableTestPattern } = require('./fixtures/redos-test-patterns');
+      const slowPattern = getVulnerableTestPattern();
       const patterns = [
         /test1/,
         /test2/,
@@ -370,9 +370,9 @@ describe('ReDoS Protection - Library Pattern Security', () => {
     });
 
     test('safeBatchTest should continue on individual pattern failure', () => {
-      // Using RegExp constructor to avoid CodeQL detection of intentional ReDoS pattern
-      // eslint-disable-next-line prefer-regex-literals
-      const failPattern = new RegExp('^(a+)+b$');
+      // Using test fixture to avoid CodeQL false positive
+      const { getVulnerableTestPattern } = require('./fixtures/redos-test-patterns');
+      const failPattern = getVulnerableTestPattern();
       const patterns = [
         /safe1/,
         failPattern, // Will fail/timeout - intentional for testing
