@@ -11,7 +11,7 @@ A comprehensive security sanitization library for Model Context Protocol (MCP) s
 MCP Sanitizer provides comprehensive, defense-in-depth protection:
 
 - ✅ **Multi-layered Protection**: Command injection, SQL injection, XSS, NoSQL injection, path traversal
-- ✅ **Advanced Unicode Defense**: Homograph detection, normalization (NFC/NFD/NFKC/NFKD), zero-width character removal
+- ✅ **Advanced Unicode Defense**: Homograph detection, multi-pass normalization, zero-width removal
 - ✅ **Context-aware Validation**: Specialized rules for file paths, URLs, commands, and SQL queries
 - ✅ **Database-specific SQL Protection**: PostgreSQL, MySQL, MSSQL, Oracle validation and escaping
 - ✅ **Framework Integration**: Express, Fastify, and Koa middleware with `skipPaths` support
@@ -389,15 +389,6 @@ if (urlResult.blocked) {
   throw new Error('Invalid or restricted URL');
 }
 ```
-
-## Security Considerations
-
-- **Defense in Depth**: Use sanitization as one layer of your security strategy
-- **Input Validation**: Always validate inputs at the edge of your system
-- **Output Encoding**: Consider output context when displaying sanitized data
-- **Rate Limiting**: Implement rate limiting alongside input sanitization
-- **Logging**: Log blocked attempts for security monitoring
-- **Regular Updates**: Keep the library updated for new attack patterns
 
 ## Contributing
 
