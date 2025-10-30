@@ -28,6 +28,7 @@
 
 // const { validationUtils, stringUtils } = require('../../utils') // Unused - commented to fix ESLint
 const { sqlInjection, detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
+const { safeBatchTest } = require('../../utils/redos-safe-patterns');
 const sqlstring = require('sqlstring');
 const {
   detectPostgresDollarQuotes,
@@ -488,13 +489,14 @@ class SQLValidator {
       severity: null
     };
 
-    // Check built-in SQL injection patterns
-    for (const pattern of SQL_INJECTION_PATTERNS) {
-      if (pattern.test(query)) {
-        result.isValid = false;
+    // Check built-in SQL injection patterns using safeBatchTest
+    const injectionResults = safeBatchTest(SQL_INJECTION_PATTERNS, query, 50);
+    if (injectionResults.matched.length > 0) {
+      result.isValid = false;
+      injectionResults.matched.forEach(pattern => {
         result.warnings.push(`SQL injection pattern detected: ${pattern.source}`);
-        result.severity = SEVERITY.CRITICAL;
-      }
+      });
+      result.severity = SEVERITY.CRITICAL;
     }
 
     // Check custom patterns from configuration
@@ -642,14 +644,13 @@ class SQLValidator {
         /#.*$/gm // MySQL comments
       ];
 
-      for (const pattern of commentPatterns) {
-        const matches = query.match(pattern);
-        if (matches) {
-          result.isValid = false;
-          result.commentCount += matches.length;
-          result.warnings.push(`SQL comments detected (${matches.length} found)`);
-          result.severity = SEVERITY.HIGH;
-        }
+      // Use safeBatchTest to prevent ReDoS attacks
+      const batchResults = safeBatchTest(commentPatterns, query, 50);
+      if (batchResults.matched.length > 0) {
+        result.isValid = false;
+        result.commentCount = batchResults.matched.length;
+        result.warnings.push(`SQL comments detected (${batchResults.matched.length} found)`);
+        result.severity = SEVERITY.HIGH;
       }
     }
 

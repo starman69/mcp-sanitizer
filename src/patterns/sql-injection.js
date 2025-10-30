@@ -8,6 +8,8 @@
  * common SQL injection vectors, and database-specific attack patterns.
  */
 
+const { safeBatchTest } = require('../utils/redos-safe-patterns');
+
 const SEVERITY_LEVELS = {
   CRITICAL: 'critical',
   HIGH: 'high',
@@ -251,11 +253,11 @@ function checkSQLKeywords (input) {
 function checkInjectionPatterns (input) {
   const detected = [];
 
-  for (const pattern of INJECTION_PATTERNS) {
-    if (pattern.test(input)) {
-      detected.push(`injection_pattern:${pattern.source}`);
-    }
-  }
+  // Use safeBatchTest to prevent ReDoS attacks
+  const results = safeBatchTest(INJECTION_PATTERNS, input, 100);
+  results.matched.forEach(pattern => {
+    detected.push(`injection_pattern:${pattern.source}`);
+  });
 
   return {
     detected: detected.length > 0,

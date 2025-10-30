@@ -9,12 +9,14 @@
  * - Immutable string handling prevents TOCTOU vulnerabilities
  * - Comprehensive encoding detection and normalization
  * - Zero parser differential between security decoder and validators
+ * - ReDoS protection via safePatternTest wrapper
  *
  * CVE-TBD-001: Parser Differential Vulnerability (CVSS 9.1)
  * Fix: All validation MUST use this unified parser, never original strings
  */
 
 const { securityDecode } = require('./security-decoder');
+const { safePatternTest } = require('./redos-safe-patterns');
 
 /**
  * Immutable normalized string wrapper
@@ -115,11 +117,34 @@ class NormalizedString {
   }
 
   match (regexp) {
-    return this._normalized.match(regexp);
+    // Use safePatternTest to prevent ReDoS attacks
+    // Returns match result or null on timeout
+    try {
+      const hasMatch = safePatternTest(regexp, this._normalized, 10);
+      if (!hasMatch) return null;
+
+      // If pattern matched, execute actual match to get results
+      // This is safe because we already validated it completes quickly
+      return this._normalized.match(regexp);
+    } catch (err) {
+      // On timeout or error, return null (no match)
+      return null;
+    }
   }
 
   replace (searchValue, replaceValue) {
     // Return new NormalizedString with replaced content
+    // If searchValue is a RegExp, validate it first to prevent ReDoS
+    if (searchValue instanceof RegExp) {
+      try {
+        // Validate the regex completes quickly before using it
+        safePatternTest(searchValue, this._normalized, 10);
+      } catch (err) {
+        // On timeout, return unchanged string
+        return this;
+      }
+    }
+
     const replaced = this._normalized.replace(searchValue, replaceValue);
     return new NormalizedString(this._original, replaced, {
       ...this._metadata,
