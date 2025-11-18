@@ -5,8 +5,8 @@ on:
   workflow_dispatch: {}
   
 permissions:
-  id-token: write   # OIDC for provenance
   contents: read
+  id-token: write   # OIDC for provenance
       
 jobs:
   publish:
@@ -18,9 +18,11 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org/'
-
-      - name: Update npm
-        run: npm install -g npm@latest
+          # no always-auth, no token
+          
       - run: npm ci
-      - run: npm test
-      - run: npm publish
+      - run: npm test --if-present
+      
+      - name: Publish with provenance via Trusted Publishing
+        run: npm publish --provenance --access public --loglevel=verbose
+        
