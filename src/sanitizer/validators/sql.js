@@ -29,7 +29,7 @@
 // const { validationUtils, stringUtils } = require('../../utils') // Unused - commented to fix ESLint
 const { sqlInjection, detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
 const { safeBatchTest } = require('../../utils/redos-safe-patterns');
-const { decodePattern, decodePatterns } = require('../../utils/pattern-encoder');
+const { decodePatterns } = require('../../utils/pattern-encoder');
 const sqlstring = require('sqlstring');
 const {
   detectPostgresDollarQuotes,

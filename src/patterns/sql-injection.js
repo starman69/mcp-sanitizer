@@ -9,7 +9,7 @@
  */
 
 const { safeBatchTest } = require('../utils/redos-safe-patterns');
-const { decodePattern, decodePatterns } = require('../utils/pattern-encoder');
+const { decodePatterns } = require('../utils/pattern-encoder');
 
 const SEVERITY_LEVELS = {
   CRITICAL: 'critical',
