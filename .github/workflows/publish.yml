@@ -1,7 +1,5 @@
-name: Publish to npm on tag
+name: Publish to npm
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch: {}
   
 permissions:
