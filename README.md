@@ -4,7 +4,7 @@ A comprehensive security sanitization library for Model Context Protocol (MCP) s
 
 [![npm version](https://badge.fury.io/js/mcp-sanitizer.svg)](https://badge.fury.io/js/mcp-sanitizer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Security Tests](https://img.shields.io/badge/Security%20Tests-600%2B-brightgreen)](./test)
+[![Security Tests](https://img.shields.io/badge/Security%20Tests-1100%2B-brightgreen)](./test)
 
 ## 🔒 Security Features
 
@@ -17,7 +17,7 @@ MCP Sanitizer provides comprehensive, defense-in-depth protection:
 - ✅ **Framework Integration**: Express, Fastify, and Koa middleware with `skipPaths` support
 - ✅ **Security Policies**: Pre-configured policies (STRICT, MODERATE, PERMISSIVE, DEVELOPMENT, PRODUCTION)
 - ✅ **Comprehensive Validation**: Checking 42+ attack vectors across 12 validation layers in <1ms
-- ✅ **Comprehensive Testing**: 670 tests with 78% coverage, zero false negatives, sub-millisecond performance
+- ✅ **Comprehensive Testing**: 1114 tests with 93% code coverage, sub-millisecond performance
 
 ### Security Philosophy
 While we maintain rigorous security standards and comprehensive test coverage, we acknowledge that:
@@ -82,7 +82,7 @@ const customSanitizer = new MCPSanitizer({
   policy: 'MODERATE',
   maxStringLength: 15000,
   allowedProtocols: ['https', 'mcp'],
-  blockSeverity: 'MEDIUM'  // Block medium severity and above
+  blockOnSeverity: 'medium'  // Block medium severity and above
 });
 ```
 ## Framework Middleware
@@ -91,16 +91,16 @@ const customSanitizer = new MCPSanitizer({
 
 ```javascript
 const express = require('express');
-const { createMCPMiddleware } = require('mcp-sanitizer');
+const { createExpressMiddleware } = require('mcp-sanitizer/middleware/express');
 
 const app = express();
 app.use(express.json());
 
-// Auto-detect framework and apply middleware
-app.use(createMCPMiddleware());
+// Apply middleware with defaults
+app.use(createExpressMiddleware());
 
 // Or specify configuration
-app.use(createMCPMiddleware({
+app.use(createExpressMiddleware({
   policy: 'PRODUCTION',
   mode: 'sanitize', // or 'block'
   skipPaths: ['/health', '/metrics']  // Skip sanitization for these paths
@@ -116,19 +116,19 @@ app.post('/tools/:toolName/execute', (req, res) => {
 
 ```javascript
 const fastify = require('fastify')();
-const { createFastifyPlugin } = require('mcp-sanitizer');
+const mcpSanitizerPlugin = require('mcp-sanitizer/middleware/fastify');
 
 // Register as plugin
-fastify.register(createFastifyPlugin({
+fastify.register(mcpSanitizerPlugin, {
   policy: 'MODERATE'
-}));
+});
 ```
 
 ### Koa
 
 ```javascript
 const Koa = require('koa');
-const { createKoaMiddleware } = require('mcp-sanitizer');
+const { createKoaMiddleware } = require('mcp-sanitizer/middleware/koa');
 
 const app = new Koa();
 app.use(createKoaMiddleware({
@@ -405,15 +405,15 @@ node benchmark/skip-paths-performance.js
 
 ### 🔒 Security Testing Coverage
 
-| Category | Test Cases | Coverage |
-|----------|------------|----------|
-| **XSS Vectors** | 13 | DOM-based, attribute injection, polyglots |
-| **SQL Injection** | 10 | All major databases, blind/time-based |
-| **Command Injection** | 10 | Shell commands, environment vars, process substitution |
-| **Path Traversal** | 9 | Directory traversal, absolute paths, UNC |
-| **ReDoS Protection** | 22 | Polynomial backtracking, timeout guards |
-| **Prototype Pollution** | 3 | `__proto__`, constructor, prototype |
-| **Memory Safety** | 3 | Bounded memory usage under attack |
+| Category | Coverage |
+|----------|----------|
+| **XSS Vectors** | DOM-based, attribute injection, polyglots |
+| **SQL Injection** | All major databases, blind/time-based, bypass techniques |
+| **Command Injection** | Shell metacharacters, environment vars, process substitution |
+| **Path Traversal** | Directory traversal, absolute paths, UNC |
+| **ReDoS Protection** | Polynomial backtracking, timeout guards |
+| **Prototype Pollution** | `__proto__`, constructor, prototype, encoding bypass |
+| **Memory Safety** | Bounded memory usage under attack |
 
 ### 🎯 Security Best Practices
 
@@ -422,8 +422,7 @@ node benchmark/skip-paths-performance.js
 3. ✅ **Monitor blocked attempts** in production for security insights
 4. ✅ **Implement defense-in-depth** - multiple security layers
 5. ✅ **Test with your attack vectors** using provided benchmarks
-6. ✅ **Use crypto.timingSafeEqual()** for secret comparison
-7. ✅ **Enable rate limiting** at infrastructure layer
+6. ✅ **Enable rate limiting** at infrastructure layer
 
 ### 📝 Security Resources
 
