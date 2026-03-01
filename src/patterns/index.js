@@ -227,81 +227,83 @@ function createPatternDetector (config = {}) {
     customPatterns = []
   } = config;
 
+  const detect = (input, options = {}) => {
+    const mergedOptions = { ...options, strictMode, customPatterns };
+
+    if (!enableCommandInjection &&
+        !enableSQLInjection &&
+        !enablePrototypePollution &&
+        !enableTemplateInjection &&
+        !enableNoSQLInjection) {
+      return { detected: false, severity: null, patterns: [] };
+    }
+
+    // Run only enabled detectors
+    const results = {
+      detected: false,
+      severity: null,
+      patterns: [],
+      detectionResults: {}
+    };
+
+    if (enableCommandInjection) {
+      const result = commandInjection.detectCommandInjection(input, mergedOptions);
+      if (result.detected) {
+        results.detected = true;
+        results.patterns.push(...result.patterns);
+        results.severity = getHigherSeverity(results.severity, result.severity);
+      }
+      results.detectionResults.commandInjection = result;
+    }
+
+    if (enableSQLInjection) {
+      const result = sqlInjection.detectSQLInjection(input, mergedOptions);
+      if (result.detected) {
+        results.detected = true;
+        results.patterns.push(...result.patterns);
+        results.severity = getHigherSeverity(results.severity, result.severity);
+      }
+      results.detectionResults.sqlInjection = result;
+    }
+
+    if (enablePrototypePollution) {
+      const result = prototypePollution.detectPrototypePollution(input, mergedOptions);
+      if (result.detected) {
+        results.detected = true;
+        results.patterns.push(...result.patterns);
+        results.severity = getHigherSeverity(results.severity, result.severity);
+      }
+      results.detectionResults.prototypePollution = result;
+    }
+
+    if (enableTemplateInjection) {
+      const result = templateInjection.detectTemplateInjection(input, mergedOptions);
+      if (result.detected) {
+        results.detected = true;
+        results.patterns.push(...result.patterns);
+        results.severity = getHigherSeverity(results.severity, result.severity);
+      }
+      results.detectionResults.templateInjection = result;
+    }
+
+    if (enableNoSQLInjection) {
+      const result = nosqlInjection.detectNoSQLInjection(input, mergedOptions);
+      if (result.detected) {
+        results.detected = true;
+        results.patterns.push(...result.patterns);
+        results.severity = getHigherSeverity(results.severity, result.severity);
+      }
+      results.detectionResults.nosqlInjection = result;
+    }
+
+    return results;
+  };
+
   return {
-    detect: (input, options = {}) => {
-      const mergedOptions = { ...options, strictMode, customPatterns };
-
-      if (!enableCommandInjection &&
-          !enableSQLInjection &&
-          !enablePrototypePollution &&
-          !enableTemplateInjection &&
-          !enableNoSQLInjection) {
-        return { detected: false, severity: null, patterns: [] };
-      }
-
-      // Run only enabled detectors
-      const results = {
-        detected: false,
-        severity: null,
-        patterns: [],
-        detectionResults: {}
-      };
-
-      if (enableCommandInjection) {
-        const result = commandInjection.detectCommandInjection(input, mergedOptions);
-        if (result.detected) {
-          results.detected = true;
-          results.patterns.push(...result.patterns);
-          results.severity = getHigherSeverity(results.severity, result.severity);
-        }
-        results.detectionResults.commandInjection = result;
-      }
-
-      if (enableSQLInjection) {
-        const result = sqlInjection.detectSQLInjection(input, mergedOptions);
-        if (result.detected) {
-          results.detected = true;
-          results.patterns.push(...result.patterns);
-          results.severity = getHigherSeverity(results.severity, result.severity);
-        }
-        results.detectionResults.sqlInjection = result;
-      }
-
-      if (enablePrototypePollution) {
-        const result = prototypePollution.detectPrototypePollution(input, mergedOptions);
-        if (result.detected) {
-          results.detected = true;
-          results.patterns.push(...result.patterns);
-          results.severity = getHigherSeverity(results.severity, result.severity);
-        }
-        results.detectionResults.prototypePollution = result;
-      }
-
-      if (enableTemplateInjection) {
-        const result = templateInjection.detectTemplateInjection(input, mergedOptions);
-        if (result.detected) {
-          results.detected = true;
-          results.patterns.push(...result.patterns);
-          results.severity = getHigherSeverity(results.severity, result.severity);
-        }
-        results.detectionResults.templateInjection = result;
-      }
-
-      if (enableNoSQLInjection) {
-        const result = nosqlInjection.detectNoSQLInjection(input, mergedOptions);
-        if (result.detected) {
-          results.detected = true;
-          results.patterns.push(...result.patterns);
-          results.severity = getHigherSeverity(results.severity, result.severity);
-        }
-        results.detectionResults.nosqlInjection = result;
-      }
-
-      return results;
-    },
+    detect,
 
     isSecure: (input, options = {}) => {
-      return !this.detect(input, options).detected;
+      return !detect(input, options).detected;
     }
   };
 }

@@ -86,7 +86,7 @@ Normalizes look-alike characters used in phishing:
 - **Defense-in-depth** with 12 validation layers (command injection, SQL, NoSQL, XSS, path traversal, etc.)
 - **Multi-pass validation**: Unicode normalization (NFC/NFD/NFKC/NFKD), multi-layer encoding detection
 - **Regular updates** based on emerging threats and CodeQL analysis
-- **Extensive test coverage** with 670 security tests (zero false negatives)
+- **Extensive test coverage** with zero false negatives (run `npm test` for current count)
 - **Production performance**: Sub-millisecond average latency (<1ms) for comprehensive validation
 
 ### What We Don't Claim
@@ -133,7 +133,7 @@ Normalizes look-alike characters used in phishing:
 ## Testing
 
 The library includes comprehensive test coverage:
-- **670 security tests** covering all major attack vectors
+- **Security tests** covering all major attack vectors (run `npm test` for current count)
 - **42 attack vector validations** across XSS, SQL injection, command injection, path traversal
 - **100% detection rate** with zero false negatives
 - **Unicode security tests** for homograph attacks and directional override detection
