@@ -62,5 +62,8 @@
   "bugs": {
     "url": "https://github.com/starman69/mcp-sanitizer/issues"
   },
-  "homepage": "https://github.com/starman69/mcp-sanitizer#readme"
+  "homepage": "https://github.com/starman69/mcp-sanitizer#readme",
+  "overrides": {
+    "qs": ">=6.14.2"
+  }
 }
