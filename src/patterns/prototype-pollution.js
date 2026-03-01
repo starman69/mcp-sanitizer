@@ -364,6 +364,7 @@ function checkEncodingBypassPatterns (input) {
   const detected = [];
 
   for (const pattern of ENCODING_BYPASS_PATTERNS) {
+    pattern.lastIndex = 0;
     if (pattern.test(input)) {
       detected.push(`encoding_bypass:${pattern.source}`);
     }
