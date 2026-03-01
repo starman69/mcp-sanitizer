@@ -153,7 +153,7 @@ const ENCODED_PATTERNS = [
  * Bypass techniques
  */
 const BYPASS_PATTERNS = [
-  /\s+/g, // Multiple spaces
+  /\s{2,}/g, // Multiple consecutive spaces (bypass technique)
   /\/\*(?:[^*]|\*(?!\/))*\*\//g, // Inline comments (optimized)
   /\bunion\s*\/\*[^*]{0,50}\*\//gi, // Comment-separated keywords (bounded)
   /\bselect\s*\/\*[^*]{0,50}\*\//gi, // Bounded to prevent backtracking
