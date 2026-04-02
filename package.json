@@ -64,6 +64,7 @@
   },
   "homepage": "https://github.com/starman69/mcp-sanitizer#readme",
   "overrides": {
-    "qs": ">=6.14.2"
+    "qs": ">=6.14.2",
+    "flatted": ">=3.4.2"
   }
 }
