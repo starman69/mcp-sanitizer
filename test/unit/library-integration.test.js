@@ -150,6 +150,21 @@ describe('Security Library Integration Tests', () => {
       expect(() => commandValidator.buildSafeCommand('')).toThrow('Command must be a non-empty string');
     });
 
+    // Regression test for GHSA-w7jw-789q-3m8p (shell-quote <= 1.8.3):
+    // quote() emitted object .op values verbatim, so a crafted op containing
+    // a newline produced a "safe" string with a raw command separator in it.
+    it('should reject op objects containing newlines (GHSA-w7jw-789q-3m8p)', () => {
+      expect(() => commandValidator.quote(['echo', 'safe', { op: ';\nrm -rf /' }]))
+        .toThrow(TypeError);
+      expect(() => commandValidator.quote([{ op: '\n' }])).toThrow('invalid `op` value');
+    });
+
+    it('should escape operator tokens when re-quoting parsed commands', () => {
+      const quoted = commandValidator.quote(commandValidator.parse('echo a; echo b'));
+      expect(quoted).not.toContain('\n');
+      expect(quoted).toBe('echo a \\; echo b');
+    });
+
     it('should handle environment variable expansion in parse', () => {
       const cmd = 'echo $HOME';
       const env = { HOME: '/home/user' };
