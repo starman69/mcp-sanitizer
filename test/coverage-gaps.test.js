@@ -586,7 +586,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
     describe('validateURLLocation edge cases', () => {
       it('should handle URL object input vs string input', () => {
-        const urlObj = new URL('https://localhost:3000');
+        const urlObj = new URL('https://example.com:3000');
         expect(() => validationUtils.validateURLLocation(urlObj)).not.toThrow();
       });
 
@@ -607,9 +607,10 @@ describe('Coverage Gaps - Security Critical Paths', () => {
         // expect(() => validationUtils.validateURLLocation('http://[fe80::1]')).toThrow('URL points to link-local address');
       });
 
-      it('should allow localhost with explicit port for development', () => {
-        expect(() => validationUtils.validateURLLocation('http://localhost:3000')).not.toThrow();
-        // 127.0.0.1 is still detected as private IP, so expect it to throw
+      it('should block localhost regardless of explicit port (GHSA-4mfg-r38w-w8fg)', () => {
+        // Fail closed: localhost is an SSRF target whether or not a port is present.
+        expect(() => validationUtils.validateURLLocation('http://localhost:3000')).toThrow('URL points to localhost');
+        expect(() => validationUtils.validateURLLocation('http://localhost')).toThrow('URL points to localhost');
         expect(() => validationUtils.validateURLLocation('http://127.0.0.1:8080')).toThrow('URL points to private IP range');
       });
     });

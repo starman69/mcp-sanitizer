@@ -50,7 +50,8 @@ describe('MCPSanitizer', () => {
     it('should allow safe URLs', () => {
       const safeUrls = [
         'https://api.example.com/data',
-        'http://localhost:3000/api',
+        // 'http://localhost:3000/api' removed: localhost is now blocked as an
+        // SSRF target by default (GHSA-4mfg-r38w-w8fg).
         'mcp://server/resource'
       ];
 

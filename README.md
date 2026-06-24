@@ -4,7 +4,7 @@ A comprehensive security sanitization library for Model Context Protocol (MCP) s
 
 [![npm version](https://badge.fury.io/js/mcp-sanitizer.svg)](https://badge.fury.io/js/mcp-sanitizer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Security Tests](https://img.shields.io/badge/Security%20Tests-1100%2B-brightgreen)](./test)
+[![Security Tests](https://img.shields.io/badge/Security%20Tests-1140%2B-brightgreen)](./test)
 
 ## 🔒 Security Features
 
@@ -17,7 +17,7 @@ MCP Sanitizer provides comprehensive, defense-in-depth protection:
 - ✅ **Framework Integration**: Express, Fastify, and Koa middleware with `skipPaths` support
 - ✅ **Security Policies**: Pre-configured policies (STRICT, MODERATE, PERMISSIVE, DEVELOPMENT, PRODUCTION)
 - ✅ **Comprehensive Validation**: Checking 42+ attack vectors across 12 validation layers in <1ms
-- ✅ **Comprehensive Testing**: 1114 tests with 93% code coverage, sub-millisecond performance
+- ✅ **Comprehensive Testing**: 1140 tests with 93% code coverage, sub-millisecond performance
 
 ### Security Philosophy
 While we maintain rigorous security standards and comprehensive test coverage, we acknowledge that:

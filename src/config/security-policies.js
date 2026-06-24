@@ -111,7 +111,6 @@ const STRICT_POLICY = {
     },
     url: {
       allowPrivateIPs: false,
-      allowLocalhostWithoutPort: false,
       maxURLLength: 512,
       blockedDomains: ['localhost', '127.0.0.1', '0.0.0.0'],
       allowedDomains: [] // Must explicitly allow domains
@@ -204,7 +203,6 @@ const MODERATE_POLICY = {
     },
     url: {
       allowPrivateIPs: false,
-      allowLocalhostWithoutPort: false,
       maxURLLength: 2048,
       blockedDomains: [],
       allowedDomains: []
@@ -288,7 +286,6 @@ const PERMISSIVE_POLICY = {
     },
     url: {
       allowPrivateIPs: true,
-      allowLocalhostWithoutPort: true,
       maxURLLength: 8192,
       blockedDomains: [],
       allowedDomains: []
@@ -350,7 +347,6 @@ const DEVELOPMENT_POLICY = {
     ...MODERATE_POLICY.contextSettings,
     url: {
       allowPrivateIPs: true,
-      allowLocalhostWithoutPort: true,
       maxURLLength: 4096,
       blockedDomains: [],
       allowedDomains: []
@@ -424,7 +420,6 @@ const PRODUCTION_POLICY = {
     },
     url: {
       allowPrivateIPs: false,
-      allowLocalhostWithoutPort: false,
       maxURLLength: 2048,
       blockedDomains: ['localhost', '127.0.0.1', '0.0.0.0'],
       allowedDomains: [] // Should be configured per application

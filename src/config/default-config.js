@@ -149,7 +149,6 @@ const DEFAULT_CONFIG = {
     // URL validation
     url: {
       allowPrivateIPs: false,
-      allowLocalhostWithoutPort: false,
       maxURLLength: 2048,
       blockedDomains: [],
       allowedDomains: []

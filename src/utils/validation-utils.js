@@ -9,6 +9,7 @@
  */
 
 const path = require('path');
+const net = require('net');
 const { URL } = require('url');
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified } = require('./unified-parser');
@@ -149,6 +150,20 @@ function validateFilePath (filePath) {
     }
   }
 
+  // GHSA-7w82-6f9j-v9jp FIX: Block sensitive user-configuration files/directories
+  // regardless of where they sit (home dir, /tmp, cwd, relative paths). These hold
+  // SSH keys, cloud credentials, and tokens that must never be exposed via a tool.
+  const sensitiveFileFragments = [
+    '/.ssh/', '/.aws/', '/.gnupg/', '/.kube/', '/.config/',
+    '/.docker/', '/.npmrc', '/.netrc', '/.env', '/.git-credentials'
+  ];
+  const sensitiveCheckPath = lowerPath.replace(/\\/g, '/');
+  for (const fragment of sensitiveFileFragments) {
+    if (sensitiveCheckPath.includes(fragment)) {
+      throw new Error('Access to sensitive configuration path not allowed');
+    }
+  }
+
   // Use path-is-inside to check if the path tries to escape a safe directory
   // Define safe root directories
   const safeRoots = ['/tmp', '/var/tmp', './uploads', './data', process.cwd()];
@@ -186,8 +201,11 @@ function validateFilePath (filePath) {
 
   // If path is not in a safe location and is absolute, be more restrictive
   if (!isInSafeLocation && path.isAbsolute(normalizedPath)) {
-    // Allow some common safe absolute paths for legitimate use
-    const allowedAbsolutePaths = ['/tmp/', '/var/tmp/', '/home/', '/Users/'];
+    // GHSA-7w82-6f9j-v9jp FIX: `/home/` and `/Users/` were removed from this
+    // allowlist. Whitelisting entire home roots let any absolute path under a
+    // user's home directory (e.g. ~/.ssh/id_rsa) pass with blocked=false.
+    // Only genuinely shared scratch directories remain allowed by default.
+    const allowedAbsolutePaths = ['/tmp/', '/var/tmp/'];
     const isAllowedAbsolute = allowedAbsolutePaths.some(allowed =>
       normalizedPath.toLowerCase().startsWith(allowed.toLowerCase())
     );
@@ -256,7 +274,58 @@ function validateURL (url, allowedProtocols = ['http', 'https']) {
 }
 
 /**
- * Validate URL against restricted locations (localhost, private IPs, etc.)
+ * Expand an IPv6 address (including `::` compression and trailing embedded
+ * IPv4) into its canonical 8-group, zero-padded, lowercase form so ranges can
+ * be compared reliably. Returns null when the input is not a parseable IPv6.
+ * @param {string} addr - IPv6 hostname without surrounding brackets
+ * @returns {string|null} - e.g. '0000:0000:0000:0000:0000:0000:0000:0001'
+ */
+function expandIPv6 (addr) {
+  let s = addr;
+
+  // Convert a trailing embedded IPv4 (e.g. ::ffff:127.0.0.1) into two hex groups
+  const embedded = s.match(/^(.*:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (embedded) {
+    const octets = embedded[2].split('.').map(Number);
+    if (octets.every(n => n >= 0 && n <= 255)) {
+      const g1 = ((octets[0] << 8) | octets[1]).toString(16);
+      const g2 = ((octets[2] << 8) | octets[3]).toString(16);
+      s = `${embedded[1]}${g1}:${g2}`;
+    }
+  }
+
+  let groups;
+  if (s.includes('::')) {
+    const parts = s.split('::');
+    if (parts.length > 2) return null;
+    const head = parts[0] ? parts[0].split(':') : [];
+    const tail = parts[1] ? parts[1].split(':') : [];
+    const missing = 8 - head.length - tail.length;
+    if (missing < 0) return null;
+    groups = head.concat(Array(missing).fill('0'), tail);
+  } else {
+    groups = s.split(':');
+  }
+
+  if (groups.length !== 8) return null;
+  return groups
+    .map(g => (/^[0-9a-f]{1,4}$/.test(g) ? g.padStart(4, '0') : null))
+    .map(g => g || 'zzzz') // invalid group -> sentinel that matches no real range
+    .join(':');
+}
+
+/**
+ * Validate URL against restricted locations (localhost, loopback, private and
+ * link-local addresses). Blocks unconditionally — there is no escape hatch — so
+ * the sanitizer fails closed for SSRF targets.
+ *
+ * GHSA-4mfg-r38w-w8fg FIX: previously (1) localhost was only blocked when no
+ * explicit port was present, and (2) bracketed IPv6 hostnames (`[::1]`,
+ * `[fe80::1]`) never matched the string checks. Both gaps allowed SSRF to
+ * internal services. The hostname is now bracket-stripped and classified by
+ * actual address family/range, covering IPv4-mapped IPv6 and additional
+ * loopback/private encodings.
+ *
  * @param {string|URL} url - The URL to validate (string or URL object)
  * @throws {Error} - If URL points to restricted location
  */
@@ -269,29 +338,77 @@ function validateURLLocation (url) {
     throw new Error('URL must be a string or URL object');
   }
 
-  const hostname = parsedUrl.hostname.toLowerCase();
+  // Normalize: strip IPv6 brackets and a trailing dot (FQDN root) before checks.
+  const hostname = parsedUrl.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
 
-  // Check for localhost - allow localhost with explicit port for development
-  if ((hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') && !parsedUrl.port) {
-    throw new Error('URL points to localhost without explicit port');
+  // localhost and any *.localhost name — blocked regardless of port.
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    throw new Error('URL points to localhost');
   }
 
-  // Check for private IP ranges
-  const privateIPPatterns = [
-    /^127\./, // 127.0.0.0/8 (loopback)
-    /^10\./, // 10.0.0.0/8 (private)
-    /^192\.168\./, // 192.168.0.0/16 (private)
-    /^172\.(1[6-9]|2[0-9]|3[01])\./ // 172.16.0.0/12 (private)
-  ];
+  const ipVersion = net.isIP(hostname);
 
-  for (const pattern of privateIPPatterns) {
-    if (pattern.test(hostname)) {
-      throw new Error(`URL points to private IP range: ${hostname}`);
+  // IPv4 literal — classify directly.
+  if (ipVersion === 4) {
+    assertPublicIPv4(hostname.split('.').map(Number), hostname);
+  }
+
+  // IPv6 — classify the address family, then any IPv4-mapped/compatible payload.
+  if (ipVersion === 6) {
+    const canonical = expandIPv6(hostname);
+    if (canonical) {
+      // Loopback (::1) and unspecified (::).
+      if (canonical === '0000:0000:0000:0000:0000:0000:0000:0001' ||
+          canonical === '0000:0000:0000:0000:0000:0000:0000:0000') {
+        throw new Error(`URL points to private IP range: ${hostname}`);
+      }
+      const firstGroup = canonical.slice(0, 4);
+      // Link-local fe80::/10 (fe80–febf).
+      if (firstGroup >= 'fe80' && firstGroup <= 'febf') {
+        throw new Error(`URL points to link-local address: ${hostname}`);
+      }
+      // Unique-local fc00::/7 (fc00–fdff).
+      if (firstGroup >= 'fc00' && firstGroup <= 'fdff') {
+        throw new Error(`URL points to private IP range: ${hostname}`);
+      }
+      // IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible (::a.b.c.d) addresses:
+      // the first five groups are zero and the sixth is ffff or zero. Node
+      // re-encodes the trailing IPv4 as hex, so recover it from the canonical
+      // form and apply the same IPv4 range checks.
+      const groups = canonical.split(':');
+      if (groups.slice(0, 5).every(g => g === '0000') &&
+          (groups[5] === 'ffff' || groups[5] === '0000')) {
+        const hi = parseInt(groups[6], 16);
+        const lo = parseInt(groups[7], 16);
+        assertPublicIPv4([(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff], hostname);
+      }
     }
   }
+}
 
-  // Check for link-local addresses
-  if (hostname.startsWith('169.254.') || hostname.startsWith('fe80:')) {
+/**
+ * Throw if the given IPv4 octets fall in a loopback, unspecified, RFC 1918
+ * private, or link-local range. Shared by literal IPv4 and IPv4-mapped IPv6.
+ * @param {number[]} o - Four octets [a, b, c, d]
+ * @param {string} hostname - Original hostname, for the error message
+ * @throws {Error} - If the address is not publicly routable
+ */
+function assertPublicIPv4 (o, hostname) {
+  // Loopback 127.0.0.0/8 and unspecified 0.0.0.0/8.
+  if (o[0] === 127 || o[0] === 0) {
+    throw new Error(`URL points to private IP range: ${hostname}`);
+  }
+  // RFC 1918 private ranges.
+  if (o[0] === 10 ||
+      (o[0] === 192 && o[1] === 168) ||
+      (o[0] === 172 && o[1] >= 16 && o[1] <= 31)) {
+    throw new Error(`URL points to private IP range: ${hostname}`);
+  }
+  // Link-local 169.254.0.0/16 (includes cloud metadata 169.254.169.254).
+  if (o[0] === 169 && o[1] === 254) {
     throw new Error(`URL points to link-local address: ${hostname}`);
   }
 }
