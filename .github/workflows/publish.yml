@@ -24,4 +24,7 @@ jobs:
         run: npm install -g npm@11
       - run: npm ci
       - run: npm test
-      - run: npm publish --provenance
+      # --loglevel verbose surfaces npm's "oidc" messages. The OIDC helper never
+      # throws: on failure it silently falls back to the placeholder _authToken
+      # that setup-node writes, which surfaces only as an opaque 403.
+      - run: npm publish --provenance --loglevel verbose
