@@ -140,8 +140,8 @@ describe('Security Library Integration Tests', () => {
     it('should handle special characters in arguments', () => {
       const args = ['echo', '$PATH', '~/*', '&&', 'ls'];
       const quoted = commandValidator.quote(args);
-      // shell-quote escapes special chars with backslashes
-      expect(quoted).toBe('echo \\$PATH ~/\\* \\&\\& ls');
+      // shell-quote escapes special chars with backslashes (>=1.10.0 also escapes ~)
+      expect(quoted).toBe('echo \\$PATH \\~/\\* \\&\\& ls');
     });
 
     it('should throw on invalid input', () => {
