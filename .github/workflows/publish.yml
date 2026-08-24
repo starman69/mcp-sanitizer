@@ -14,11 +14,14 @@ jobs:
       
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org/'
 
+      # Pinned to a major: npm@latest is 12.x, which requires Node >=22.22.2.
+      # npm 11 supports trusted publishing (OIDC, needs >=11.5.1) and runs on
+      # Node 22. Never use npm@latest here — it breaks on each npm major.
       - name: Update npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
       - run: npm ci
       - run: npm test
       - run: npm publish --provenance
