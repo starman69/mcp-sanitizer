@@ -31,3 +31,9 @@ jobs:
       # throws: on failure it silently falls back to the placeholder _authToken
       # that setup-node writes, which surfaces only as an opaque 403.
       - run: npm publish --provenance --loglevel verbose
+
+      # npm writes full request/response detail to its debug log regardless of
+      # console loglevel. Surface it so a 403 body reaches the run log.
+      - name: Dump npm debug log
+        if: failure()
+        run: cat "$(ls -t "$HOME"/.npm/_logs/*-debug-0.log | head -1)"
