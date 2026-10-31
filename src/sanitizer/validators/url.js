@@ -27,7 +27,7 @@
  */
 
 const { URL } = require('url');
-// const { validationUtils } = require('../../utils') // Unused - commented to fix ESLint
+const { classifyHost } = require('../../utils/validation-utils');
 const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
 const validator = require('validator');
 const {
@@ -489,16 +489,18 @@ class URLValidator {
       }
     }
 
-    // Check if hostname is an IP address
-    if (this._isIPAddress(hostname)) {
-      const ipResult = this._validateIPAddress(hostname);
-      result.isPrivateIP = ipResult.isPrivate;
-
-      if (!ipResult.isValid) {
-        result.isValid = false;
-        result.warnings.push(...ipResult.warnings);
-        result.severity = ipResult.severity;
-      }
+    // GHSA-v25x-53wq-6r99 FIX: use the shared classifier, not local regexes.
+    const locationResult = this._validateLocation(hostname);
+    result.isPrivateIP = locationResult.isPrivate;
+    if (!locationResult.isValid) {
+      result.isValid = false;
+      result.warnings.push(...locationResult.warnings);
+      result.severity = locationResult.severity;
+      return result;
+    }
+    if (locationResult.warnings.length > 0) {
+      result.warnings.push(...locationResult.warnings);
+      result.severity = this._getHigherSeverity(result.severity, locationResult.severity);
     }
 
     // DNS validation if enabled
@@ -532,6 +534,46 @@ class URLValidator {
     }
 
     return { allowed: true, reason: null };
+  }
+
+  /**
+   * Apply this validator's allow* flags to the shared host classification.
+   * @param {string} hostname - `URL.hostname` (brackets allowed)
+   * @returns {Object} Validation result
+   * @private
+   */
+  _validateLocation (hostname) {
+    const result = {
+      isValid: true,
+      warnings: [],
+      severity: null,
+      isPrivate: false
+    };
+
+    const { hostname: host, category } = classifyHost(hostname);
+    if (!category) {
+      return result;
+    }
+
+    const allowedBy = {
+      localhost: this.config.allowLocalhost || this.config.allowLoopback,
+      loopback: this.config.allowLocalhost || this.config.allowLoopback,
+      unspecified: this.config.allowLocalhost || this.config.allowLoopback,
+      private: this.config.allowPrivateIPs,
+      'link-local': this.config.allowLinkLocal
+    };
+
+    result.isPrivate = true;
+    if (!allowedBy[category]) {
+      result.isValid = false;
+      result.warnings.push(`Access to ${category} address '${host}' is not allowed`);
+      result.severity = SEVERITY.CRITICAL;
+    } else {
+      result.warnings.push(`Warning: Accessing ${category} address '${host}'`);
+      result.severity = SEVERITY.MEDIUM;
+    }
+
+    return result;
   }
 
   /**
