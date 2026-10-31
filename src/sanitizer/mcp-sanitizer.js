@@ -696,7 +696,7 @@ class MCPSanitizer {
   _secureSanitizeURL (url) {
     // url is already decoded by _sanitizeString
     const parsedUrl = validationUtils.validateURL(url, this.options.allowedProtocols);
-    validationUtils.validateURLLocation(parsedUrl);
+    validationUtils.validateURLLocation(parsedUrl, this.options.contextSettings?.url);
     return parsedUrl.toString();
   }
 
@@ -806,7 +806,7 @@ class MCPSanitizer {
   _legacySanitizeURL (url) {
     // Legacy URL sanitization - security decoder is now integrated
     const parsedUrl = validationUtils.validateURL(url, this.options.allowedProtocols);
-    validationUtils.validateURLLocation(parsedUrl);
+    validationUtils.validateURLLocation(parsedUrl, this.options.contextSettings?.url);
     return parsedUrl.toString();
   }
 

@@ -36,7 +36,10 @@ describe('Entry-point parity (GHSA-v25x-53wq-6r99)', () => {
       'http://[fd00::1]/',
       'http://127.0.0.1/',
       'http://localhost:3000/',
-      'http://169.254.169.254/'
+      'http://169.254.169.254/',
+      'http://metadata.google.internal/', // GHSA-qvp2-8q5w-gcfp: internal names
+      'http://100.64.0.1/', // and reserved ranges
+      'http://[64:ff9b::7f00:1]/'
     ])('blocks %s', async (url) => {
       expect(await isBlocked(url)).toBe(true);
     });
