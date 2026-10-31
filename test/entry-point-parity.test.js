@@ -50,7 +50,10 @@ describe('Entry-point parity (GHSA-v25x-53wq-6r99)', () => {
     test.each([
       'sub/.env',
       'project/.ssh/id_rsa',
-      'project/.aws/credentials'
+      'project/.aws/credentials',
+      '.env', // GHSA-6xj4-4chr-656w: sensitive first segment
+      '.ssh/id_rsa',
+      '.npmrc'
     ])('blocks %s', async (p) => {
       expect(await isBlocked(p)).toBe(true);
     });

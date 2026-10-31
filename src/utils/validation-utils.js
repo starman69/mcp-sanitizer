@@ -207,23 +207,28 @@ function validateFilePath (filePath) {
   return safePath;
 }
 
+// Directory or file names that hold credentials; `.env.*` is matched separately.
+const SENSITIVE_PATH_SEGMENTS = new Set([
+  '.ssh', '.aws', '.gnupg', '.kube', '.config', '.docker',
+  '.npmrc', '.netrc', '.env', '.git-credentials'
+]);
+
 /**
  * GHSA-7w82-6f9j-v9jp FIX: Block sensitive config files/dirs (SSH keys, cloud
  * credentials, tokens) wherever they sit. Shared by every file-path entry point
  * (GHSA-v25x-53wq-6r99 FIX: validators/file-path.js never ran this check).
+ *
+ * GHSA-6xj4-4chr-656w FIX: match whole path segments, not `/`-prefixed
+ * substrings, so a sensitive first segment (`.env`, `.ssh/id_rsa`) is caught.
  * @param {string} normalizedPath - Path already normalized by the unified parser
  * @throws {Error} - If the path targets a sensitive configuration location
  */
 function assertNotSensitivePath (normalizedPath) {
-  const sensitiveFileFragments = [
-    '/.ssh/', '/.aws/', '/.gnupg/', '/.kube/', '/.config/',
-    '/.docker/', '/.npmrc', '/.netrc', '/.env', '/.git-credentials'
-  ];
-  const sensitiveCheckPath = normalizedPath.toLowerCase().replace(/\\/g, '/');
-  for (const fragment of sensitiveFileFragments) {
-    if (sensitiveCheckPath.includes(fragment)) {
-      throw new Error('Access to sensitive configuration path not allowed');
-    }
+  const segments = normalizedPath.toLowerCase().split(/[\\/]+/)
+    // Windows ignores trailing dots/spaces and `:stream` suffixes (`.env.`, `.env::$DATA`).
+    .map(s => s.replace(/:.*$/, '').replace(/[. ]+$/, ''));
+  if (segments.some(s => SENSITIVE_PATH_SEGMENTS.has(s) || /^\.env\./.test(s))) {
+    throw new Error('Access to sensitive configuration path not allowed');
   }
 }
 
