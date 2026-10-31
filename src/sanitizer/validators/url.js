@@ -27,7 +27,8 @@
  */
 
 const { URL } = require('url');
-// const { validationUtils } = require('../../utils') // Unused - commented to fix ESLint
+const net = require('net');
+const { classifyHost, assertDomainAllowed, resolveHost } = require('../../utils/validation-utils');
 const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
 const validator = require('validator');
 const {
@@ -249,13 +250,13 @@ class URLValidator {
       if (!hostnameResult.isValid) {
         result.warnings.push(...hostnameResult.warnings);
         result.severity = this._getHigherSeverity(result.severity, hostnameResult.severity);
-
-        if (hostnameResult.severity === SEVERITY.CRITICAL) {
-          return result;
-        }
+        return result;
       }
       result.metadata.hostname = parsedUrl.hostname;
       result.metadata.isPrivateIP = hostnameResult.isPrivateIP;
+      if (hostnameResult.resolvedAddresses) {
+        result.metadata.resolvedAddresses = hostnameResult.resolvedAddresses;
+      }
 
       // Validate port
       const portResult = this._validatePort(parsedUrl.port, parsedUrl.protocol);
@@ -473,90 +474,65 @@ class URLValidator {
       return result;
     }
 
-    // Check dangerous hostname patterns
-    for (const pattern of DANGEROUS_HOSTNAMES) {
-      if (pattern.test(hostname)) {
-        const allowanceCheck = this._checkHostnameAllowance(hostname);
-        if (!allowanceCheck.allowed) {
+    // GHSA-v25x-53wq-6r99 FIX: use the shared classifier, not local regexes.
+    const locationResult = this._validateLocation(hostname);
+    result.isPrivateIP = locationResult.isPrivate;
+    if (!locationResult.isValid) {
+      result.isValid = false;
+      result.warnings.push(...locationResult.warnings);
+      result.severity = locationResult.severity;
+      return result;
+    }
+    if (locationResult.warnings.length > 0) {
+      result.warnings.push(...locationResult.warnings);
+      result.severity = this._getHigherSeverity(result.severity, locationResult.severity);
+    }
+
+    const host = classifyHost(hostname).hostname;
+    try {
+      assertDomainAllowed(host, this.config);
+    } catch (error) {
+      result.isValid = false;
+      result.warnings.push(error.message);
+      result.severity = SEVERITY.CRITICAL;
+      return result;
+    }
+
+    // GHSA-qvp2-8q5w-gcfp FIX: when enabled, classify every resolved address,
+    // not just whether the name resolves. Fails closed on lookup errors.
+    if (this.config.validateDNS && !net.isIP(host)) {
+      let resolved;
+      try {
+        resolved = await resolveHost(host);
+      } catch (error) {
+        result.isValid = false;
+        result.warnings.push(`DNS resolution failed for hostname '${host}'`);
+        result.severity = SEVERITY.HIGH;
+        return result;
+      }
+      for (const { address } of resolved) {
+        const addressResult = this._validateLocation(address);
+        if (!addressResult.isValid) {
           result.isValid = false;
-          result.warnings.push(`Hostname '${hostname}' is ${allowanceCheck.reason}`);
+          result.isPrivateIP = true;
+          result.warnings.push(`Hostname '${host}' resolves to a restricted address`, ...addressResult.warnings);
           result.severity = SEVERITY.CRITICAL;
           return result;
-        } else {
-          result.warnings.push(`Warning: Accessing ${allowanceCheck.reason} hostname '${hostname}'`);
-          result.severity = SEVERITY.MEDIUM;
         }
       }
-    }
-
-    // Check if hostname is an IP address
-    if (this._isIPAddress(hostname)) {
-      const ipResult = this._validateIPAddress(hostname);
-      result.isPrivateIP = ipResult.isPrivate;
-
-      if (!ipResult.isValid) {
-        result.isValid = false;
-        result.warnings.push(...ipResult.warnings);
-        result.severity = ipResult.severity;
-      }
-    }
-
-    // DNS validation if enabled
-    if (this.config.validateDNS && result.isValid) {
-      try {
-        const dns = require('dns').promises;
-        await dns.lookup(hostname);
-      } catch (error) {
-        result.warnings.push(`DNS resolution failed for hostname '${hostname}'`);
-        result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM);
-      }
+      result.resolvedAddresses = resolved.map(({ address, family }) => ({ address, family }));
     }
 
     return result;
   }
 
   /**
-   * Check if hostname access is allowed based on configuration
-   * @param {string} hostname - Hostname to check
-   * @returns {Object} Allowance check result
-   * @private
-   */
-  _checkHostnameAllowance (hostname) {
-    const lower = hostname.toLowerCase();
-
-    if (lower === 'localhost' || lower === '127.0.0.1' || lower === '::1') {
-      return {
-        allowed: this.config.allowLocalhost || this.config.allowLoopback,
-        reason: 'localhost/loopback'
-      };
-    }
-
-    return { allowed: true, reason: null };
-  }
-
-  /**
-   * Check if a string is an IP address
-   * @param {string} hostname - Hostname to check
-   * @returns {boolean} True if it's an IP address
-   * @private
-   */
-  _isIPAddress (hostname) {
-    // IPv4 pattern
-    const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-
-    // IPv6 pattern (simplified)
-    const ipv6Pattern = /^([0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}$/i;
-
-    return ipv4Pattern.test(hostname) || ipv6Pattern.test(hostname);
-  }
-
-  /**
-   * Validate IP address for private ranges and restrictions
-   * @param {string} ip - IP address to validate
+   * Apply this validator's allow* flags to the shared host classification.
+   * @param {string} hostname - `URL.hostname` (brackets allowed)
    * @returns {Object} Validation result
    * @private
    */
-  _validateIPAddress (ip) {
+  _validateLocation (hostname) {
     const result = {
       isValid: true,
       warnings: [],
@@ -564,40 +540,29 @@ class URLValidator {
       isPrivate: false
     };
 
-    // Check IPv4 private ranges
-    for (const pattern of PRIVATE_IP_RANGES.ipv4) {
-      if (pattern.test(ip)) {
-        result.isPrivate = true;
-
-        if (!this.config.allowPrivateIPs) {
-          result.isValid = false;
-          result.warnings.push(`Access to private IP address '${ip}' is not allowed`);
-          result.severity = SEVERITY.CRITICAL;
-          return result;
-        } else {
-          result.warnings.push(`Warning: Accessing private IP address '${ip}'`);
-          result.severity = SEVERITY.MEDIUM;
-        }
-        break;
-      }
+    const { hostname: host, category } = classifyHost(hostname);
+    if (!category) {
+      return result;
     }
 
-    // Check IPv6 private ranges
-    for (const pattern of PRIVATE_IP_RANGES.ipv6) {
-      if (pattern.test(ip)) {
-        result.isPrivate = true;
+    const allowedBy = {
+      localhost: this.config.allowLocalhost || this.config.allowLoopback,
+      loopback: this.config.allowLocalhost || this.config.allowLoopback,
+      unspecified: this.config.allowLocalhost || this.config.allowLoopback,
+      private: this.config.allowPrivateIPs,
+      'internal-name': this.config.allowPrivateIPs,
+      reserved: this.config.allowPrivateIPs,
+      'link-local': this.config.allowLinkLocal
+    };
 
-        if (!this.config.allowPrivateIPs) {
-          result.isValid = false;
-          result.warnings.push(`Access to private IPv6 address '${ip}' is not allowed`);
-          result.severity = SEVERITY.CRITICAL;
-          return result;
-        } else {
-          result.warnings.push(`Warning: Accessing private IPv6 address '${ip}'`);
-          result.severity = SEVERITY.MEDIUM;
-        }
-        break;
-      }
+    result.isPrivate = true;
+    if (!allowedBy[category]) {
+      result.isValid = false;
+      result.warnings.push(`Access to ${category} address '${host}' is not allowed`);
+      result.severity = SEVERITY.CRITICAL;
+    } else {
+      result.warnings.push(`Warning: Accessing ${category} address '${host}'`);
+      result.severity = SEVERITY.MEDIUM;
     }
 
     return result;

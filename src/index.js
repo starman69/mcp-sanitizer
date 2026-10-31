@@ -116,6 +116,7 @@ module.exports.validateAgainstBlockedPatterns = utils.validateAgainstBlockedPatt
 module.exports.isDangerousKey = utils.isDangerousKey;
 module.exports.validateObjectKey = utils.validateObjectKey;
 module.exports.validateNonEmptyString = utils.validateNonEmptyString;
+module.exports.resolveAndValidateURL = utils.validationUtils.resolveAndValidateURL;
 
 // Export new security enhancement functions
 module.exports.detectDirectionalOverrides = utils.detectDirectionalOverrides;

@@ -26,7 +26,7 @@
  */
 
 const path = require('path');
-// const { validationUtils } = require('../../utils') // Unused - commented to fix ESLint
+const { assertNotSensitivePath } = require('../../utils/validation-utils');
 const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
 const sanitizeFilename = require('sanitize-filename');
 const pathIsInside = require('path-is-inside');
@@ -216,6 +216,15 @@ class FilePathValidator {
       const systemDirResult = this._checkSystemDirectories(normalizedPath);
       if (!systemDirResult.isValid) {
         result.warnings.push(...systemDirResult.warnings);
+        result.severity = this._getHigherSeverity(result.severity, SEVERITY.CRITICAL);
+        return result;
+      }
+
+      // GHSA-v25x-53wq-6r99 FIX: shared sensitive-path denylist.
+      try {
+        assertNotSensitivePath(normalizedPath);
+      } catch (error) {
+        result.warnings.push(error.message);
         result.severity = this._getHigherSeverity(result.severity, SEVERITY.CRITICAL);
         return result;
       }

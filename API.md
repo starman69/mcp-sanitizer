@@ -338,6 +338,17 @@ Validates and sanitizes URLs.
 new URLValidator(config?)
 ```
 
+Host-related config (all default `false` / empty):
+
+| Option | Effect |
+|---|---|
+| `allowLocalhost`, `allowLoopback` | Allow `localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0` |
+| `allowPrivateIPs` | Allow RFC 1918, CGNAT, `fc00::/7`, reserved ranges and internal-only names |
+| `allowLinkLocal` | Allow `169.254.0.0/16` (cloud metadata) and `fe80::/10` |
+| `blockedDomains` | Reject these domains and their subdomains |
+| `allowedDomains` | When non-empty, accept only these domains and their subdomains |
+| `validateDNS` | Resolve the hostname and apply the same checks to every address; fails closed on lookup errors |
+
 #### Methods
 
 ##### `validate(url, options?)`
@@ -360,6 +371,7 @@ Validate a URL asynchronously.
     isPrivateIP: boolean;
     detectedPatterns: string[];
     validatorCheck?: boolean;
+    resolvedAddresses?: Array<{ address: string; family: number }>; // with validateDNS
   };
 }
 ```
@@ -640,6 +652,20 @@ Check if string contains any blocked pattern.
 #### `isWithinLimits(value, limits)`
 
 Check if value is within configured limits.
+
+#### `resolveAndValidateURL(url, options?)`
+
+Validate a URL, resolve its hostname, and reject it if any resolved address is
+loopback, private, link-local or reserved. Use the returned address for the
+connection so a later DNS change cannot redirect the request.
+
+**Parameters:**
+- `url`: URL string
+- `options`: `{ allowedProtocols?, blockedDomains?, allowedDomains?, lookup? }` (`lookup` defaults to `dns.promises.lookup`)
+
+**Returns:** `Promise<{ url: URL, address: string, family: number }>`
+
+**Throws:** if the URL or any resolved address is restricted, or resolution fails.
 
 ## Pattern Detection
 

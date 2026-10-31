@@ -10,6 +10,7 @@
 
 const path = require('path');
 const net = require('net');
+const dns = require('dns');
 const { URL } = require('url');
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified } = require('./unified-parser');
@@ -150,19 +151,7 @@ function validateFilePath (filePath) {
     }
   }
 
-  // GHSA-7w82-6f9j-v9jp FIX: Block sensitive user-configuration files/directories
-  // regardless of where they sit (home dir, /tmp, cwd, relative paths). These hold
-  // SSH keys, cloud credentials, and tokens that must never be exposed via a tool.
-  const sensitiveFileFragments = [
-    '/.ssh/', '/.aws/', '/.gnupg/', '/.kube/', '/.config/',
-    '/.docker/', '/.npmrc', '/.netrc', '/.env', '/.git-credentials'
-  ];
-  const sensitiveCheckPath = lowerPath.replace(/\\/g, '/');
-  for (const fragment of sensitiveFileFragments) {
-    if (sensitiveCheckPath.includes(fragment)) {
-      throw new Error('Access to sensitive configuration path not allowed');
-    }
-  }
+  assertNotSensitivePath(normalizedPath);
 
   // Use path-is-inside to check if the path tries to escape a safe directory
   // Define safe root directories
@@ -217,6 +206,31 @@ function validateFilePath (filePath) {
 
   // CVE-TBD-001 FIX: Return normalized path, never original
   return safePath;
+}
+
+// Directory or file names that hold credentials; `.env.*` is matched separately.
+const SENSITIVE_PATH_SEGMENTS = new Set([
+  '.ssh', '.aws', '.gnupg', '.kube', '.config', '.docker',
+  '.npmrc', '.netrc', '.env', '.git-credentials'
+]);
+
+/**
+ * GHSA-7w82-6f9j-v9jp FIX: Block sensitive config files/dirs (SSH keys, cloud
+ * credentials, tokens) wherever they sit. Shared by every file-path entry point
+ * (GHSA-v25x-53wq-6r99 FIX: validators/file-path.js never ran this check).
+ *
+ * GHSA-6xj4-4chr-656w FIX: match whole path segments, not `/`-prefixed
+ * substrings, so a sensitive first segment (`.env`, `.ssh/id_rsa`) is caught.
+ * @param {string} normalizedPath - Path already normalized by the unified parser
+ * @throws {Error} - If the path targets a sensitive configuration location
+ */
+function assertNotSensitivePath (normalizedPath) {
+  const segments = normalizedPath.toLowerCase().split(/[\\/]+/)
+    // Windows ignores trailing dots/spaces and `:stream` suffixes (`.env.`, `.env::$DATA`).
+    .map(s => s.replace(/:.*$/, '').replace(/[. ]+$/, ''));
+  if (segments.some(s => SENSITIVE_PATH_SEGMENTS.has(s) || /^\.env\./.test(s))) {
+    throw new Error('Access to sensitive configuration path not allowed');
+  }
 }
 
 /**
@@ -314,22 +328,169 @@ function expandIPv6 (addr) {
     .join(':');
 }
 
+// Name suffixes that only resolve on private networks (RFC 6762, 8375, 6761 §6.3
+// and common unreserved internal TLDs). Includes GCP `metadata.google.internal`.
+const INTERNAL_NAME_SUFFIXES = [
+  '.internal', '.local', '.localdomain', '.home.arpa', '.lan', '.corp'
+];
+// Single-label cloud metadata aliases resolved via the DNS search path.
+const INTERNAL_NAMES = new Set(['metadata', 'instance-data']);
+
 /**
- * Validate URL against restricted locations (localhost, loopback, private and
- * link-local addresses). Blocks unconditionally — there is no escape hatch — so
- * the sanitizer fails closed for SSRF targets.
+ * Classify a URL hostname as a restricted location. Shared by every URL entry
+ * point (GHSA-v25x-53wq-6r99 FIX: validators/url.js had its own weaker copy).
+ * @param {string} rawHostname - `URL.hostname` (brackets allowed)
+ * @returns {{hostname: string, category: (string|null)}} - 'localhost',
+ *   'loopback', 'unspecified', 'private', 'link-local', 'reserved',
+ *   'internal-name', or null
+ */
+function classifyHost (rawHostname) {
+  // Normalize: strip IPv6 brackets and a trailing dot (FQDN root) before checks.
+  const hostname = String(rawHostname)
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
+
+  // localhost and any *.localhost name — regardless of port.
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    return { hostname, category: 'localhost' };
+  }
+
+  const ipVersion = net.isIP(hostname);
+
+  // IPv4 literal — classify directly.
+  if (ipVersion === 4) {
+    return { hostname, category: classifyIPv4(hostname.split('.').map(Number)) };
+  }
+
+  // IPv6 — classify the address family, then any embedded IPv4 payload.
+  if (ipVersion === 6) {
+    const canonical = expandIPv6(hostname);
+    if (!canonical) return { hostname, category: null };
+    if (canonical === '0000:0000:0000:0000:0000:0000:0000:0001') {
+      return { hostname, category: 'loopback' };
+    }
+    if (canonical === '0000:0000:0000:0000:0000:0000:0000:0000') {
+      return { hostname, category: 'unspecified' };
+    }
+    const groups = canonical.split(':');
+    // Link-local fe80::/10 (fe80–febf).
+    if (groups[0] >= 'fe80' && groups[0] <= 'febf') {
+      return { hostname, category: 'link-local' };
+    }
+    // Unique-local fc00::/7 and deprecated site-local fec0::/10.
+    if ((groups[0] >= 'fc00' && groups[0] <= 'fdff') ||
+        (groups[0] >= 'fec0' && groups[0] <= 'feff')) {
+      return { hostname, category: 'private' };
+    }
+    // Multicast ff00::/8.
+    if (groups[0].startsWith('ff')) {
+      return { hostname, category: 'reserved' };
+    }
+    // IPv4-mapped (::ffff:a.b.c.d), IPv4-compatible (::a.b.c.d) and NAT64
+    // (64:ff9b::a.b.c.d) carry the IPv4 in the last 32 bits; 6to4
+    // (2002:aabb:ccdd::) carries it in groups 1–2. Node re-encodes the IPv4 as
+    // hex, so recover it from the canonical form and apply the IPv4 checks.
+    const zeros = (from, to) => groups.slice(from, to).every(g => g === '0000');
+    if ((zeros(0, 5) && (groups[5] === 'ffff' || groups[5] === '0000')) ||
+        (groups[0] === '0064' && groups[1] === 'ff9b' && zeros(2, 6))) {
+      return { hostname, category: classifyEmbeddedIPv4(groups[6], groups[7]) };
+    }
+    if (groups[0] === '2002') {
+      return { hostname, category: classifyEmbeddedIPv4(groups[1], groups[2]) };
+    }
+    return { hostname, category: null };
+  }
+
+  // GHSA-qvp2-8q5w-gcfp FIX: names that can only resolve internally.
+  if (INTERNAL_NAMES.has(hostname) ||
+      INTERNAL_NAME_SUFFIXES.some(suffix => hostname.endsWith(suffix))) {
+    return { hostname, category: 'internal-name' };
+  }
+
+  return { hostname, category: null };
+}
+
+/**
+ * Classify an IPv4 address embedded in two IPv6 hex groups.
+ * @param {string} hiHex - Group holding octets a.b
+ * @param {string} loHex - Group holding octets c.d
+ * @returns {string|null} - Restricted category, or null if publicly routable
+ */
+function classifyEmbeddedIPv4 (hiHex, loHex) {
+  const hi = parseInt(hiHex, 16);
+  const lo = parseInt(loHex, 16);
+  return classifyIPv4([(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff]);
+}
+
+/**
+ * Classify IPv4 octets; shared by literal IPv4 and embedded IPv4 in IPv6.
+ * @param {number[]} o - Four octets [a, b, c, d]
+ * @returns {string|null} - Restricted category, or null if publicly routable
+ */
+function classifyIPv4 (o) {
+  // Loopback 127.0.0.0/8 and unspecified 0.0.0.0/8.
+  if (o[0] === 127) return 'loopback';
+  if (o[0] === 0) return 'unspecified';
+  // RFC 1918 private ranges and CGNAT shared space 100.64.0.0/10.
+  if (o[0] === 10 ||
+      (o[0] === 192 && o[1] === 168) ||
+      (o[0] === 172 && o[1] >= 16 && o[1] <= 31) ||
+      (o[0] === 100 && o[1] >= 64 && o[1] <= 127)) {
+    return 'private';
+  }
+  // Link-local 169.254.0.0/16 (includes cloud metadata 169.254.169.254).
+  if (o[0] === 169 && o[1] === 254) return 'link-local';
+  // IETF protocol assignments 192.0.0.0/24, benchmarking 198.18.0.0/15,
+  // multicast 224.0.0.0/4 and reserved/broadcast 240.0.0.0/4.
+  if ((o[0] === 192 && o[1] === 0 && o[2] === 0) ||
+      (o[0] === 198 && (o[1] === 18 || o[1] === 19)) ||
+      o[0] >= 224) {
+    return 'reserved';
+  }
+  return null;
+}
+
+/**
+ * Throw if a hostname is excluded by `blockedDomains` or, when `allowedDomains`
+ * is non-empty, not covered by it. An entry matches itself and its subdomains.
+ * The allowlist only narrows: it never admits a restricted `classifyHost` category.
+ * @param {string} hostname - Normalized hostname (from `classifyHost`)
+ * @param {Object} [options] - `{ blockedDomains, allowedDomains }`
+ * @throws {Error} - If the hostname is not permitted
+ */
+function assertDomainAllowed (hostname, { blockedDomains = [], allowedDomains = [] } = {}) {
+  const matches = (entry) => {
+    const domain = String(entry).toLowerCase().replace(/^\*?\./, '').replace(/\.$/, '');
+    return domain !== '' && (hostname === domain || hostname.endsWith('.' + domain));
+  };
+  if (blockedDomains.some(matches)) {
+    throw new Error(`URL host is in blockedDomains: ${hostname}`);
+  }
+  if (allowedDomains.length > 0 && !allowedDomains.some(matches)) {
+    throw new Error(`URL host is not in allowedDomains: ${hostname}`);
+  }
+}
+
+/**
+ * Validate URL against restricted locations (localhost, loopback, private,
+ * link-local, reserved addresses and internal-only names). Blocks
+ * unconditionally — there is no escape hatch — so the sanitizer fails closed
+ * for SSRF targets. String-level only: a public name that resolves to a
+ * private address needs `resolveAndValidateURL`.
  *
  * GHSA-4mfg-r38w-w8fg FIX: previously (1) localhost was only blocked when no
  * explicit port was present, and (2) bracketed IPv6 hostnames (`[::1]`,
  * `[fe80::1]`) never matched the string checks. Both gaps allowed SSRF to
  * internal services. The hostname is now bracket-stripped and classified by
- * actual address family/range, covering IPv4-mapped IPv6 and additional
- * loopback/private encodings.
+ * actual address family/range (see `classifyHost`), covering IPv4-mapped IPv6
+ * and additional loopback/private encodings.
  *
  * @param {string|URL} url - The URL to validate (string or URL object)
+ * @param {Object} [options] - `{ blockedDomains, allowedDomains }`
  * @throws {Error} - If URL points to restricted location
  */
-function validateURLLocation (url) {
+function validateURLLocation (url, options = {}) {
   let parsedUrl = url;
 
   if (typeof url === 'string') {
@@ -338,79 +499,68 @@ function validateURLLocation (url) {
     throw new Error('URL must be a string or URL object');
   }
 
-  // Normalize: strip IPv6 brackets and a trailing dot (FQDN root) before checks.
-  const hostname = parsedUrl.hostname
-    .toLowerCase()
-    .replace(/^\[|\]$/g, '')
-    .replace(/\.$/, '');
-
-  // localhost and any *.localhost name — blocked regardless of port.
-  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+  const { hostname, category } = classifyHost(parsedUrl.hostname);
+  if (category === 'localhost') {
     throw new Error('URL points to localhost');
   }
-
-  const ipVersion = net.isIP(hostname);
-
-  // IPv4 literal — classify directly.
-  if (ipVersion === 4) {
-    assertPublicIPv4(hostname.split('.').map(Number), hostname);
+  if (category === 'link-local') {
+    throw new Error(`URL points to link-local address: ${hostname}`);
   }
-
-  // IPv6 — classify the address family, then any IPv4-mapped/compatible payload.
-  if (ipVersion === 6) {
-    const canonical = expandIPv6(hostname);
-    if (canonical) {
-      // Loopback (::1) and unspecified (::).
-      if (canonical === '0000:0000:0000:0000:0000:0000:0000:0001' ||
-          canonical === '0000:0000:0000:0000:0000:0000:0000:0000') {
-        throw new Error(`URL points to private IP range: ${hostname}`);
-      }
-      const firstGroup = canonical.slice(0, 4);
-      // Link-local fe80::/10 (fe80–febf).
-      if (firstGroup >= 'fe80' && firstGroup <= 'febf') {
-        throw new Error(`URL points to link-local address: ${hostname}`);
-      }
-      // Unique-local fc00::/7 (fc00–fdff).
-      if (firstGroup >= 'fc00' && firstGroup <= 'fdff') {
-        throw new Error(`URL points to private IP range: ${hostname}`);
-      }
-      // IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible (::a.b.c.d) addresses:
-      // the first five groups are zero and the sixth is ffff or zero. Node
-      // re-encodes the trailing IPv4 as hex, so recover it from the canonical
-      // form and apply the same IPv4 range checks.
-      const groups = canonical.split(':');
-      if (groups.slice(0, 5).every(g => g === '0000') &&
-          (groups[5] === 'ffff' || groups[5] === '0000')) {
-        const hi = parseInt(groups[6], 16);
-        const lo = parseInt(groups[7], 16);
-        assertPublicIPv4([(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff], hostname);
-      }
-    }
+  if (category === 'reserved') {
+    throw new Error(`URL points to reserved address: ${hostname}`);
   }
+  if (category === 'internal-name') {
+    throw new Error(`URL points to internal hostname: ${hostname}`);
+  }
+  if (category) {
+    throw new Error(`URL points to private IP range: ${hostname}`);
+  }
+  assertDomainAllowed(hostname, options);
 }
 
 /**
- * Throw if the given IPv4 octets fall in a loopback, unspecified, RFC 1918
- * private, or link-local range. Shared by literal IPv4 and IPv4-mapped IPv6.
- * @param {number[]} o - Four octets [a, b, c, d]
- * @param {string} hostname - Original hostname, for the error message
- * @throws {Error} - If the address is not publicly routable
+ * Resolve a hostname to every address it maps to and classify each one.
+ * @param {string} hostname - Normalized, non-IP hostname
+ * @param {Function} [lookup] - `dns.promises.lookup`-compatible (for tests)
+ * @returns {Promise<Array<{address: string, family: number, category: (string|null)}>>}
+ * @throws {Error} - If resolution fails or returns no addresses
  */
-function assertPublicIPv4 (o, hostname) {
-  // Loopback 127.0.0.0/8 and unspecified 0.0.0.0/8.
-  if (o[0] === 127 || o[0] === 0) {
-    throw new Error(`URL points to private IP range: ${hostname}`);
+async function resolveHost (hostname, lookup = dns.promises.lookup) {
+  const addresses = await lookup(hostname, { all: true, verbatim: true });
+  if (!addresses || addresses.length === 0) {
+    throw new Error(`DNS lookup returned no addresses for ${hostname}`);
   }
-  // RFC 1918 private ranges.
-  if (o[0] === 10 ||
-      (o[0] === 192 && o[1] === 168) ||
-      (o[0] === 172 && o[1] >= 16 && o[1] <= 31)) {
-    throw new Error(`URL points to private IP range: ${hostname}`);
+  return addresses.map(({ address, family }) =>
+    ({ address, family, category: classifyHost(address).category }));
+}
+
+/**
+ * GHSA-qvp2-8q5w-gcfp FIX: validate a URL and every address its hostname
+ * resolves to, so a public DNS alias for a private address (`10.0.0.5.nip.io`)
+ * is rejected. Connect to the returned `address` (e.g. via a custom `lookup`
+ * on the HTTP agent) so a later DNS change cannot redirect the request.
+ *
+ * @param {string} url - The URL to validate
+ * @param {Object} [options] - `{ allowedProtocols, blockedDomains, allowedDomains, lookup }`
+ * @returns {Promise<{url: URL, address: string, family: number}>} - Checked URL and pinned address
+ * @throws {Error} - If the URL or any resolved address is restricted
+ */
+async function resolveAndValidateURL (url, options = {}) {
+  const parsedUrl = validateURL(url, options.allowedProtocols);
+  validateURLLocation(parsedUrl, options);
+
+  const { hostname } = classifyHost(parsedUrl.hostname);
+  const family = net.isIP(hostname);
+  if (family) {
+    return { url: parsedUrl, address: hostname, family };
   }
-  // Link-local 169.254.0.0/16 (includes cloud metadata 169.254.169.254).
-  if (o[0] === 169 && o[1] === 254) {
-    throw new Error(`URL points to link-local address: ${hostname}`);
+
+  const resolved = await resolveHost(hostname, options.lookup);
+  const restricted = resolved.find(r => r.category);
+  if (restricted) {
+    throw new Error(`URL host ${hostname} resolves to ${restricted.category} address: ${restricted.address}`);
   }
+  return { url: parsedUrl, address: resolved[0].address, family: resolved[0].family };
 }
 
 /**
@@ -569,9 +719,14 @@ module.exports = {
   validateFunction,
   validateRegExp,
   validateFilePath,
+  assertNotSensitivePath,
   validateFileExtension,
   validateURL,
   validateURLLocation,
+  classifyHost,
+  assertDomainAllowed,
+  resolveHost,
+  resolveAndValidateURL,
   validateCommand,
   validateOptions,
   validateRange,

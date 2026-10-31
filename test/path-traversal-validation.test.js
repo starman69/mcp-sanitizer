@@ -50,3 +50,54 @@ describe('Path traversal: sensitive file access (GHSA-7w82-6f9j-v9jp)', () => {
     });
   });
 });
+
+describe('Sensitive path as first segment (GHSA-6xj4-4chr-656w)', () => {
+  // The 1.4.0 denylist matched `/`-prefixed substrings, so relative paths whose
+  // first segment is sensitive passed with blocked=false.
+  describe('reported bypasses — must be blocked', () => {
+    const reportedBypasses = [
+      '.env',
+      './.env',
+      '.npmrc',
+      '.netrc',
+      '.ssh/id_rsa',
+      '.aws/credentials',
+      '.docker/config.json',
+      '.git-credentials',
+      '.gnupg/secring.gpg',
+      '.kube/config'
+    ];
+
+    it.each(reportedBypasses)('blocks %s', (path) => {
+      expect(isBlocked(path)).toBe(true);
+    });
+  });
+
+  describe('spelling variants — must be blocked', () => {
+    const variants = [
+      '.ENV',
+      '.env.production',
+      '.env.',
+      '.ssh',
+      'sub/.ssh',
+      'sub\\.ssh\\id_rsa'
+    ];
+
+    it.each(variants)('blocks %s', (path) => {
+      expect(isBlocked(path)).toBe(true);
+    });
+  });
+
+  describe('look-alike names — must be allowed', () => {
+    // Previously over-blocked by the `/.env` substring match.
+    const allowed = [
+      'sub/.environment/notes.txt',
+      'docs/env.txt',
+      'data/ssh-notes.txt'
+    ];
+
+    it.each(allowed)('allows %s', (path) => {
+      expect(isBlocked(path)).toBe(false);
+    });
+  });
+});

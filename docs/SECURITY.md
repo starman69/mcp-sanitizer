@@ -110,6 +110,8 @@ Normalizes look-alike characters used in phishing:
 - **NoSQL injection** (MongoDB operators, query injection)
 - **Cross-site scripting (XSS)** (DOM-based, attribute injection, polyglot payloads)
 - **Path traversal attacks** (directory traversal, absolute paths, UNC paths)
+- **Sensitive file access** (`.env`, `.ssh/`, `.aws/`, `.npmrc` and similar, at any path depth)
+- **SSRF** (loopback, private, link-local and reserved IP literals in any encoding; internal-only names; DNS aliases via `resolveAndValidateURL`)
 - **Prototype pollution** (`__proto__`, `constructor`, `prototype` injection)
 - **Template injection** (server-side template injection, expression language)
 - **Unicode-based bypasses** (homographs, directional overrides, normalization attacks)
@@ -122,6 +124,7 @@ Normalizes look-alike characters used in phishing:
 - Attackers may use sophisticated encoding/obfuscation
 - Multiple attack vectors may be combined
 - Validation patterns themselves must be hardened against pathological inputs
+- Synchronous `sanitize()` classifies URL strings, not DNS answers; applications that fetch URLs must use `resolveAndValidateURL` (or `URLValidator` with `validateDNS: true`) and connect to the checked address
 
 ### Out of Scope
 - DDoS protection (infrastructure concern)
