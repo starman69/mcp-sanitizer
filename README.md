@@ -188,7 +188,8 @@ const sanitizer = new MCPSanitizer({
   contextSettings: {
     url: {
       allowPrivateIPs: false,
-      allowLocalhostWithoutPort: false
+      blockedDomains: ['tracker.example'], // Domain and its subdomains
+      allowedDomains: []                    // Non-empty = only these domains
     },
     filePath: {
       allowAbsolutePaths: false,
@@ -366,6 +367,24 @@ const urlResult = sanitizer.sanitize(params.url, { type: 'url' });
 if (urlResult.blocked) {
   throw new Error('Invalid or restricted URL');
 }
+```
+
+`sanitize()` checks the URL string only: it blocks private/loopback/link-local IP
+literals and internal-only names (`*.internal`, `*.local`, ...), but cannot know
+that a public name such as `10.0.0.5.nip.io` resolves to a private address. Before
+fetching, resolve and pin with `resolveAndValidateURL`:
+
+```javascript
+const http = require('http');
+const { resolveAndValidateURL } = require('mcp-sanitizer');
+
+// Rejects if the hostname resolves to any restricted address
+const { url, address, family } = await resolveAndValidateURL(params.url);
+
+// Connect to the checked address so a DNS change cannot redirect the request
+const lookup = (host, opts, cb) =>
+  opts.all ? cb(null, [{ address, family }]) : cb(null, address, family);
+http.get(url, { lookup });
 ```
 
 ## Contributing
