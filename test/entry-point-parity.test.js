@@ -10,19 +10,70 @@
 const MCPSanitizer = require('../src/index');
 const lib = require('../src/index');
 
+const expressMiddleware = require('../src/middleware/express');
+const koaMiddleware = require('../src/middleware/koa');
+
 const sanitizer = new MCPSanitizer();
+
+// Run one MCP tool call through the Express / Koa tool middleware; true = blocked.
+function expressToolBlocks (toolName, parameters) {
+  return new Promise((resolve) => {
+    const req = {
+      path: '/tool',
+      method: 'POST',
+      ip: '203.0.113.1',
+      params: { toolName },
+      query: {},
+      headers: {},
+      body: { tool_name: toolName, parameters },
+      get: () => ''
+    };
+    const res = {
+      status () { return res; },
+      json () { resolve(true); return res; }
+    };
+    expressMiddleware.createMCPToolMiddleware({ logWarnings: false })(req, res, (err) => resolve(Boolean(err)));
+  });
+}
+
+async function koaToolBlocks (toolName, parameters) {
+  const ctx = {
+    path: '/tool',
+    method: 'POST',
+    ip: '203.0.113.1',
+    params: { toolName },
+    query: {},
+    headers: {},
+    state: {},
+    status: 200,
+    body: null,
+    request: { body: { tool_name: toolName, parameters } },
+    get: () => ''
+  };
+  let reachedNext = false;
+  try {
+    await koaMiddleware.createMCPToolMiddleware({ logWarnings: false })(ctx, async () => { reachedNext = true; });
+  } catch (error) {
+    return true;
+  }
+  return !reachedNext || ctx.status !== 200;
+}
 
 const urlEntryPoints = {
   'MCPSanitizer.sanitize': async (u) => sanitizer.sanitize(u, { type: 'url' }).blocked === true,
   'URLValidator.validate': async (u) => !(await new lib.URLValidator().validate(u)).isValid,
   validateURL: async (u) => !(await lib.validators.validateURL(u)).isValid,
-  sanitizeURL: async (u) => !(await lib.sanitizeURL(u)).isValid
+  sanitizeURL: async (u) => !(await lib.sanitizeURL(u)).isValid,
+  'express web_fetch tool': (u) => expressToolBlocks('web_fetch', { url: u }),
+  'koa web_fetch tool': (u) => koaToolBlocks('web_fetch', { url: u })
 };
 
 const filePathEntryPoints = {
   'MCPSanitizer.sanitize': async (p) => sanitizer.sanitize(p, { type: 'file_path' }).blocked === true,
   'FilePathValidator.validate': async (p) => !(await new lib.FilePathValidator().validate(p)).isValid,
-  validateFilePath: async (p) => !(await lib.validateFilePath(p)).isValid
+  validateFilePath: async (p) => !(await lib.validateFilePath(p)).isValid,
+  'express file_reader tool': (p) => expressToolBlocks('file_reader', { file_path: p }),
+  'koa file_reader tool': (p) => koaToolBlocks('file_reader', { file_path: p })
 };
 
 describe('Entry-point parity (GHSA-v25x-53wq-6r99)', () => {
