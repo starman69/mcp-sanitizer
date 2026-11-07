@@ -183,18 +183,10 @@ class PrefixTrie {
       }
       node = node[char];
 
-      // If we hit an endpoint, check if it's a valid prefix
-      // This matches the original logic: path.startsWith(skipPath + '/')
-      if (node.isEndOfPath) {
-        // Check if we have an exact match OR the next character makes it a prefix
-        if (currentPath === path) {
-          return true; // Exact match
-        } else if (currentPath.length < path.length && (path[currentPath.length] === '/')) {
-          return true; // Valid prefix (next char is '/')
-        } else if (currentPath.length < path.length) {
-          // This handles cases like '/static' matching '/static/css/main.css'
-          return true;
-        }
+      // GHSA-3vch-r42j-xc2g FIX: match the entry exactly or at a '/' boundary,
+      // so '/assets' does not skip '/assets-secret'.
+      if (node.isEndOfPath && (currentPath === path || path[currentPath.length] === '/')) {
+        return true;
       }
     }
 
