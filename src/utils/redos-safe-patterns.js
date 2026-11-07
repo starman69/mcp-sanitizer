@@ -208,6 +208,24 @@ const SAFE_SHELL_PATTERNS = [
 ];
 
 /**
+ * Stateless RegExp test (CVE-TBD-008 FIX, GHSA-f7gm-6p35-r39c)
+ *
+ * A RegExp with the global or sticky flag keeps `lastIndex` between `.test()`
+ * calls, so a shared module-level pattern alternates between match and no match
+ * on identical input. Always reset `lastIndex` before and after testing.
+ *
+ * @param {RegExp} pattern - The regex pattern to test
+ * @param {string} input - Input string to test against
+ * @returns {boolean} - True if pattern matches anywhere in input
+ */
+function testRegex (pattern, input) {
+  pattern.lastIndex = 0;
+  const result = pattern.test(input);
+  pattern.lastIndex = 0;
+  return result;
+}
+
+/**
  * Pattern validation wrapper with timeout protection
  *
  * Wraps regex test/exec with timeout to prevent infinite hangs
@@ -247,7 +265,7 @@ function safePatternTest (pattern, input, timeoutMs = 10) {
   }, timeoutMs);
 
   try {
-    result = pattern.test(input);
+    result = testRegex(pattern, input);
 
     // Check if we took too long
     const elapsed = Date.now() - start;
@@ -328,6 +346,7 @@ module.exports = {
   // Utility functions
   safePatternTest,
   safeBatchTest,
+  testRegex,
 
   // Constants
   MAX_SAFE_INPUT_LENGTH: 10000,

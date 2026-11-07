@@ -6,6 +6,8 @@
  * Scope: Inline sanitization library (not edge/network)
  */
 
+const { testRegex } = require('./redos-safe-patterns');
+
 // Directional and bidirectional control characters
 const DIRECTIONAL_CHARS = {
   RTL_OVERRIDE: '\u202E',
@@ -186,7 +188,7 @@ function detectPostgreSQLDollarQuoting (input) {
   const dollarQuotePattern = /\$([a-zA-Z_][a-zA-Z0-9_]*)?\$[^$]{0,10000}\$\1\$/g;
   const simpleDollarPattern = /\$\$[^$]{0,10000}\$\$/g;
 
-  if (dollarQuotePattern.test(input) || simpleDollarPattern.test(input)) {
+  if (testRegex(dollarQuotePattern, input) || testRegex(simpleDollarPattern, input)) {
     detected = true;
     warnings.push('PostgreSQL dollar quoting detected: potential SQL injection vector');
     warnings.push('Database-specific: PostgreSQL dollar quotes can bypass filters');
@@ -830,29 +832,29 @@ function detectHomographs (input, options = {}) {
   metadata.normalizationPasses = normResult.passes;
 
   // Skip detection for legitimate Unicode content
-  const isLegitimateUnicode = CHARACTER_PATTERNS.emoji.test(input) ||
-                             CHARACTER_PATTERNS.cjk.test(input);
+  const isLegitimateUnicode = testRegex(CHARACTER_PATTERNS.emoji, input) ||
+                             testRegex(CHARACTER_PATTERNS.cjk, input);
 
   if (detected && !isLegitimateUnicode) {
     warnings.push('Unicode homograph attack detected: confusable characters present');
 
     // Analyze character types present
-    if (CHARACTER_PATTERNS.fullwidth.test(input)) {
+    if (testRegex(CHARACTER_PATTERNS.fullwidth, input)) {
       metadata.characterTypes.push('fullwidth');
       warnings.push('Fullwidth characters detected: potential spoofing attempt');
     }
 
-    if (CHARACTER_PATTERNS.cyrillic.test(input)) {
+    if (testRegex(CHARACTER_PATTERNS.cyrillic, input)) {
       metadata.characterTypes.push('cyrillic');
       warnings.push('Cyrillic homographs detected: characters visually similar to Latin');
     }
 
-    if (CHARACTER_PATTERNS.greek.test(input)) {
+    if (testRegex(CHARACTER_PATTERNS.greek, input)) {
       metadata.characterTypes.push('greek');
       warnings.push('Greek homographs detected: potential visual spoofing');
     }
 
-    if (CHARACTER_PATTERNS.mathematical.test(input)) {
+    if (testRegex(CHARACTER_PATTERNS.mathematical, input)) {
       metadata.characterTypes.push('mathematical');
       warnings.push('Mathematical alphanumeric symbols detected: Unicode lookalikes');
     }

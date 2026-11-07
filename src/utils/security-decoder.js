@@ -11,6 +11,7 @@
  */
 
 const unorm = require('unorm');
+const { testRegex } = require('./redos-safe-patterns');
 
 // Homograph mapping for common attack vectors
 // Maps confusable Unicode characters to their ASCII equivalents
@@ -349,7 +350,7 @@ function hasEncoding (input) {
     /\\/ // Backslash (potential path separator)
   ];
 
-  return encodingPatterns.some(pattern => pattern.test(input));
+  return encodingPatterns.some(pattern => testRegex(pattern, input));
 }
 
 // Timing attack prevention functions removed - not applicable for middleware sanitization

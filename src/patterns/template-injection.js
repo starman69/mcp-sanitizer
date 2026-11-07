@@ -9,7 +9,7 @@
  * and common attack patterns across different template engines.
  */
 
-const { safeBatchTest } = require('../utils/redos-safe-patterns');
+const { safeBatchTest, testRegex } = require('../utils/redos-safe-patterns');
 
 const SEVERITY_LEVELS = {
   CRITICAL: 'critical',
@@ -363,7 +363,7 @@ function checkSSTIPayloadPatterns (input) {
   const detected = [];
 
   for (const pattern of SSTI_PAYLOAD_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`ssti_payload:${pattern.source}`);
     }
   }
@@ -382,7 +382,7 @@ function checkExpressionLanguagePatterns (input) {
   const detected = [];
 
   for (const pattern of EXPRESSION_LANGUAGE_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`expression_language:${pattern.source}`);
     }
   }
@@ -401,7 +401,7 @@ function checkCodeExecutionPatterns (input) {
   const detected = [];
 
   for (const pattern of CODE_EXECUTION_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`code_execution:${pattern.source}`);
     }
   }

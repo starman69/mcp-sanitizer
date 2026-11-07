@@ -30,6 +30,7 @@ const { assertNotSensitivePath } = require('../../utils/validation-utils');
 const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
 const sanitizeFilename = require('sanitize-filename');
 const pathIsInside = require('path-is-inside');
+const { testRegex } = require('../../utils/redos-safe-patterns');
 // const { securityDecode } = require('../../utils/security-decoder') // Unused
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified } = require('../../utils/unified-parser');
@@ -372,7 +373,7 @@ class FilePathValidator {
     ];
 
     for (const pattern of traversalPatterns) {
-      if (pattern.test(filePath)) {
+      if (testRegex(pattern, filePath)) {
         result.isValid = false;
         result.warnings.push(`Directory traversal pattern detected: ${pattern.source}`);
       }

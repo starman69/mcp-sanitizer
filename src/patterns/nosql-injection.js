@@ -15,6 +15,8 @@
  * attack patterns from security research.
  */
 
+const { testRegex } = require('../utils/redos-safe-patterns');
+
 /**
  * Severity levels for NoSQL injection patterns
  */
@@ -412,7 +414,7 @@ class NoSQLValidator {
    */
   _detectJavaScriptInjection (input, result) {
     for (const pattern of JAVASCRIPT_INJECTION_PATTERNS) {
-      if (pattern.test(input)) {
+      if (testRegex(pattern, input)) {
         result.patterns.push(`javascript_injection:${pattern.source}`);
         result.vulnerabilities.push({
           type: 'javascript_injection',
@@ -463,7 +465,7 @@ class NoSQLValidator {
    */
   _detectCassandraInjection (input, result) {
     for (const pattern of CASSANDRA_PATTERNS) {
-      if (pattern.test(input)) {
+      if (testRegex(pattern, input)) {
         result.patterns.push(`cassandra_cql:${pattern.source}`);
         result.vulnerabilities.push({
           type: 'cassandra_cql_injection',
@@ -509,7 +511,7 @@ class NoSQLValidator {
     ];
 
     for (const pattern of booleanInjectionPatterns) {
-      if (pattern.test(input)) {
+      if (testRegex(pattern, input)) {
         result.patterns.push(`boolean_injection:${pattern.source}`);
         result.vulnerabilities.push({
           type: 'boolean_injection',
@@ -531,7 +533,7 @@ class NoSQLValidator {
     ];
 
     for (const pattern of ssjsPatterns) {
-      if (pattern.test(input)) {
+      if (testRegex(pattern, input)) {
         result.patterns.push(`ssjs_injection:${pattern.source}`);
         result.vulnerabilities.push({
           type: 'server_side_js_injection',
@@ -558,7 +560,7 @@ class NoSQLValidator {
 
     const risks = [];
     for (const { pattern, risk } of dangerousPatterns) {
-      if (pattern.test(code)) {
+      if (testRegex(pattern, code)) {
         risks.push(risk);
       }
     }
@@ -589,7 +591,7 @@ class NoSQLValidator {
       /\([^)]*\+[^)]*\+[^)]*\)/ // Complex nested quantifiers
     ];
 
-    return redosPatterns.some(pattern => pattern.test(regex));
+    return redosPatterns.some(pattern => testRegex(pattern, regex));
   }
 
   /**

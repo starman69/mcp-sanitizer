@@ -12,6 +12,7 @@ const path = require('path');
 const net = require('net');
 const dns = require('dns');
 const { URL } = require('url');
+const { testRegex } = require('./redos-safe-patterns');
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified } = require('./unified-parser');
 
@@ -600,7 +601,7 @@ function validateCommand (command) {
         ];
 
         for (const pattern of dangerousCommands) {
-          if (pattern.test(token.trim())) {
+          if (testRegex(pattern, token.trim())) {
             throw new Error(`Dangerous command detected: ${token}`);
           }
         }

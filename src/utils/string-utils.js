@@ -6,6 +6,7 @@
  */
 
 const escapeHtml = require('escape-html');
+const { testRegex } = require('./redos-safe-patterns');
 
 /**
  * HTML encode a string to prevent XSS attacks
@@ -74,7 +75,7 @@ function findBlockedPattern (str, patterns) {
       throw new Error('All patterns must be RegExp objects');
     }
 
-    if (pattern.test(str)) {
+    if (testRegex(pattern, str)) {
       return pattern;
     }
   }
@@ -95,7 +96,7 @@ function validateAgainstBlockedPatterns (str, patterns, context = {}) {
     if (context.type === 'sql' && str.includes('$$')) {
       // Check if it's actually PostgreSQL dollar quoting
       const dollarQuotePattern = /\$\$.*?\$\$/;
-      if (dollarQuotePattern.test(str)) {
+      if (testRegex(dollarQuotePattern, str)) {
         throw new Error('PostgreSQL dollar quoting detected');
       }
     }
@@ -129,7 +130,7 @@ function findSQLKeyword (str, keywords) {
     // Handle pattern keywords like 'SELECT.*FROM'
     if (keyword.includes('.*')) {
       const pattern = new RegExp(keyword, 'i');
-      if (pattern.test(str)) {
+      if (testRegex(pattern, str)) {
         return keyword;
       }
     } else {
@@ -235,7 +236,7 @@ function containsOnlySafeChars (str, allowedCharsPattern = /^[a-zA-Z0-9\s\-_.,!?
     throw new Error('Allowed characters pattern must be a RegExp');
   }
 
-  return allowedCharsPattern.test(str);
+  return testRegex(allowedCharsPattern, str);
 }
 
 // Import security enhancements

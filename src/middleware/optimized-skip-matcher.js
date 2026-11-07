@@ -8,6 +8,8 @@
  * vulnerabilities before compilation and execution.
  */
 
+const { testRegex } = require('../utils/redos-safe-patterns');
+
 // ReDoS protection removed - basic regex validation is sufficient
 
 class OptimizedSkipMatcher {
@@ -109,7 +111,7 @@ class OptimizedSkipMatcher {
    */
   _safeRegexTest (path) {
     for (const pattern of this.regexPatterns) {
-      if (pattern.regex.test(path)) {
+      if (testRegex(pattern.regex, path)) {
         return true;
       }
     }

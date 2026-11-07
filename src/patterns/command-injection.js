@@ -8,6 +8,8 @@
  * and common command injection vectors.
  */
 
+const { testRegex } = require('../utils/redos-safe-patterns');
+
 const SEVERITY_LEVELS = {
   CRITICAL: 'critical',
   HIGH: 'high',
@@ -165,7 +167,7 @@ function checkShellMetacharacters (input) {
   const detected = [];
 
   for (const pattern of SHELL_METACHARACTERS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`shell_metacharacter:${pattern.source}`);
     }
   }
@@ -184,7 +186,7 @@ function checkDangerousCommands (input) {
   const detected = [];
 
   for (const pattern of DANGEROUS_COMMANDS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`dangerous_command:${pattern.source}`);
     }
   }
@@ -204,7 +206,7 @@ function checkShellSpecificPatterns (input) {
 
   for (const [shell, patterns] of Object.entries(SHELL_SPECIFIC_PATTERNS)) {
     for (const pattern of patterns) {
-      if (pattern.test(input)) {
+      if (testRegex(pattern, input)) {
         detected.push(`${shell}_specific:${pattern.source}`);
       }
     }
@@ -224,7 +226,7 @@ function checkEncodedPatterns (input) {
   const detected = [];
 
   for (const pattern of ENCODED_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`encoded_pattern:${pattern.source}`);
     }
   }
@@ -243,7 +245,7 @@ function checkTimeBasedPatterns (input) {
   const detected = [];
 
   for (const pattern of TIME_BASED_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`time_based:${pattern.source}`);
     }
   }

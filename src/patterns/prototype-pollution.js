@@ -8,7 +8,7 @@
  * OWASP guidelines, and common attack vectors in JavaScript applications.
  */
 
-const { safeBatchTest } = require('../utils/redos-safe-patterns');
+const { safeBatchTest, testRegex } = require('../utils/redos-safe-patterns');
 
 const SEVERITY_LEVELS = {
   CRITICAL: 'critical',
@@ -307,7 +307,7 @@ function checkJSONPollutionPatterns (input) {
   const detected = [];
 
   for (const pattern of JSON_POLLUTION_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`json_pollution:${pattern.source}`);
     }
   }
@@ -326,7 +326,7 @@ function checkLodashPollutionPatterns (input) {
   const detected = [];
 
   for (const pattern of LODASH_POLLUTION_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`lodash_pollution:${pattern.source}`);
     }
   }
@@ -345,7 +345,7 @@ function checkExpressPollutionPatterns (input) {
   const detected = [];
 
   for (const pattern of EXPRESS_POLLUTION_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`express_pollution:${pattern.source}`);
     }
   }
@@ -365,7 +365,7 @@ function checkEncodingBypassPatterns (input) {
 
   for (const pattern of ENCODING_BYPASS_PATTERNS) {
     pattern.lastIndex = 0;
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`encoding_bypass:${pattern.source}`);
     }
   }
