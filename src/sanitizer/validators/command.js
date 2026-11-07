@@ -105,7 +105,7 @@ const INJECTION_PATTERNS = [
   />\s*&\s*\d+|<\s*&\s*\d+/, // File descriptor redirection
   /\\\w+/, // Escape sequences
   /\${[^}]{0,200}}/, // Variable expansion (bounded)
-  /\s+-[^-\s]*e[^-\s]*\s+/, // Execute flags in various commands
+  /\s-(?=[^-\s]*e)[^-\s]*\s/, // Execute flags in various commands
   // Sensitive file access patterns
   /\/etc\/(passwd|shadow|sudoers|hosts)/i, // Unix sensitive files
   /\/proc\//i, // Process information
@@ -335,13 +335,13 @@ class CommandValidator {
       }
 
       // Remove redirection
-      sanitized = sanitized.replace(/\s*[<>]+\s*[^\s]*/g, '');
+      sanitized = sanitized.replace(/(?<!\s)\s*[<>]+\s*[^\s]*/g, ''); // start at a whitespace-run boundary (ReDoS)
       if (sanitized !== command.trim()) {
         warnings.push('Removed redirection operators');
       }
 
       // Remove background execution
-      sanitized = sanitized.replace(/\s*&\s*$/, '');
+      sanitized = sanitized.replace(/(?<!\s)\s*&\s*$/, '');
 
       // Limit argument count
       const parts = sanitized.split(/\s+/);

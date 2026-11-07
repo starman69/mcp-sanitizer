@@ -88,7 +88,7 @@ const DEFAULT_CONFIG = {
  * SQL injection patterns specific to this validator
  */
 const SQL_INJECTION_PATTERNS = [
-  /('|(\\))|(\s*(or|and)\s+[\w\s]*[=<>]+)/i, // Basic SQL injection
+  /'|\\|(?:or|and)\s[\w\s]*[=<>]/i, // Basic SQL injection (no overlapping quantifiers)
   /union\s+select/i, // Union-based injection
   /;\s*(drop|delete|update|insert)/i, // Stacked queries
   /\/\*(?:[^*]|\*(?!\/))*\*\//g, // Block comments (optimized - no backtracking)

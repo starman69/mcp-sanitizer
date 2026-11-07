@@ -9,7 +9,7 @@
  * and common attack patterns across different template engines.
  */
 
-const { safeBatchTest, testRegex } = require('../utils/redos-safe-patterns');
+const { safePatternTest, testRegex, MAX_SAFE_INPUT_LENGTH } = require('../utils/redos-safe-patterns');
 
 const SEVERITY_LEVELS = {
   CRITICAL: 'critical',
@@ -19,13 +19,55 @@ const SEVERITY_LEVELS = {
 };
 
 /**
+ * Linear matcher equivalent to /A.*?B.*?C/ (literal parts in order on one line).
+ * Replaces backtracking regexes flagged as polynomial ReDoS.
+ * @param {string[]} parts - Literal fragments, in order
+ * @param {string} [flags] - 'i' for case-insensitive
+ * @param {string} [joiner] - Gap shown in `source` ('.*?' or '.*')
+ */
+function seq (parts, flags = 'g', joiner = '.*?') {
+  const fold = flags.includes('i');
+  const needles = fold ? parts.map(part => part.toLowerCase()) : parts;
+  return {
+    source: parts.map(part => part.replace(/[\\^$.*+?()[\]{}|/]/g, '\\$&')).join(joiner),
+    flags,
+    test (input) {
+      const text = fold ? input.toLowerCase() : input;
+      return text.split(/[\n\r\u2028\u2029]/).some(line => {
+        let pos = 0;
+        for (const needle of needles) {
+          const at = line.indexOf(needle, pos);
+          if (at === -1) return false;
+          pos = at + needle.length;
+        }
+        return true;
+      });
+    }
+  };
+}
+
+/** Test a RegExp or seq() matcher with the same limits as safePatternTest. */
+function matchesPattern (pattern, input) {
+  if (pattern instanceof RegExp) {
+    try {
+      return safePatternTest(pattern, input);
+    } catch (e) {
+      return false;
+    }
+  }
+  return input.length <= MAX_SAFE_INPUT_LENGTH && pattern.test(input);
+}
+
+const toRegExp = pattern => (pattern instanceof RegExp ? pattern : new RegExp(pattern.source, pattern.flags));
+
+/**
  * Generic template injection patterns
  * Using atomic patterns to prevent ReDoS - detect opening only
  */
 const GENERIC_TEMPLATE_PATTERNS = [
   // JavaScript template literals - detect opening only
   /\$\{/, // Template literal start
-  /`.*\$\{/, // Backtick with template
+  seq(['`', '${'], '', '.*'), // Backtick with template
 
   // Common template delimiters - detect opening only
   /\{\{/, // Handlebars, Angular, Vue start
@@ -47,64 +89,64 @@ const GENERIC_TEMPLATE_PATTERNS = [
 const TEMPLATE_ENGINE_PATTERNS = {
   jinja2: [
     // Jinja2 specific syntax
-    /\{\{.*?config.*?\}\}/gi,
-    /\{\{.*?request.*?\}\}/gi,
-    /\{\{.*?self.*?\}\}/gi,
-    /\{\{.*?\.__class__.*?\}\}/gi,
-    /\{\{.*?\.__bases__.*?\}\}/gi,
-    /\{\{.*?\.__subclasses__.*?\}\}/gi,
-    /\{\{.*?\.__globals__.*?\}\}/gi,
-    /\{\{.*?\.__builtins__.*?\}\}/gi,
-    /\{\{.*?\.__import__.*?\}\}/gi,
-    /\{%.*?import.*?%\}/gi,
-    /\{%.*?from.*?import.*?%\}/gi,
-    /\{\{.*?lipsum.*?\}\}/gi, // Jinja2 lipsum function
-    /\{\{.*?cycler.*?\}\}/gi, // Jinja2 cycler function
-    /\{\{.*?joiner.*?\}\}/gi // Jinja2 joiner function
+    seq(['{{', 'config', '}}'], 'gi'),
+    seq(['{{', 'request', '}}'], 'gi'),
+    seq(['{{', 'self', '}}'], 'gi'),
+    seq(['{{', '.__class__', '}}'], 'gi'),
+    seq(['{{', '.__bases__', '}}'], 'gi'),
+    seq(['{{', '.__subclasses__', '}}'], 'gi'),
+    seq(['{{', '.__globals__', '}}'], 'gi'),
+    seq(['{{', '.__builtins__', '}}'], 'gi'),
+    seq(['{{', '.__import__', '}}'], 'gi'),
+    seq(['{%', 'import', '%}'], 'gi'),
+    seq(['{%', 'from', 'import', '%}'], 'gi'),
+    seq(['{{', 'lipsum', '}}'], 'gi'), // Jinja2 lipsum function
+    seq(['{{', 'cycler', '}}'], 'gi'), // Jinja2 cycler function
+    seq(['{{', 'joiner', '}}'], 'gi') // Jinja2 joiner function
   ],
 
   django: [
     // Django specific syntax
-    /\{%.*?load.*?%\}/gi,
-    /\{%.*?include.*?%\}/gi,
-    /\{%.*?extends.*?%\}/gi,
-    /\{\{.*?block.*?\}\}/gi,
-    /\{%.*?block.*?%\}/gi,
-    /\{\{.*?forloop.*?\}\}/gi,
-    /\{\{.*?request\..*?\}\}/gi
+    seq(['{%', 'load', '%}'], 'gi'),
+    seq(['{%', 'include', '%}'], 'gi'),
+    seq(['{%', 'extends', '%}'], 'gi'),
+    seq(['{{', 'block', '}}'], 'gi'),
+    seq(['{%', 'block', '%}'], 'gi'),
+    seq(['{{', 'forloop', '}}'], 'gi'),
+    seq(['{{', 'request.', '}}'], 'gi')
   ],
 
   twig: [
     // Twig specific syntax
-    /\{\{.*?_self.*?\}\}/gi,
-    /\{\{.*?attribute.*?\}\}/gi,
-    /\{\{.*?template_from_string.*?\}\}/gi,
-    /\{%.*?sandbox.*?%\}/gi,
-    /\{%.*?autoescape.*?%\}/gi,
-    /\{\{.*?constant.*?\}\}/gi
+    seq(['{{', '_self', '}}'], 'gi'),
+    seq(['{{', 'attribute', '}}'], 'gi'),
+    seq(['{{', 'template_from_string', '}}'], 'gi'),
+    seq(['{%', 'sandbox', '%}'], 'gi'),
+    seq(['{%', 'autoescape', '%}'], 'gi'),
+    seq(['{{', 'constant', '}}'], 'gi')
   ],
 
   smarty: [
     // Smarty specific syntax
-    /\{php\}.*?\{\/php\}/gi,
-    /\{\$.*?\}/g,
-    /\{literal\}.*?\{\/literal\}/gi,
-    /\{eval.*?\}/gi,
-    /\{include.*?\}/gi,
-    /\{config_load.*?\}/gi
+    seq(['{php}', '{/php}'], 'gi'),
+    seq(['{$', '}'], 'g'),
+    seq(['{literal}', '{/literal}'], 'gi'),
+    seq(['{eval', '}'], 'gi'),
+    seq(['{include', '}'], 'gi'),
+    seq(['{config_load', '}'], 'gi')
   ],
 
   freemarker: [
     // FreeMarker specific syntax
-    /<#.*?>/g,
-    /<@.*?>/g,
-    /\$\{.*?\?.*?\}/g, // FreeMarker built-ins
-    /<#assign.*?>/gi,
-    /<#global.*?>/gi,
-    /<#import.*?>/gi,
-    /<#include.*?>/gi,
-    /\$\{.*?\.class.*?\}/gi,
-    /\$\{.*?\.getClass.*?\}/gi
+    seq(['<#', '>'], 'g'),
+    seq(['<@', '>'], 'g'),
+    seq(['${', '?', '}'], 'g'), // FreeMarker built-ins
+    seq(['<#assign', '>'], 'gi'),
+    seq(['<#global', '>'], 'gi'),
+    seq(['<#import', '>'], 'gi'),
+    seq(['<#include', '>'], 'gi'),
+    seq(['${', '.class', '}'], 'gi'),
+    seq(['${', '.getClass', '}'], 'gi')
   ],
 
   velocity: [
@@ -116,30 +158,30 @@ const TEMPLATE_ENGINE_PATTERNS = {
     /#parse\s*\(/gi,
     /#include\s*\(/gi,
     /#evaluate\s*\(/gi,
-    /\$\{.*?\.class.*?\}/gi,
-    /\$\{.*?\.getClass.*?\}/gi
+    seq(['${', '.class', '}'], 'gi'),
+    seq(['${', '.getClass', '}'], 'gi')
   ],
 
   thymeleaf: [
     // Thymeleaf specific syntax
     /th:[a-z]+\s*=/gi,
-    /\[\[.*?\]\]/g,
-    /\(\(.*?\)\)/g,
-    /@\{.*?\}/g,
-    /\$\{.*?\}/g,
-    /\*\{.*?\}/g,
-    /#\{.*?\}/g
+    seq(['[[', ']]'], 'g'),
+    seq(['((', '))'], 'g'),
+    seq(['@{', '}'], 'g'),
+    seq(['${', '}'], 'g'),
+    seq(['*{', '}'], 'g'),
+    seq(['#{', '}'], 'g')
   ],
 
   handlebars: [
     // Handlebars specific syntax
-    /\{\{\{.*?\}\}\}/g, // Triple braces (unescaped)
-    /\{\{#.*?\}\}/g, // Block helpers
-    /\{\{\/.*?\}\}/g, // Closing block helpers
-    /\{\{>.*?\}\}/g, // Partials
-    /\{\{!.*?\}\}/g, // Comments
-    /\{\{@.*?\}\}/g, // Data variables
-    /\{\{.*?\.\.\/.*?\}\}/g // Parent context
+    seq(['{{{', '}}}'], 'g'), // Triple braces (unescaped)
+    seq(['{{#', '}}'], 'g'), // Block helpers
+    seq(['{{/', '}}'], 'g'), // Closing block helpers
+    seq(['{{>', '}}'], 'g'), // Partials
+    seq(['{{!', '}}'], 'g'), // Comments
+    seq(['{{@', '}}'], 'g'), // Data variables
+    seq(['{{', '../', '}}'], 'g') // Parent context
   ]
 };
 
@@ -312,18 +354,16 @@ function detectTemplateInjection (input, options = {}) {
 
 /**
  * Check for generic template patterns
- * Uses safeBatchTest to prevent ReDoS attacks
+ * Literal patterns use linear seq() matchers; others go through safePatternTest
  */
 function checkGenericTemplatePatterns (input) {
   const detected = [];
 
-  // Use safeBatchTest to prevent ReDoS - enforces 10ms timeout per pattern
-  const results = safeBatchTest(GENERIC_TEMPLATE_PATTERNS, input, 100);
-
-  // Add matched patterns to detected list (safeBatchTest returns actual patterns, not indices)
-  results.matched.forEach(pattern => {
-    detected.push(`generic_template:${pattern.source}`);
-  });
+  for (const pattern of GENERIC_TEMPLATE_PATTERNS) {
+    if (matchesPattern(pattern, input)) {
+      detected.push(`generic_template:${pattern.source}`);
+    }
+  }
 
   return {
     detected: detected.length > 0,
@@ -334,19 +374,17 @@ function checkGenericTemplatePatterns (input) {
 
 /**
  * Check for template engine specific patterns
- * Uses safeBatchTest to prevent ReDoS attacks
+ * Literal patterns use linear seq() matchers; others go through safePatternTest
  */
 function checkTemplateEnginePatterns (input) {
   const detected = [];
 
   for (const [engine, patterns] of Object.entries(TEMPLATE_ENGINE_PATTERNS)) {
-    // Use safeBatchTest with timeout to prevent ReDoS
-    const results = safeBatchTest(patterns, input, 100);
-
-    // Add matched patterns to detected list (safeBatchTest returns actual patterns, not indices)
-    results.matched.forEach(pattern => {
-      detected.push(`${engine}_template:${pattern.source}`);
-    });
+    for (const pattern of patterns) {
+      if (matchesPattern(pattern, input)) {
+        detected.push(`${engine}_template:${pattern.source}`);
+      }
+    }
   }
 
   return {
@@ -454,9 +492,11 @@ module.exports = {
   checkExpressionLanguagePatterns,
   checkCodeExecutionPatterns,
 
-  // Pattern exports for reuse
-  GENERIC_TEMPLATE_PATTERNS,
-  TEMPLATE_ENGINE_PATTERNS,
+  // Pattern exports for reuse (as RegExp, unchanged API)
+  GENERIC_TEMPLATE_PATTERNS: GENERIC_TEMPLATE_PATTERNS.map(toRegExp),
+  TEMPLATE_ENGINE_PATTERNS: Object.fromEntries(
+    Object.entries(TEMPLATE_ENGINE_PATTERNS).map(([engine, patterns]) => [engine, patterns.map(toRegExp)])
+  ),
   SSTI_PAYLOAD_PATTERNS,
   EXPRESSION_LANGUAGE_PATTERNS,
   CODE_EXECUTION_PATTERNS,
