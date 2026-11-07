@@ -108,12 +108,12 @@ Specialized method for sanitizing file paths.
 **Parameters:**
 - `filePath`: String representing a file path
 
-**Returns:** Same as `sanitize()` method
+**Returns:** `Promise<string>` with the sanitized value. Rejects if the input is not allowed.
 
 **Example:**
 ```javascript
-const result = sanitizer.sanitizeFilePath('../../../etc/passwd');
-// { blocked: true, warnings: ['Directory traversal detected'], sanitized: null }
+await sanitizer.sanitizeFilePath('../../../etc/passwd');
+// rejects: Error with the validator warnings
 ```
 
 ##### `sanitizeURL(url)`
@@ -123,12 +123,12 @@ Specialized method for sanitizing URLs.
 **Parameters:**
 - `url`: String representing a URL
 
-**Returns:** Same as `sanitize()` method
+**Returns:** `Promise<string>` with the sanitized value. Rejects if the input is not allowed.
 
 **Example:**
 ```javascript
-const result = sanitizer.sanitizeURL('javascript:alert(1)');
-// { blocked: true, warnings: ['Dangerous protocol'], sanitized: null }
+await sanitizer.sanitizeURL('javascript:alert(1)');
+// rejects: Error with the validator warnings
 ```
 
 ##### `sanitizeCommand(command)`
@@ -138,12 +138,12 @@ Specialized method for sanitizing shell commands.
 **Parameters:**
 - `command`: String representing a shell command
 
-**Returns:** Same as `sanitize()` method
+**Returns:** `Promise<string>` with the sanitized value. Rejects if the input is not allowed.
 
 **Example:**
 ```javascript
-const result = sanitizer.sanitizeCommand('ls; rm -rf /');
-// { blocked: true, warnings: ['Command injection detected'], sanitized: null }
+await sanitizer.sanitizeCommand('ls; rm -rf /');
+// rejects: Error with the validator warnings
 ```
 
 ##### `sanitizeSQL(query)`
@@ -153,13 +153,16 @@ Specialized method for sanitizing SQL queries.
 **Parameters:**
 - `query`: String representing a SQL query
 
-**Returns:** Same as `sanitize()` method
+**Returns:** `Promise<string>` with the sanitized value. Rejects if the input is not allowed.
 
 **Example:**
 ```javascript
-const result = sanitizer.sanitizeSQL("SELECT * FROM users WHERE id = '1' OR '1'='1'");
-// { blocked: true, warnings: ['SQL injection pattern detected'], sanitized: null }
+await sanitizer.sanitizeSQL("SELECT * FROM users WHERE id = '1' OR '1'='1'");
+// rejects: Error with the validator warnings
 ```
+
+These methods use the modular validators. A rejection is final; the legacy
+checks run only if a validator fails internally.
 
 ##### `getConfigSummary()`
 
@@ -406,6 +409,14 @@ Validates and sanitizes file paths.
 new FilePathValidator(config?)
 ```
 
+Confinement config (also read from `contextSettings.filePath` by `MCPSanitizer`):
+
+| Option | Effect |
+|---|---|
+| `allowAbsolutePaths` | Allow absolute paths (default `false`) |
+| `allowedDirectories` | When non-empty, accept only paths inside these directories; `'*'` allows any |
+| `blockedDirectories` | Reject paths inside these directories; `'*'` rejects any path with a directory part |
+
 #### Methods
 
 ##### `validate(filePath, options?)`
@@ -542,7 +553,9 @@ Create Express.js middleware.
 {
   policy?: string;
   mode?: 'sanitize' | 'block';
-  skipPaths?: string[];
+  skipPaths?: (string | RegExp)[]; // '/api' skips /api and /api/*, not /apiv2
+  skipHealthChecks?: boolean;      // default true
+  skipStaticFiles?: boolean;       // default false; only GET/HEAD without a query string
   customSanitizer?: MCPSanitizer;
   logLevel?: 'none' | 'warn' | 'info' | 'debug';
 }
