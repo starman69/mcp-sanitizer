@@ -92,12 +92,36 @@ describe('middleware/express.js', () => {
 
     it('should skip static file paths', (done) => {
       const mw = createExpressMiddleware({ skipStaticFiles: true, logWarnings: false });
-      const req = mockReq({ path: '/assets/style.css' });
+      const req = mockReq({ path: '/assets/style.css', method: 'GET' });
       const res = mockRes();
       mw(req, res, () => {
         expect(req.sanitizationResults).toBeUndefined();
         done();
       });
+    });
+
+    it('passes a cache-busted static request (sanitized, not skipped)', () => {
+      const mw = createExpressMiddleware({ skipStaticFiles: true, mode: 'block', logWarnings: false });
+      const req = mockReq({ path: '/assets/app.js', method: 'GET', query: { v: '1a2b3c' } });
+      const next = jest.fn();
+      mw(req, mockRes(), next);
+      expect(next).toHaveBeenCalled();
+      expect(req.query.v).toBe('1a2b3c');
+    });
+
+    // GHSA-3vch-r42j-xc2g: a static-looking path must not skip requests with input
+    test.each([
+      [{ skipStaticFiles: true }, { method: 'POST' }],
+      [{ skipStaticFiles: true }, { method: 'GET', body: {}, query: { q: '; rm -rf /' } }],
+      [{}, { method: 'GET', body: {}, query: { q: '; rm -rf /' } }]
+    ])('sanitizes static-looking path with options %j and request %j', (options, overrides) => {
+      const mw = createExpressMiddleware({ ...options, mode: 'block', logWarnings: false });
+      const req = mockReq({ path: '/api/users/a.js', body: { cmd: 'ls; rm -rf /' }, ...overrides });
+      const res = mockRes();
+      const next = jest.fn();
+      mw(req, res, next);
+      expect(res._status).toBe(400);
+      expect(next).not.toHaveBeenCalled();
     });
 
     it('should skip custom skipPaths (string)', (done) => {

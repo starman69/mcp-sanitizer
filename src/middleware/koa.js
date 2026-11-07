@@ -70,7 +70,7 @@ const DEFAULT_CONFIG = {
 
   // Performance options
   skipHealthChecks: true,
-  skipStaticFiles: true,
+  skipStaticFiles: false, // GHSA-3vch-r42j-xc2g: opt-in; skips only GET/HEAD without a query
   skipPaths: [], // Array of paths (strings or RegExp) to skip sanitization
 
   // Sanitizer configuration
@@ -166,7 +166,8 @@ function shouldSkipRequestOptimized (ctx, skipMatcher, healthPaths, staticExtens
   }
 
   // Priority 3: Skip static file requests - O(1) extension lookup
-  if (staticExtensions) {
+  // GHSA-3vch-r42j-xc2g FIX: never for requests that carry input
+  if (staticExtensions && isPlainStaticRequest(ctx)) {
     const lastDotIndex = ctx.path.lastIndexOf('.');
     if (lastDotIndex !== -1) {
       const extension = ctx.path.substring(lastDotIndex);
@@ -177,6 +178,12 @@ function shouldSkipRequestOptimized (ctx, skipMatcher, healthPaths, staticExtens
   }
 
   return false;
+}
+
+/** GET/HEAD request with no query parameters. */
+function isPlainStaticRequest (ctx) {
+  const method = String(ctx.method || '').toUpperCase();
+  return (method === 'GET' || method === 'HEAD') && Object.keys(ctx.query || {}).length === 0;
 }
 
 // Helper functions removed - functionality moved to optimized shouldSkipRequestOptimized function

@@ -68,7 +68,7 @@ const UNIFIED_CONFIG = {
   // Performance options
   async: true, // Prefer async where supported
   skipHealthChecks: true,
-  skipStaticFiles: true,
+  skipStaticFiles: false,
   skipPaths: [], // Array of paths (strings or RegExp) to skip sanitization
 
   // Error handling
