@@ -485,9 +485,19 @@ class NoSQLValidator {
   _detectOperatorsInString (input, result) {
     // Check for MongoDB operators in string format
     const operatorPattern = /\$(?:where|regex|gt|gte|lt|lte|ne|eq|in|nin|exists|type|mod|text|search|or|and|not|nor|elemMatch|size|all|expr|jsonSchema)/gi;
-    const matches = input.match(operatorPattern);
+    // CVE-TBD-009 FIX (GHSA-fqrp-x74j-x4r8): code-execution, write and cross-collection
+    // operators, matched on a word boundary so ordinary words like "$outstanding" pass
+    const dangerousOperatorPattern = /\$(?:function|accumulator|merge|out|lookup|graphLookup|unionWith)(?![\w$])/gi;
+    // Any $-prefixed identifier in key position ("$x":, '$x':, $x:) is an operator,
+    // whether or not it is on a known list
+    const operatorKeyPattern = /(?:^|[\s{[,(])["']?(\$[A-Za-z_]\w{0,63})["']?\s{0,16}:/g;
+    const matches = [
+      ...(input.match(operatorPattern) || []),
+      ...(input.match(dangerousOperatorPattern) || []),
+      ...Array.from(input.matchAll(operatorKeyPattern), m => m[1])
+    ].filter((match, index, all) => all.indexOf(match) === index);
 
-    if (matches) {
+    if (matches.length > 0) {
       for (const match of matches) {
         result.patterns.push(`string_operator:${match}`);
         result.vulnerabilities.push({
@@ -641,8 +651,9 @@ class NoSQLValidator {
    * @private
    */
   _getOperatorSeverity (operator) {
-    const criticalOps = ['$where', '$expr', '$function'];
-    const highOps = ['$regex', '$ne', '$gt', '$gte', '$exists'];
+    const criticalOps = ['$where', '$expr', '$function', '$accumulator'];
+    const highOps = ['$regex', '$ne', '$gt', '$gte', '$exists',
+      '$merge', '$out', '$lookup', '$graphLookup', '$unionWith'];
 
     if (criticalOps.includes(operator)) {
       return SEVERITY_LEVELS.CRITICAL;

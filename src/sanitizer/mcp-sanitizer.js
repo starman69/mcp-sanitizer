@@ -749,19 +749,22 @@ class MCPSanitizer {
     // Import NoSQL injection detection
     const { detectNoSQLInjection } = require('../patterns/nosql-injection');
 
-    // Try to parse as JSON if it looks like JSON
-    let queryToCheck = query;
-    if ((query.trim().startsWith('{') && query.trim().endsWith('}')) ||
-        (query.trim().startsWith('[') && query.trim().endsWith(']'))) {
-      try {
-        queryToCheck = JSON.parse(query);
-      } catch (e) {
-        // If JSON parsing fails, check as string
-      }
+    // CVE-TBD-009 FIX (GHSA-fqrp-x74j-x4r8): a strict startsWith/endsWith gate let any
+    // trailing text skip the object-key check. Parse the whole string when it is JSON;
+    // otherwise run the string check AND parse any embedded {...} / [...] span, since
+    // a lenient consumer parser (JSON5, shell, eval) can still materialize its keys.
+    const checks = [];
+    const parsedWhole = this._tryParseJSON(query.trim());
+    if (parsedWhole.ok) {
+      checks.push(parsedWhole.value);
+    } else {
+      checks.push(query);
+      const embedded = this._tryParseEmbeddedJSON(query);
+      if (embedded.ok) checks.push(embedded.value);
     }
 
     // Check for NoSQL injection patterns
-    const nosqlCheck = detectNoSQLInjection(queryToCheck);
+    const nosqlCheck = checks.map(c => detectNoSQLInjection(c)).find(r => r.detected) || { detected: false };
     if (nosqlCheck.detected) {
       // Create detailed error message based on vulnerabilities found
       const vulnerabilityMessages = nosqlCheck.vulnerabilities.map(vuln => {
@@ -780,6 +783,40 @@ class MCPSanitizer {
     }
 
     return stringUtils.safeTrim(query);
+  }
+
+  /**
+   * Parse a string as JSON object/array without throwing
+   * @param {string} text - Candidate JSON text
+   * @returns {{ok: boolean, value?: *}} Parse result
+   * @private
+   */
+  _tryParseJSON (text) {
+    if (!/^[[{]/.test(text)) return { ok: false };
+    try {
+      const value = JSON.parse(text);
+      return value !== null && typeof value === 'object' ? { ok: true, value } : { ok: false };
+    } catch (e) {
+      return { ok: false };
+    }
+  }
+
+  /**
+   * Parse the outermost {...} or [...] span embedded in a string (GHSA-fqrp-x74j-x4r8)
+   * @param {string} text - Query text with possible leading/trailing content
+   * @returns {{ok: boolean, value?: *}} Parse result
+   * @private
+   */
+  _tryParseEmbeddedJSON (text) {
+    for (const [open, close] of [['{', '}'], ['[', ']']]) {
+      const start = text.indexOf(open);
+      const end = text.lastIndexOf(close);
+      if (start !== -1 && end > start) {
+        const parsed = this._tryParseJSON(text.slice(start, end + 1));
+        if (parsed.ok) return parsed;
+      }
+    }
+    return { ok: false };
   }
 
   /**
