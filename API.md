@@ -554,8 +554,8 @@ Create Express.js middleware.
   policy?: string;
   mode?: 'sanitize' | 'block';
   skipPaths?: (string | RegExp)[]; // '/api' skips /api and /api/*, not /apiv2
-  skipHealthChecks?: boolean;      // default true
-  skipStaticFiles?: boolean;       // default false; only GET/HEAD without a query string
+  skipHealthChecks?: boolean;      // default true; only GET/HEAD without query or body
+  skipStaticFiles?: boolean;       // default false; only GET/HEAD without query or body
   customSanitizer?: MCPSanitizer;
   logLevel?: 'none' | 'warn' | 'info' | 'debug';
 }
