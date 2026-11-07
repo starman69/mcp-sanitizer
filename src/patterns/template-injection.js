@@ -78,7 +78,7 @@ const GENERIC_TEMPLATE_PATTERNS = [
   /\{!/, // Mustache comments start
 
   // Expression patterns - simplified detection
-  /\{\{[^}]*[+\-*/=<>!&|]/, // Expression in braces
+  /\{\{[^}]{0,1000}[+\-*/=<>!&|]/, // Expression in braces (bounded)
   /\{%[^%]*[+\-*/=<>!&|]/, // Expression in percent
   /<%[^%]*[+\-*/=<>!&|]/ // Expression in angle percent
 ];

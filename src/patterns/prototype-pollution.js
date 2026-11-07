@@ -62,7 +62,7 @@ const POLLUTION_PATTERNS = [
   // Getter/setter manipulation
   /__defineGetter__\s*\(/g,
   /__defineSetter__\s*\(/g,
-  /Object\s*\.\s*defineProperty\s*\(\s*.*prototype/g
+  /Object\s*\.\s*defineProperty\s*\([\s\S]{0,1000}?prototype/g // bounded (ReDoS)
 ];
 
 /**
@@ -157,8 +157,8 @@ const PROPERTY_ACCESS_PATTERNS = [
   /\$\{[^}]{0,200}constructor[^}]{0,200}\}/g, // Bounded
 
   // Computed property names
-  /\[\s*['"]\w*proto\w*['"]\s*\]/gi,
-  /\[\s*['"]\w*constructor\w*['"]\s*\]/gi
+  /\[\s*['"]\w{0,100}proto\w{0,100}['"]\s*\]/gi, // bounded (ReDoS)
+  /\[\s*['"]\w{0,100}constructor\w{0,100}['"]\s*\]/gi // bounded (ReDoS)
 ];
 
 /**

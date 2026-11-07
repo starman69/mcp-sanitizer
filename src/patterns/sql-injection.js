@@ -40,7 +40,7 @@ const SQL_KEYWORDS = [
 const INJECTION_PATTERNS = [
   // Union-based attacks
   /\bUNION\s+(ALL\s+)?SELECT\b/gi,
-  /\bUNION\s+.*\bFROM\b/gi,
+  /\bUNION\s[\s\S]{0,1000}?\bFROM\b/gi, // bounded (ReDoS)
 
   // Boolean-based blind injection
   /\b(AND|OR)\s+\d+\s*[=<>!]+\s*\d+/gi,

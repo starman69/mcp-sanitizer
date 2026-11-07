@@ -616,3 +616,28 @@ describe('Rewritten validator regexes keep their behaviour', () => {
     expect(Date.now() - start).toBeLessThan(200);
   });
 });
+
+describe('Bounded detector regexes keep detecting (CodeQL alert 73)', () => {
+  const { detectPrototypePollution } = require('../src/patterns/prototype-pollution');
+  const { detectSQLInjection } = require('../src/patterns/sql-injection');
+
+  test.each(['obj["__proto__"]', "x['constructor']", 'Object.defineProperty(Object.prototype, "x", {})'])(
+    'prototype pollution: %s', (input) => {
+      expect(detectPrototypePollution(input).detected).toBe(true);
+    });
+
+  test('UNION ... FROM across lines', () => {
+    expect(detectSQLInjection('1 UNION\nSELECT password\nFROM users').detected).toBe(true);
+  });
+
+  test.each([
+    'Object.defineProperty(' + ' '.repeat(9900),
+    '["' + 'proto'.repeat(1990),
+    'UNION ' + ' '.repeat(9900)
+  ])('stays fast on pathological input %#', (input) => {
+    const start = Date.now();
+    detectPrototypePollution(input);
+    detectSQLInjection(input);
+    expect(Date.now() - start).toBeLessThan(100);
+  });
+});

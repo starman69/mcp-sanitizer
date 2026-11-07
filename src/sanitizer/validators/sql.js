@@ -88,7 +88,7 @@ const DEFAULT_CONFIG = {
  * SQL injection patterns specific to this validator
  */
 const SQL_INJECTION_PATTERNS = [
-  /'|\\|(?:or|and)\s[\w\s]*[=<>]/i, // Basic SQL injection (no overlapping quantifiers)
+  /'|\\|(?:or|and)\s[\w\s]{0,1000}[=<>]/i, // Basic SQL injection (bounded)
   /union\s+select/i, // Union-based injection
   /;\s*(drop|delete|update|insert)/i, // Stacked queries
   /\/\*(?:[^*]|\*(?!\/))*\*\//g, // Block comments (optimized - no backtracking)
@@ -640,8 +640,8 @@ class SQLValidator {
       // Check for various comment types
       const commentPatterns = [
         /\/\*(?:[^*]|\*(?!\/))*\*\//g, // Block comments (optimized - no backtracking)
-        /--.*$/gm, // SQL line comments
-        /#.*$/gm // MySQL comments
+        /--/, // SQL line comments
+        /#/ // MySQL comments
       ];
 
       // Use safeBatchTest to prevent ReDoS attacks
