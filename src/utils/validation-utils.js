@@ -252,12 +252,19 @@ const SCRATCH_DIRECTORIES = ['/tmp', '/var/tmp'];
 
 function isInsideDirectory (filePath, dir, foldCase) {
   const norm = (p) => {
-    const s = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '');
+    const s = trimTrailing(path.resolve(p).replace(/\\/g, '/'), '/');
     return foldCase ? s.toLowerCase() : s;
   };
   const target = norm(filePath);
   const base = norm(dir);
   return target === base || target.startsWith(base + '/');
+}
+
+/** Remove trailing characters in `chars` without a regex (avoids polynomial backtracking). */
+function trimTrailing (str, chars) {
+  let end = str.length;
+  while (end > 0 && chars.includes(str[end - 1])) end--;
+  return str.slice(0, end);
 }
 
 // Directory or file names that hold credentials; `.env.*` is matched separately.
@@ -279,7 +286,7 @@ const SENSITIVE_PATH_SEGMENTS = new Set([
 function assertNotSensitivePath (normalizedPath) {
   const segments = normalizedPath.toLowerCase().split(/[\\/]+/)
     // Windows ignores trailing dots/spaces and `:stream` suffixes (`.env.`, `.env::$DATA`).
-    .map(s => s.replace(/:.*$/, '').replace(/[. ]+$/, ''));
+    .map(s => trimTrailing(s.split(':')[0], '. '));
   if (segments.some(s => SENSITIVE_PATH_SEGMENTS.has(s) || /^\.env\./.test(s))) {
     throw new Error('Access to sensitive configuration path not allowed');
   }
