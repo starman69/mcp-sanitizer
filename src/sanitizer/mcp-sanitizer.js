@@ -46,7 +46,7 @@ const {
 } = require('./validators');
 
 // Import pattern detection
-const { analyzeSecurityPatterns, sqlInjection } = require('../patterns'); // detectAllPatterns unused
+const { analyzeSecurityPatterns } = require('../patterns'); // detectAllPatterns unused
 
 /**
  * MCP Sanitizer Class
@@ -702,12 +702,6 @@ class MCPSanitizer {
     );
 
     stringUtils.validateAgainstSQLKeywords(query, dangerousSQLKeywords);
-
-    // GHSA-rc4x-x73r-6v9w FIX: same detector as SQLValidator
-    const injection = sqlInjection.detectSQLInjection(query);
-    if (injection.detected) {
-      throw new Error(injection.message || 'SQL injection pattern detected');
-    }
     return stringUtils.safeTrim(query);
   }
 

@@ -98,7 +98,7 @@ describe('middleware/koa.js', () => {
   describe('skip paths', () => {
     it('should skip health check paths', async () => {
       const mw = createKoaMiddleware({ logWarnings: false, skipHealthChecks: true });
-      const ctx = mockCtx({ path: '/health' });
+      const ctx = mockCtx({ path: '/health', method: 'GET' });
       let nextCalled = false;
       await mw(ctx, async () => { nextCalled = true; });
       expect(nextCalled).toBe(true);
@@ -107,7 +107,7 @@ describe('middleware/koa.js', () => {
 
     it('should skip health sub-paths', async () => {
       const mw = createKoaMiddleware({ logWarnings: false, skipHealthChecks: true });
-      const ctx = mockCtx({ path: '/ping/detailed' });
+      const ctx = mockCtx({ path: '/ping/detailed', method: 'GET' });
       let nextCalled = false;
       await mw(ctx, async () => { nextCalled = true; });
       expect(nextCalled).toBe(true);
@@ -159,7 +159,7 @@ describe('middleware/koa.js', () => {
         skipHealthChecks: false,
         skipStaticFiles: false
       });
-      const ctx = mockCtx({ path: '/health' });
+      const ctx = mockCtx({ path: '/health', method: 'GET' });
       ctx.request.body = { x: 'safe' };
       await mw(ctx, noopNext);
       // Should process the request

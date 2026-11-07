@@ -139,6 +139,8 @@ describe('Entry-point parity (GHSA-v25x-53wq-6r99)', () => {
       'mcp://10.1/',
       'mcp://0/',
       'mcp://%31%32%37.0.0.1/',
+      'mcp://169.254.169.254%00/', // invalid host a consumer could decode
+      'mcp://2130706433%00/',
       'mcp://169.254.169.254/',
       'mcp://localhost/'
     ])('blocks %s', async (url) => {
@@ -189,6 +191,27 @@ describe('File-path policy is final at every entry point (GHSA-rc4x-x73r-6v9w)',
     });
   }
 
+  // Relative paths resolve against cwd: cwd=/ reaches anything, cwd=/etc reaches system files
+  for (const [cwd, paths] of [['/', ['opt/app/secrets.json', 'home/victim/.bash_history', 'etc/passwd']], ['/etc', ['passwd', 'shadow']]]) {
+    describe(`relative paths with cwd=${cwd}`, () => {
+      const original = process.cwd();
+      beforeAll(() => process.chdir(cwd));
+      afterAll(() => process.chdir(original));
+
+      describe.each(Object.entries(pathEntryPoints))('via %s', (_name, isBlocked) => {
+        test.each(paths)('blocks %s', async (p) => {
+          expect(await isBlocked(p)).toBe(true);
+        });
+      });
+    });
+  }
+
+  test('STRICT treats ./file.txt the same at every entry point', async () => {
+    const strict = new MCPSanitizer('STRICT');
+    expect(strict.sanitize('./file.txt', { type: 'file_path' }).blocked).toBe(false);
+    await expect(strict.sanitizeFilePath('./file.txt')).resolves.toBeDefined();
+  });
+
   test('rejection does not fall back to the legacy validator', async () => {
     const s = new MCPSanitizer();
     const legacy = jest.spyOn(s, '_legacySanitizeFilePath');
@@ -238,16 +261,20 @@ describe('filePath allowedDirectories / blockedDirectories are enforced', () => 
     });
 });
 
-describe('SQL entry points agree (GHSA-rc4x-x73r-6v9w)', () => {
-  test.each(["1' OR '1'='1", "x' OR 1=1"])('blocks %s', async (q) => {
-    expect(sanitizer.sanitize(q, { type: 'sql' }).blocked).toBe(true);
-    await expect(sanitizer.sanitizeSQL(q)).rejects.toThrow();
+describe('sanitizeSQL does not fall back after SQLValidator rejects (GHSA-rc4x-x73r-6v9w)', () => {
+  test.each(["1' OR '1'='1", "x' OR 1=1", "' OR ''='", "x'or'1'='1"])('rejects %s', async (q) => {
     expect((await new lib.SQLValidator().validate(q)).isValid).toBe(false);
+    await expect(sanitizer.sanitizeSQL(q)).rejects.toThrow();
   });
 
   test('allows a benign query', async () => {
     const q = 'SELECT name FROM users WHERE id = 1';
-    expect(sanitizer.sanitize(q, { type: 'sql' }).blocked).toBe(false);
     await expect(sanitizer.sanitizeSQL(q)).resolves.toBe(q);
   });
+
+  // sanitize(type:'sql') takes whole queries; keep 1.4.2 behaviour for these
+  test.each(['SELECT a FROM t WHERE b = 1 AND c = 2', "SELECT a FROM t WHERE status = 'a' OR status = 'b'"])(
+    'sanitize() allows %s', (q) => {
+      expect(sanitizer.sanitize(q, { type: 'sql' }).blocked).toBe(false);
+    });
 });

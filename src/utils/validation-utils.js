@@ -221,7 +221,7 @@ function assertPathConfinement (normalizedPath, config = {}) {
   const { allowAbsolutePaths, allowedDirectories = [], blockedDirectories = [] } = config;
   const insideAny = (dirs, foldCase) => dirs.some(dir => isInsideDirectory(normalizedPath, dir, foldCase));
   // '*' allows any path, or blocks any path with a directory part.
-  const hasDirectory = /[\\/]/.test(normalizedPath);
+  const hasDirectory = /[\\/]/.test(path.normalize(normalizedPath));
 
   if ((blockedDirectories.includes('*') && hasDirectory) || insideAny(blockedDirectories, true)) {
     throw new Error('Path is inside a blocked directory');
@@ -232,7 +232,23 @@ function assertPathConfinement (normalizedPath, config = {}) {
   if (allowAbsolutePaths === false && path.isAbsolute(normalizedPath) && allowedDirectories.length === 0) {
     throw new Error('Absolute paths are not allowed');
   }
+  if (!path.isAbsolute(normalizedPath)) {
+    // A relative path is only as safe as the cwd it resolves against
+    const resolved = path.resolve(normalizedPath);
+    if (SYSTEM_DIRECTORIES.some(dir => isInsideDirectory(resolved, dir, true))) {
+      throw new Error('Path resolves into a system directory');
+    }
+    const cwd = process.cwd();
+    const explicitlyAllowed = allowedDirectories.filter(dir => dir !== '*');
+    if (path.parse(cwd).root === cwd &&
+        ![...SCRATCH_DIRECTORIES, ...explicitlyAllowed].some(dir => isInsideDirectory(resolved, dir, false))) {
+      throw new Error('Relative path is outside a safe directory (cwd is the filesystem root)');
+    }
+  }
 }
+
+const SYSTEM_DIRECTORIES = ['/etc', '/proc', '/sys', '/dev', '/root', '/boot', '/usr/bin', '/sbin'];
+const SCRATCH_DIRECTORIES = ['/tmp', '/var/tmp'];
 
 function isInsideDirectory (filePath, dir, foldCase) {
   const norm = (p) => {
@@ -392,7 +408,7 @@ function canonicalizeSpecialHost (hostname) {
  * @param {string} rawHostname - `URL.hostname` (brackets allowed)
  * @returns {{hostname: string, category: (string|null)}} - 'localhost',
  *   'loopback', 'unspecified', 'private', 'link-local', 'reserved',
- *   'internal-name', or null
+ *   'internal-name', 'invalid', or null
  */
 function classifyHost (rawHostname) {
   // Normalize: strip IPv6 brackets and a trailing dot (FQDN root) before checks.
@@ -412,7 +428,9 @@ function classifyHost (rawHostname) {
   // 2852039166 or 0x7f000001 uncanonicalized; classify the http form too.
   if (ipVersion === 0) {
     const canonical = canonicalizeSpecialHost(hostname);
-    if (canonical && canonical !== hostname) {
+    // Not a valid host (e.g. `%00`): a consumer could decode it to a restricted address
+    if (hostname && !canonical) return { hostname, category: 'invalid' };
+    if (canonical !== hostname) {
       const result = classifyHost(canonical);
       if (result.category) return result;
     }
@@ -571,6 +589,9 @@ function validateURLLocation (url, options = {}) {
   }
   if (category === 'internal-name') {
     throw new Error(`URL points to internal hostname: ${hostname}`);
+  }
+  if (category === 'invalid') {
+    throw new Error(`URL has an invalid hostname: ${hostname}`);
   }
   if (category) {
     throw new Error(`URL points to private IP range: ${hostname}`);

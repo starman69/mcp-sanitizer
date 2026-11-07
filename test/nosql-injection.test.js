@@ -521,7 +521,11 @@ describe('GHSA-fqrp-x74j-x4r8: NoSQL operator and JSON-gate bypass', () => {
     '[{"$merge":"c"}];',
     '{"x":{"$accumulator":{}}}',
     '$out: "evil"',
-    'x {"a":{"$unknownOp":1}} y'
+    'x {"a":{"$unknownOp":1}} y',
+    '{"$set"//\n:{"role":"admin"}}', // comment between key and ':'
+    '{"pass":{"$bitsAllClear"//\n:0}}',
+    '{"$set"' + ' '.repeat(17) + ':{"role":"admin"}} //}',
+    '{"$set" /* x */ :{}} y'
   ])('sanitize({type:nosql}) blocks %s', (q) => {
     expect(blocked(q)).toBe(true);
   });

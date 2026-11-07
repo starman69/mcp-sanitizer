@@ -39,6 +39,30 @@ const NOSQL_TYPES = {
 };
 
 /**
+ * Replace line and block comments with a space (linear scan, no regex backtracking).
+ * @param {string} input - Text to strip
+ * @returns {string} Text without comments
+ */
+function stripComments (input) {
+  let out = '';
+  let i = 0;
+  while (i < input.length) {
+    if (input[i] === '/' && input[i + 1] === '/') {
+      const end = input.indexOf('\n', i);
+      i = end === -1 ? input.length : end;
+      out += ' ';
+    } else if (input[i] === '/' && input[i + 1] === '*') {
+      const end = input.indexOf('*/', i + 2);
+      i = end === -1 ? input.length : end + 2;
+      out += ' ';
+    } else {
+      out += input[i++];
+    }
+  }
+  return out;
+}
+
+/**
  * MongoDB operators that can be exploited for injection
  * Based on MongoDB 6.0+ operator reference
  */
@@ -488,11 +512,13 @@ class NoSQLValidator {
     // GHSA-fqrp-x74j-x4r8 FIX: code-execution / write / cross-collection operators
     const dangerousOperatorPattern = /\$(?:function|accumulator|merge|out|lookup|graphLookup|unionWith)(?![\w$])/gi;
     // Any $-prefixed key ("$x":, '$x':, $x:) is an operator, listed or not
-    const operatorKeyPattern = /(?:^|[\s{[,(])["']?(\$[A-Za-z_]\w{0,63})["']?\s{0,16}:/g;
+    const operatorKeyPattern = /(?:^|[\s{[,(])["']?(\$[A-Za-z_]\w{0,63})["']? ?:/g;
+    // Lenient parsers allow comments and any whitespace between a key and ':'
+    const compact = stripComments(input).replace(/\s+/g, ' ');
     const matches = [
       ...(input.match(operatorPattern) || []),
       ...(input.match(dangerousOperatorPattern) || []),
-      ...Array.from(input.matchAll(operatorKeyPattern), m => m[1])
+      ...Array.from(compact.matchAll(operatorKeyPattern), m => m[1])
     ].filter((match, index, all) => all.indexOf(match) === index);
 
     if (matches.length > 0) {

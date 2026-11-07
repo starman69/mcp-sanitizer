@@ -72,7 +72,7 @@ describe('middleware/express.js', () => {
   describe('skip paths', () => {
     it('should skip health check paths', (done) => {
       const mw = createExpressMiddleware({ skipHealthChecks: true, logWarnings: false });
-      const req = mockReq({ path: '/health' });
+      const req = mockReq({ path: '/health', method: 'GET' });
       const res = mockRes();
       mw(req, res, () => {
         expect(req.sanitizationResults).toBeUndefined();
@@ -82,7 +82,7 @@ describe('middleware/express.js', () => {
 
     it('should skip health sub-paths', (done) => {
       const mw = createExpressMiddleware({ skipHealthChecks: true, logWarnings: false });
-      const req = mockReq({ path: '/health/detailed' });
+      const req = mockReq({ path: '/health/detailed', method: 'GET' });
       const res = mockRes();
       mw(req, res, () => {
         expect(req.sanitizationResults).toBeUndefined();
@@ -100,6 +100,24 @@ describe('middleware/express.js', () => {
       });
     });
 
+    it('does not skip a health path that carries input', () => {
+      const mw = createExpressMiddleware({ mode: 'block', logWarnings: false });
+      const req = mockReq({ path: '/health/x', method: 'POST', body: { cmd: 'ls; rm -rf /' } });
+      const res = mockRes();
+      const next = jest.fn();
+      mw(req, res, next);
+      expect(res._status).toBe(400);
+    });
+
+    it('still skips a plain GET health check', () => {
+      const mw = createExpressMiddleware({ logWarnings: false });
+      const req = mockReq({ path: '/health', method: 'GET' });
+      const next = jest.fn();
+      mw(req, mockRes(), next);
+      expect(next).toHaveBeenCalled();
+      expect(req.sanitizationResults).toBeUndefined();
+    });
+
     it('passes a cache-busted static request (sanitized, not skipped)', () => {
       const mw = createExpressMiddleware({ skipStaticFiles: true, mode: 'block', logWarnings: false });
       const req = mockReq({ path: '/assets/app.js', method: 'GET', query: { v: '1a2b3c' } });
@@ -113,7 +131,8 @@ describe('middleware/express.js', () => {
     test.each([
       [{ skipStaticFiles: true }, { method: 'POST' }],
       [{ skipStaticFiles: true }, { method: 'GET', body: {}, query: { q: '; rm -rf /' } }],
-      [{}, { method: 'GET', body: {}, query: { q: '; rm -rf /' } }]
+      [{}, { method: 'GET', body: {}, query: { q: '; rm -rf /' } }],
+      [{ skipStaticFiles: true }, { method: 'GET' }] // GET with a body
     ])('sanitizes static-looking path with options %j and request %j', (options, overrides) => {
       const mw = createExpressMiddleware({ ...options, mode: 'block', logWarnings: false });
       const req = mockReq({ path: '/api/users/a.js', body: { cmd: 'ls; rm -rf /' }, ...overrides });
