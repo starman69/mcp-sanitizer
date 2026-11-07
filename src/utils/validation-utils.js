@@ -338,6 +338,21 @@ const INTERNAL_NAME_SUFFIXES = [
 const INTERNAL_NAMES = new Set(['metadata', 'instance-data']);
 
 /**
+ * Canonicalize a host the way WHATWG URL does for special schemes (IPv4 number,
+ * hex, octal and shorthand forms; percent-decoding; IDNA mapping).
+ * @param {string} hostname - Lowercased host without brackets
+ * @returns {(string|null)} Canonical hostname, or null when not a valid host
+ */
+function canonicalizeSpecialHost (hostname) {
+  if (!hostname || /[/?#@\\\s]/.test(hostname)) return null;
+  try {
+    return new URL(`http://${hostname}/`).hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * Classify a URL hostname as a restricted location. Shared by every URL entry
  * point (GHSA-v25x-53wq-6r99 FIX: validators/url.js had its own weaker copy).
  * @param {string} rawHostname - `URL.hostname` (brackets allowed)
@@ -358,6 +373,20 @@ function classifyHost (rawHostname) {
   }
 
   const ipVersion = net.isIP(hostname);
+
+  // CVE-TBD-010 FIX (GHSA-f8hw-8j7g-r466): WHATWG URL only canonicalizes hosts of
+  // special schemes (http, https, ws, ftp, ...). For non-special schemes such as
+  // mcp:// the host stays opaque, so `2852039166`, `0x7f000001`, `0177.0.0.1`,
+  // `127.1` or percent-encoded digits reach us verbatim, yet the OS resolver maps
+  // them to 169.254.169.254 / 127.0.0.1. Canonicalize as a special-scheme host and
+  // classify that form too.
+  if (ipVersion === 0) {
+    const canonical = canonicalizeSpecialHost(hostname);
+    if (canonical && canonical !== hostname) {
+      const result = classifyHost(canonical);
+      if (result.category) return result;
+    }
+  }
 
   // IPv4 literal — classify directly.
   if (ipVersion === 4) {

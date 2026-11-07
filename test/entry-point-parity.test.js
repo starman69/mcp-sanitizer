@@ -117,6 +117,39 @@ describe('Entry-point parity (GHSA-v25x-53wq-6r99)', () => {
     });
   });
 
+  // GHSA-f8hw-8j7g-r466: non-special schemes (mcp://) keep the host opaque, so
+  // numeric / hex / octal / shorthand IPv4 forms were never canonicalized.
+  const mcpUrlEntryPoints = {
+    'MCPSanitizer.sanitize': async (u) => sanitizer.sanitize(u, { type: 'url' }).blocked === true,
+    'MCPSanitizer#sanitizeURL': async (u) => sanitizer.sanitizeURL(u).then(() => false, () => true),
+    'URLValidator.validate (mcp allowed)': async (u) =>
+      !(await new lib.URLValidator({ allowedProtocols: ['http', 'https', 'mcp'] }).validate(u)).isValid,
+    'express web_fetch tool': (u) => expressToolBlocks('web_fetch', { url: u }),
+    'koa web_fetch tool': (u) => koaToolBlocks('web_fetch', { url: u })
+  };
+
+  describe.each(Object.entries(mcpUrlEntryPoints))('mcp:// URL via %s', (_name, isBlocked) => {
+    test.each([
+      'mcp://2852039166/', // 169.254.169.254
+      'mcp://2130706433/', // 127.0.0.1
+      'mcp://0x7f000001/',
+      'mcp://0177.0.0.1/',
+      'mcp://127.1/',
+      'mcp://0x7f.1/',
+      'mcp://10.1/',
+      'mcp://0/',
+      'mcp://%31%32%37.0.0.1/',
+      'mcp://169.254.169.254/',
+      'mcp://localhost/'
+    ])('blocks %s', async (url) => {
+      expect(await isBlocked(url)).toBe(true);
+    });
+
+    test.each(['mcp://example.com/', 'mcp://1.1.1.1/'])('allows %s', async (url) => {
+      expect(await isBlocked(url)).toBe(false);
+    });
+  });
+
   describe('URLValidator allow* flags are per category', () => {
     test('allowPrivateIPs does not open loopback or link-local', async () => {
       const v = new lib.URLValidator({ allowPrivateIPs: true });
