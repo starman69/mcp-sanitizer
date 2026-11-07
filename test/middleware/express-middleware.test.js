@@ -392,7 +392,7 @@ describe('middleware/express.js', () => {
       const mw = createMCPToolMiddleware({ logWarnings: false });
       const req = mockReq({
         params: { toolName: 'file_reader' },
-        body: { tool_name: 'file_reader', parameters: { file_path: '/tmp/safe.txt' } }
+        body: { tool_name: 'file_reader', parameters: { file_path: 'data/safe.txt' } }
       });
       const res = mockRes();
       mw(req, res, () => {
@@ -407,7 +407,7 @@ describe('middleware/express.js', () => {
       const mw = createMCPToolMiddleware({ logWarnings: false, mode: 'sanitize' });
       const req = mockReq({
         params: { toolName: 'file_reader' },
-        body: { parameters: { file_path: '/tmp/test.txt' } }
+        body: { parameters: { file_path: 'data/test.txt' } }
       });
       const res = mockRes();
       mw(req, res, () => {

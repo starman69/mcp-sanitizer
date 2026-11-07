@@ -208,15 +208,10 @@ const SAFE_SHELL_PATTERNS = [
 ];
 
 /**
- * Stateless RegExp test (CVE-TBD-008 FIX, GHSA-f7gm-6p35-r39c)
- *
- * A RegExp with the global or sticky flag keeps `lastIndex` between `.test()`
- * calls, so a shared module-level pattern alternates between match and no match
- * on identical input. Always reset `lastIndex` before and after testing.
- *
+ * GHSA-f7gm-6p35-r39c FIX: RegExp.test() that ignores `lastIndex` left by /g or /y.
  * @param {RegExp} pattern - The regex pattern to test
  * @param {string} input - Input string to test against
- * @returns {boolean} - True if pattern matches anywhere in input
+ * @returns {boolean} - True if pattern matches
  */
 function testRegex (pattern, input) {
   pattern.lastIndex = 0;

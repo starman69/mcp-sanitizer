@@ -485,11 +485,9 @@ class NoSQLValidator {
   _detectOperatorsInString (input, result) {
     // Check for MongoDB operators in string format
     const operatorPattern = /\$(?:where|regex|gt|gte|lt|lte|ne|eq|in|nin|exists|type|mod|text|search|or|and|not|nor|elemMatch|size|all|expr|jsonSchema)/gi;
-    // CVE-TBD-009 FIX (GHSA-fqrp-x74j-x4r8): code-execution, write and cross-collection
-    // operators, matched on a word boundary so ordinary words like "$outstanding" pass
+    // GHSA-fqrp-x74j-x4r8 FIX: code-execution / write / cross-collection operators
     const dangerousOperatorPattern = /\$(?:function|accumulator|merge|out|lookup|graphLookup|unionWith)(?![\w$])/gi;
-    // Any $-prefixed identifier in key position ("$x":, '$x':, $x:) is an operator,
-    // whether or not it is on a known list
+    // Any $-prefixed key ("$x":, '$x':, $x:) is an operator, listed or not
     const operatorKeyPattern = /(?:^|[\s{[,(])["']?(\$[A-Za-z_]\w{0,63})["']?\s{0,16}:/g;
     const matches = [
       ...(input.match(operatorPattern) || []),

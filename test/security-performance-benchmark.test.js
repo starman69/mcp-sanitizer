@@ -21,11 +21,12 @@ describe('Security Performance Benchmark', () => {
   describe('Baseline Performance (Safe Inputs)', () => {
     it('should process safe file paths efficiently', () => {
       const safeInputs = [
-        'document.txt',
+        // PRODUCTION confines paths to ./data and ./uploads
+        'data/document.txt',
         'data/config.json',
-        'assets/image.png',
-        'src/components/Header.jsx',
-        'tests/unit/security.test.js'
+        'uploads/assets/image.png',
+        'uploads/src/components/Header.jsx',
+        'data/tests/unit/security.test.js'
       ];
 
       const startTime = Date.now();

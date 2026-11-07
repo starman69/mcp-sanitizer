@@ -604,7 +604,7 @@ class SQLValidator {
     }
 
     // If allowedFunctions is specified, check against it
-    if (this.config.allowedFunctions.length > 0) {
+    if ((this.config.allowedFunctions || []).length > 0) {
       const functionMatches = query.match(/\b\w+\s*\(/g);
       if (functionMatches) {
         for (const match of functionMatches) {

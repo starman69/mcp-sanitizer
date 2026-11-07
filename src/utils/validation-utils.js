@@ -156,7 +156,10 @@ function validateFilePath (filePath) {
 
   // Use path-is-inside to check if the path tries to escape a safe directory
   // Define safe root directories
-  const safeRoots = ['/tmp', '/var/tmp', './uploads', './data', process.cwd()];
+  // GHSA-rc4x-x73r-6v9w FIX: cwd=/ would make every absolute path safe
+  const cwd = process.cwd();
+  const safeRoots = ['/tmp', '/var/tmp', './uploads', './data'];
+  if (path.parse(cwd).root !== cwd) safeRoots.push(cwd);
 
   let isInSafeLocation = false;
   for (const safeRoot of safeRoots) {
@@ -207,6 +210,38 @@ function validateFilePath (filePath) {
 
   // CVE-TBD-001 FIX: Return normalized path, never original
   return safePath;
+}
+
+/**
+ * GHSA-rc4x-x73r-6v9w FIX: enforce contextSettings.filePath confinement options.
+ * @param {string} normalizedPath - Path already normalized by the unified parser
+ * @param {Object} [config] - { allowAbsolutePaths, allowedDirectories, blockedDirectories }
+ */
+function assertPathConfinement (normalizedPath, config = {}) {
+  const { allowAbsolutePaths, allowedDirectories = [], blockedDirectories = [] } = config;
+  const insideAny = (dirs, foldCase) => dirs.some(dir => isInsideDirectory(normalizedPath, dir, foldCase));
+  // '*' allows any path, or blocks any path with a directory part.
+  const hasDirectory = /[\\/]/.test(normalizedPath);
+
+  if ((blockedDirectories.includes('*') && hasDirectory) || insideAny(blockedDirectories, true)) {
+    throw new Error('Path is inside a blocked directory');
+  }
+  if (allowedDirectories.length > 0 && !allowedDirectories.includes('*') && !insideAny(allowedDirectories, false)) {
+    throw new Error('Path is outside the allowed directories');
+  }
+  if (allowAbsolutePaths === false && path.isAbsolute(normalizedPath) && allowedDirectories.length === 0) {
+    throw new Error('Absolute paths are not allowed');
+  }
+}
+
+function isInsideDirectory (filePath, dir, foldCase) {
+  const norm = (p) => {
+    const s = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '');
+    return foldCase ? s.toLowerCase() : s;
+  };
+  const target = norm(filePath);
+  const base = norm(dir);
+  return target === base || target.startsWith(base + '/');
 }
 
 // Directory or file names that hold credentials; `.env.*` is matched separately.
@@ -338,10 +373,9 @@ const INTERNAL_NAME_SUFFIXES = [
 const INTERNAL_NAMES = new Set(['metadata', 'instance-data']);
 
 /**
- * Canonicalize a host the way WHATWG URL does for special schemes (IPv4 number,
- * hex, octal and shorthand forms; percent-decoding; IDNA mapping).
+ * Canonicalize a host as WHATWG does for http (numeric IPv4 forms, %-decoding).
  * @param {string} hostname - Lowercased host without brackets
- * @returns {(string|null)} Canonical hostname, or null when not a valid host
+ * @returns {(string|null)} Canonical hostname, or null if invalid
  */
 function canonicalizeSpecialHost (hostname) {
   if (!hostname || /[/?#@\\\s]/.test(hostname)) return null;
@@ -374,12 +408,8 @@ function classifyHost (rawHostname) {
 
   const ipVersion = net.isIP(hostname);
 
-  // CVE-TBD-010 FIX (GHSA-f8hw-8j7g-r466): WHATWG URL only canonicalizes hosts of
-  // special schemes (http, https, ws, ftp, ...). For non-special schemes such as
-  // mcp:// the host stays opaque, so `2852039166`, `0x7f000001`, `0177.0.0.1`,
-  // `127.1` or percent-encoded digits reach us verbatim, yet the OS resolver maps
-  // them to 169.254.169.254 / 127.0.0.1. Canonicalize as a special-scheme host and
-  // classify that form too.
+  // GHSA-f8hw-8j7g-r466 FIX: non-special schemes (mcp://) leave hosts like
+  // 2852039166 or 0x7f000001 uncanonicalized; classify the http form too.
   if (ipVersion === 0) {
     const canonical = canonicalizeSpecialHost(hostname);
     if (canonical && canonical !== hostname) {
@@ -750,6 +780,7 @@ module.exports = {
   validateRegExp,
   validateFilePath,
   assertNotSensitivePath,
+  assertPathConfinement,
   validateFileExtension,
   validateURL,
   validateURLLocation,

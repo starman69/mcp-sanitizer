@@ -159,3 +159,95 @@ describe('Entry-point parity (GHSA-v25x-53wq-6r99)', () => {
     });
   });
 });
+
+// GHSA-rc4x-x73r-6v9w: a policy rejection fell back to the weaker legacy validator,
+// and with cwd=/ every absolute path counted as inside a safe root.
+describe('File-path policy is final at every entry point (GHSA-rc4x-x73r-6v9w)', () => {
+  const pathEntryPoints = {
+    ...filePathEntryPoints,
+    'MCPSanitizer#sanitizeFilePath': (p) => sanitizer.sanitizeFilePath(p).then(() => false, () => true)
+  };
+  const ABSOLUTE = [
+    '/tmp/ok.txt',
+    '/tmp/' + 'a'.repeat(300) + '.txt',
+    '/opt/app/secrets.json',
+    '/home/victim/.bash_history',
+    '/var/lib/service/state.json'
+  ];
+
+  for (const cwd of [process.cwd(), '/']) {
+    describe(`cwd=${cwd}`, () => {
+      const original = process.cwd();
+      beforeAll(() => process.chdir(cwd));
+      afterAll(() => process.chdir(original));
+
+      describe.each(Object.entries(pathEntryPoints))('via %s', (_name, isBlocked) => {
+        test.each(ABSOLUTE)('blocks %s', async (p) => {
+          expect(await isBlocked(p)).toBe(true);
+        });
+      });
+    });
+  }
+
+  test('rejection does not fall back to the legacy validator', async () => {
+    const s = new MCPSanitizer();
+    const legacy = jest.spyOn(s, '_legacySanitizeFilePath');
+    await expect(s.sanitizeFilePath('/tmp/ok.txt')).rejects.toThrow();
+    expect(legacy).not.toHaveBeenCalled();
+  });
+
+  test('legacy validator still runs when the modular validator crashes', async () => {
+    const s = new MCPSanitizer();
+    s.validatorManager = { sanitizeFilePath: () => Promise.reject(new Error('crash')) };
+    await expect(s.sanitizeFilePath('/opt/app/secrets.json')).rejects.toThrow();
+    await expect(s.sanitizeFilePath('data/report.txt')).resolves.toBe('data/report.txt');
+  });
+});
+
+// GHSA-rc4x-x73r-6v9w / GHSA-cmcj-g4x5-4jx8: allowedDirectories and
+// blockedDirectories were documented but never read.
+describe('filePath allowedDirectories / blockedDirectories are enforced', () => {
+  const production = new MCPSanitizer({ policy: 'PRODUCTION' });
+  const custom = new MCPSanitizer({
+    contextSettings: { filePath: { allowedDirectories: ['./data'], blockedDirectories: ['./data/private'] } }
+  });
+  const entryPoints = (s, config) => ({
+    sanitize: async (p) => s.sanitize(p, { type: 'file_path' }).blocked,
+    sanitizeFilePath: (p) => s.sanitizeFilePath(p).then(() => false, () => true),
+    FilePathValidator: async (p) => !(await new lib.FilePathValidator(config).validate(p)).isValid
+  });
+
+  describe.each(Object.entries(entryPoints(production, production.options.contextSettings.filePath)))(
+    'PRODUCTION via %s', (_name, isBlocked) => {
+      test.each(['other/secret.txt', 'secret.txt', 'datax/secret.txt'])('blocks %s', async (p) => {
+        expect(await isBlocked(p)).toBe(true);
+      });
+      test.each(['data/report.txt', 'uploads/file.txt'])('allows %s', async (p) => {
+        expect(await isBlocked(p)).toBe(false);
+      });
+    });
+
+  describe.each(Object.entries(entryPoints(custom, custom.options.contextSettings.filePath)))(
+    'custom config via %s', (_name, isBlocked) => {
+      test.each(['data/private/key.txt', 'other/x.txt'])('blocks %s', async (p) => {
+        expect(await isBlocked(p)).toBe(true);
+      });
+      test('allows data/report.txt', async () => {
+        expect(await isBlocked('data/report.txt')).toBe(false);
+      });
+    });
+});
+
+describe('SQL entry points agree (GHSA-rc4x-x73r-6v9w)', () => {
+  test.each(["1' OR '1'='1", "x' OR 1=1"])('blocks %s', async (q) => {
+    expect(sanitizer.sanitize(q, { type: 'sql' }).blocked).toBe(true);
+    await expect(sanitizer.sanitizeSQL(q)).rejects.toThrow();
+    expect((await new lib.SQLValidator().validate(q)).isValid).toBe(false);
+  });
+
+  test('allows a benign query', async () => {
+    const q = 'SELECT name FROM users WHERE id = 1';
+    expect(sanitizer.sanitize(q, { type: 'sql' }).blocked).toBe(false);
+    await expect(sanitizer.sanitizeSQL(q)).resolves.toBe(q);
+  });
+});
