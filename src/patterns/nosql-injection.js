@@ -15,6 +15,8 @@
  * attack patterns from security research.
  */
 
+const { testRegex } = require('../utils/redos-safe-patterns');
+
 /**
  * Severity levels for NoSQL injection patterns
  */
@@ -35,6 +37,30 @@ const NOSQL_TYPES = {
   CASSANDRA: 'cassandra',
   ELASTICSEARCH: 'elasticsearch'
 };
+
+/**
+ * Replace line and block comments with a space (linear scan, no regex backtracking).
+ * @param {string} input - Text to strip
+ * @returns {string} Text without comments
+ */
+function stripComments (input) {
+  let out = '';
+  let i = 0;
+  while (i < input.length) {
+    if (input[i] === '/' && input[i + 1] === '/') {
+      const end = input.indexOf('\n', i);
+      i = end === -1 ? input.length : end;
+      out += ' ';
+    } else if (input[i] === '/' && input[i + 1] === '*') {
+      const end = input.indexOf('*/', i + 2);
+      i = end === -1 ? input.length : end + 2;
+      out += ' ';
+    } else {
+      out += input[i++];
+    }
+  }
+  return out;
+}
 
 /**
  * MongoDB operators that can be exploited for injection
@@ -412,7 +438,7 @@ class NoSQLValidator {
    */
   _detectJavaScriptInjection (input, result) {
     for (const pattern of JAVASCRIPT_INJECTION_PATTERNS) {
-      if (pattern.test(input)) {
+      if (testRegex(pattern, input)) {
         result.patterns.push(`javascript_injection:${pattern.source}`);
         result.vulnerabilities.push({
           type: 'javascript_injection',
@@ -463,7 +489,7 @@ class NoSQLValidator {
    */
   _detectCassandraInjection (input, result) {
     for (const pattern of CASSANDRA_PATTERNS) {
-      if (pattern.test(input)) {
+      if (testRegex(pattern, input)) {
         result.patterns.push(`cassandra_cql:${pattern.source}`);
         result.vulnerabilities.push({
           type: 'cassandra_cql_injection',
@@ -483,9 +509,19 @@ class NoSQLValidator {
   _detectOperatorsInString (input, result) {
     // Check for MongoDB operators in string format
     const operatorPattern = /\$(?:where|regex|gt|gte|lt|lte|ne|eq|in|nin|exists|type|mod|text|search|or|and|not|nor|elemMatch|size|all|expr|jsonSchema)/gi;
-    const matches = input.match(operatorPattern);
+    // GHSA-fqrp-x74j-x4r8 FIX: code-execution / write / cross-collection operators
+    const dangerousOperatorPattern = /\$(?:function|accumulator|merge|out|lookup|graphLookup|unionWith)(?![\w$])/gi;
+    // Any $-prefixed key ("$x":, '$x':, $x:) is an operator, listed or not
+    const operatorKeyPattern = /(?:^|[\s{[,(])["']?(\$[A-Za-z_]\w{0,63})["']? ?:/g;
+    // Lenient parsers allow comments and any whitespace between a key and ':'
+    const compact = stripComments(input).replace(/\s+/g, ' ');
+    const matches = [
+      ...(input.match(operatorPattern) || []),
+      ...(input.match(dangerousOperatorPattern) || []),
+      ...Array.from(compact.matchAll(operatorKeyPattern), m => m[1])
+    ].filter((match, index, all) => all.indexOf(match) === index);
 
-    if (matches) {
+    if (matches.length > 0) {
       for (const match of matches) {
         result.patterns.push(`string_operator:${match}`);
         result.vulnerabilities.push({
@@ -509,7 +545,7 @@ class NoSQLValidator {
     ];
 
     for (const pattern of booleanInjectionPatterns) {
-      if (pattern.test(input)) {
+      if (testRegex(pattern, input)) {
         result.patterns.push(`boolean_injection:${pattern.source}`);
         result.vulnerabilities.push({
           type: 'boolean_injection',
@@ -531,7 +567,7 @@ class NoSQLValidator {
     ];
 
     for (const pattern of ssjsPatterns) {
-      if (pattern.test(input)) {
+      if (testRegex(pattern, input)) {
         result.patterns.push(`ssjs_injection:${pattern.source}`);
         result.vulnerabilities.push({
           type: 'server_side_js_injection',
@@ -558,7 +594,7 @@ class NoSQLValidator {
 
     const risks = [];
     for (const { pattern, risk } of dangerousPatterns) {
-      if (pattern.test(code)) {
+      if (testRegex(pattern, code)) {
         risks.push(risk);
       }
     }
@@ -589,7 +625,7 @@ class NoSQLValidator {
       /\([^)]*\+[^)]*\+[^)]*\)/ // Complex nested quantifiers
     ];
 
-    return redosPatterns.some(pattern => pattern.test(regex));
+    return redosPatterns.some(pattern => testRegex(pattern, regex));
   }
 
   /**
@@ -639,8 +675,9 @@ class NoSQLValidator {
    * @private
    */
   _getOperatorSeverity (operator) {
-    const criticalOps = ['$where', '$expr', '$function'];
-    const highOps = ['$regex', '$ne', '$gt', '$gte', '$exists'];
+    const criticalOps = ['$where', '$expr', '$function', '$accumulator'];
+    const highOps = ['$regex', '$ne', '$gt', '$gte', '$exists',
+      '$merge', '$out', '$lookup', '$graphLookup', '$unionWith'];
 
     if (criticalOps.includes(operator)) {
       return SEVERITY_LEVELS.CRITICAL;

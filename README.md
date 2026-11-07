@@ -4,7 +4,7 @@ A comprehensive security sanitization library for Model Context Protocol (MCP) s
 
 [![npm version](https://badge.fury.io/js/mcp-sanitizer.svg)](https://badge.fury.io/js/mcp-sanitizer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Security Tests](https://img.shields.io/badge/Security%20Tests-1140%2B-brightgreen)](./test)
+[![Security Tests](https://img.shields.io/badge/Security%20Tests-1587%2B-brightgreen)](./test)
 
 ## 🔒 Security Features
 
@@ -17,7 +17,7 @@ MCP Sanitizer provides comprehensive, defense-in-depth protection:
 - ✅ **Framework Integration**: Express, Fastify, and Koa middleware with `skipPaths` support
 - ✅ **Security Policies**: Pre-configured policies (STRICT, MODERATE, PERMISSIVE, DEVELOPMENT, PRODUCTION)
 - ✅ **Comprehensive Validation**: Checking 42+ attack vectors across 12 validation layers in <1ms
-- ✅ **Comprehensive Testing**: 1140 tests with 93% code coverage, sub-millisecond performance
+- ✅ **Comprehensive Testing**: 1587 tests with 93% code coverage, sub-millisecond performance
 
 ### Security Philosophy
 While we maintain rigorous security standards and comprehensive test coverage, we acknowledge that:
@@ -103,7 +103,7 @@ app.use(createExpressMiddleware());
 app.use(createExpressMiddleware({
   policy: 'PRODUCTION',
   mode: 'sanitize', // or 'block'
-  skipPaths: ['/health', '/metrics']  // Skip sanitization for these paths
+  skipPaths: ['/health', '/metrics']  // Skips /health and /health/*, not /healthy
 }));
 
 app.post('/tools/:toolName/execute', (req, res) => {
@@ -193,11 +193,16 @@ const sanitizer = new MCPSanitizer({
     },
     filePath: {
       allowAbsolutePaths: false,
-      allowedDirectories: ['./data']
+      allowedDirectories: ['./data'],       // Non-empty = only these directories
+      blockedDirectories: ['./data/private']
     }
   }
 });
 ```
+
+The `filePath` settings apply to every file-path entry point. Policies set their
+own values: `PRODUCTION` (the middleware default) allows only `./data` and `./uploads`;
+`MODERATE` and `DEVELOPMENT` also allow `./temp`.
 
 ## Supported Attack Vectors
 
@@ -243,11 +248,11 @@ Sanitizes input data and returns a result object.
 ### Specialized Methods
 
 ```javascript
-// Sanitize specific input types
-sanitizer.sanitizeFilePath('/path/to/file');
-sanitizer.sanitizeURL('https://example.com');
-sanitizer.sanitizeCommand('ls -la');
-sanitizer.sanitizeSQL('SELECT * FROM users WHERE id = ?');
+// Async: resolve to the sanitized value, reject if the input is not allowed
+await sanitizer.sanitizeFilePath('data/report.txt');
+await sanitizer.sanitizeURL('https://example.com');
+await sanitizer.sanitizeCommand('ls -la');
+await sanitizer.sanitizeSQL('SELECT * FROM users WHERE id = ?');
 ```
 
 ### Configuration Methods
@@ -320,7 +325,7 @@ npm run security-audit
 
 **Validation Layers**: Command injection, SQL injection (4 databases), NoSQL injection, XSS, path traversal, prototype pollution, template injection, Unicode normalization (4 passes), multi-layer encoding detection, file extension validation, protocol validation
 
-**Optimization Options**: Use `skipPaths` middleware to exempt low-risk routes (health checks, static assets, metrics endpoints)
+**Optimization Options**: Use `skipPaths` middleware to exempt low-risk routes (health checks, static assets, metrics endpoints). `skipStaticFiles: true` skips static-file GET/HEAD requests without a query string or body; it is off by default. Health-check paths are skipped only for such requests too.
 
 ## Examples
 

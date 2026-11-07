@@ -132,7 +132,7 @@ The MCP Sanitizer includes five predefined security policies:
     filePath: {
       allowAbsolutePaths: false,
       allowedDirectories: ['./data', './uploads'],
-      blockedDirectories: ['/etc', '/proc', '/sys']
+      blockedDirectories: ['/etc', '/proc', '/sys']  // Enforced by every file-path entry point
     }
   }
 }

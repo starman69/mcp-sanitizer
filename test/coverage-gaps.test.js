@@ -22,7 +22,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
   describe('MCP Sanitizer - Async Method Coverage (lines 188-342)', () => {
     describe('sanitizeFilePath async method', () => {
       it('should handle successful validation result', async () => {
-        const result = await sanitizer.sanitizeFilePath('safe/path.txt');
+        const result = await sanitizer.sanitizeFilePath('path.txt');
         expect(typeof result).toBe('string');
       });
 
@@ -39,7 +39,7 @@ describe('Coverage Gaps - Security Critical Paths', () => {
           sanitizeFilePath: jest.fn().mockRejectedValue(new Error('Validator failure'))
         };
 
-        const result = await sanitizer.sanitizeFilePath('fallback/path.txt');
+        const result = await sanitizer.sanitizeFilePath('fallback.txt');
         expect(typeof result).toBe('string');
 
         sanitizer.validatorManager = originalManager;
@@ -76,8 +76,13 @@ describe('Coverage Gaps - Security Critical Paths', () => {
 
     describe('sanitizeCommand async method', () => {
       it('should handle successful command validation', async () => {
-        const result = await sanitizer.sanitizeCommand('echo hello');
+        const result = await new MCPSanitizer().sanitizeCommand('echo hello');
         expect(typeof result).toBe('string');
+      });
+
+      it('should not fall back to legacy validation when STRICT rejects a command', async () => {
+        // GHSA-rc4x-x73r-6v9w: STRICT allows no commands; a rejection is final
+        await expect(sanitizer.sanitizeCommand('echo hello')).rejects.toThrow();
       });
 
       it('should handle command validation failure with severity', async () => {

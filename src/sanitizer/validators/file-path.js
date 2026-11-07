@@ -26,10 +26,11 @@
  */
 
 const path = require('path');
-const { assertNotSensitivePath } = require('../../utils/validation-utils');
+const { assertNotSensitivePath, assertPathConfinement } = require('../../utils/validation-utils');
 const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
 const sanitizeFilename = require('sanitize-filename');
 const pathIsInside = require('path-is-inside');
+const { testRegex } = require('../../utils/redos-safe-patterns');
 // const { securityDecode } = require('../../utils/security-decoder') // Unused
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified } = require('../../utils/unified-parser');
@@ -223,6 +224,7 @@ class FilePathValidator {
       // GHSA-v25x-53wq-6r99 FIX: shared sensitive-path denylist.
       try {
         assertNotSensitivePath(normalizedPath);
+        assertPathConfinement(normalizedPath, this.config);
       } catch (error) {
         result.warnings.push(error.message);
         result.severity = this._getHigherSeverity(result.severity, SEVERITY.CRITICAL);
@@ -372,7 +374,7 @@ class FilePathValidator {
     ];
 
     for (const pattern of traversalPatterns) {
-      if (pattern.test(filePath)) {
+      if (testRegex(pattern, filePath)) {
         result.isValid = false;
         result.warnings.push(`Directory traversal pattern detected: ${pattern.source}`);
       }

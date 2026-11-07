@@ -561,3 +561,83 @@ describe('ReDoS Regression Tests', () => {
     expect(elapsed).toBeLessThan(MAX_EXECUTION_TIME_MS);
   });
 });
+
+// CodeQL js/polynomial-redos (PR #16): `.*?` template patterns replaced by linear matchers
+describe('Template patterns: linear matchers', () => {
+  const T = require('../src/patterns/template-injection');
+  const fill = (prefix, rep) => prefix + rep.repeat(Math.floor((9990 - prefix.length) / rep.length)) + '!';
+
+  test('match exactly what the original regexes match', () => {
+    const exported = [
+      ...T.GENERIC_TEMPLATE_PATTERNS.map(r => ['generic_template', r]),
+      ...Object.entries(T.TEMPLATE_ENGINE_PATTERNS).flatMap(([e, ps]) => ps.map(r => [`${e}_template`, r]))
+    ];
+    /* eslint-disable no-template-curly-in-string */
+    const samples = [
+      '{{ config.items() }}', '{{ CONFIG }}', '{{\nconfig}}', '{% from x import y %}', '{% import os %}',
+      '${x?upper}', '${obj.getClass()}', '<#assign x=1>', '{{{raw}}}', '{{../parent}}', '{php}x{/php}',
+      '`a ${b}`', '`a\n${b}`', '[[x]]', '((x))', '{$var}', 'plain text', '{{ a }} config }}'
+    ];
+    /* eslint-enable no-template-curly-in-string */
+    for (const s of samples) {
+      const got = new Set([...T.checkGenericTemplatePatterns(s).patterns, ...T.checkTemplateEnginePatterns(s).patterns]);
+      for (const [prefix, re] of exported) {
+        re.lastIndex = 0;
+        expect([s, re.source, got.has(`${prefix}:${re.source}`)]).toEqual([s, re.source, re.test(s)]);
+      }
+    }
+  });
+
+  test.each([fill('{{{{', '{{{{'), fill('`', '`'), fill('{{', ' config '), fill('${', '${')])(
+    'detectTemplateInjection stays fast on pathological input %#', (input) => {
+      const start = Date.now();
+      detectTemplateInjection(input);
+      expect(Date.now() - start).toBeLessThan(100);
+    });
+});
+
+describe('Rewritten validator regexes keep their behaviour', () => {
+  const { CommandValidator } = require('../src/sanitizer/validators/command');
+  const { SQLValidator } = require('../src/sanitizer/validators/sql');
+
+  test('SQL basic-injection pattern', async () => {
+    const v = new SQLValidator();
+    expect((await v.validate("1' OR '1'='1")).isValid).toBe(false);
+    expect((await v.validate('x OR a = 1')).isValid).toBe(false);
+    expect((await v.validate('SELECT name FROM users')).isValid).toBe(true);
+  });
+
+  test('command execute-flag pattern and redirection removal', async () => {
+    const v = new CommandValidator();
+    expect((await v.validate('find . -exec rm {} ;')).isValid).toBe(false);
+    const start = Date.now();
+    await v.validate(' '.repeat(9000) + 'ls');
+    await v.validate('ls' + ' -e'.repeat(3000));
+    expect(Date.now() - start).toBeLessThan(200);
+  });
+});
+
+describe('Bounded detector regexes keep detecting (CodeQL alert 73)', () => {
+  const { detectPrototypePollution } = require('../src/patterns/prototype-pollution');
+  const { detectSQLInjection } = require('../src/patterns/sql-injection');
+
+  test.each(['obj["__proto__"]', "x['constructor']", 'Object.defineProperty(Object.prototype, "x", {})'])(
+    'prototype pollution: %s', (input) => {
+      expect(detectPrototypePollution(input).detected).toBe(true);
+    });
+
+  test('UNION ... FROM across lines', () => {
+    expect(detectSQLInjection('1 UNION\nSELECT password\nFROM users').detected).toBe(true);
+  });
+
+  test.each([
+    'Object.defineProperty(' + ' '.repeat(9900),
+    '["' + 'proto'.repeat(1990),
+    'UNION ' + ' '.repeat(9900)
+  ])('stays fast on pathological input %#', (input) => {
+    const start = Date.now();
+    detectPrototypePollution(input);
+    detectSQLInjection(input);
+    expect(Date.now() - start).toBeLessThan(100);
+  });
+});

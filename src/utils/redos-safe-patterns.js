@@ -208,6 +208,19 @@ const SAFE_SHELL_PATTERNS = [
 ];
 
 /**
+ * GHSA-f7gm-6p35-r39c FIX: RegExp.test() that ignores `lastIndex` left by /g or /y.
+ * @param {RegExp} pattern - The regex pattern to test
+ * @param {string} input - Input string to test against
+ * @returns {boolean} - True if pattern matches
+ */
+function testRegex (pattern, input) {
+  pattern.lastIndex = 0;
+  const result = pattern.test(input);
+  pattern.lastIndex = 0;
+  return result;
+}
+
+/**
  * Pattern validation wrapper with timeout protection
  *
  * Wraps regex test/exec with timeout to prevent infinite hangs
@@ -247,7 +260,7 @@ function safePatternTest (pattern, input, timeoutMs = 10) {
   }, timeoutMs);
 
   try {
-    result = pattern.test(input);
+    result = testRegex(pattern, input);
 
     // Check if we took too long
     const elapsed = Date.now() - start;
@@ -328,6 +341,7 @@ module.exports = {
   // Utility functions
   safePatternTest,
   safeBatchTest,
+  testRegex,
 
   // Constants
   MAX_SAFE_INPUT_LENGTH: 10000,

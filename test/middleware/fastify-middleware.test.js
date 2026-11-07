@@ -161,7 +161,7 @@ describe('middleware/fastify.js', () => {
         schemaCompilation: false
       });
       const hook = fastify.hooks.preHandler[0];
-      const request = mockRequest({ url: '/health' });
+      const request = mockRequest({ url: '/health', method: 'GET' });
       const reply = mockReply();
       await hook(request, reply);
       expect(request.sanitizationResults).toBeNull();
@@ -175,7 +175,7 @@ describe('middleware/fastify.js', () => {
         schemaCompilation: false
       });
       const hook = fastify.hooks.preHandler[0];
-      const request = mockRequest({ url: '/healthcheck/detailed' });
+      const request = mockRequest({ url: '/healthcheck/detailed', method: 'GET' });
       const reply = mockReply();
       await hook(request, reply);
       expect(request.sanitizationResults).toBeNull();
@@ -189,10 +189,20 @@ describe('middleware/fastify.js', () => {
         schemaCompilation: false
       });
       const hook = fastify.hooks.preHandler[0];
-      const request = mockRequest({ url: '/assets/app.js' });
+      const request = mockRequest({ url: '/assets/app.js', method: 'GET' });
       const reply = mockReply();
       await hook(request, reply);
       expect(request.sanitizationResults).toBeNull();
+    });
+
+    it('does not skip a static-looking POST (GHSA-3vch-r42j-xc2g)', async () => {
+      for (const options of [{ skipStaticFiles: true }, {}]) {
+        const fastify = createMockFastify();
+        await mcpSanitizerPlugin(fastify, { ...options, logWarnings: false, schemaCompilation: false });
+        const request = mockRequest({ url: '/api/users/a.js', method: 'POST', body: { x: 'safe' } });
+        await fastify.hooks.preHandler[0](request, mockReply());
+        expect(request.sanitizationResults).not.toBeNull();
+      }
     });
 
     it('should skip custom skipPaths', async () => {
@@ -217,7 +227,7 @@ describe('middleware/fastify.js', () => {
         schemaCompilation: false
       });
       const hook = fastify.hooks.preHandler[0];
-      const request = mockRequest({ url: '/health?check=true' });
+      const request = mockRequest({ url: '/health?check=true', method: 'GET' });
       const reply = mockReply();
       await hook(request, reply);
       expect(request.sanitizationResults).toBeNull();

@@ -63,6 +63,17 @@ describe('skipPaths Feature', () => {
         expect(mockNext).toHaveBeenCalled();
       });
 
+      it('does not skip sibling routes of a skip entry (GHSA-3vch-r42j-xc2g)', () => {
+        const middleware = createExpressMiddleware({ skipPaths: ['/health', '/api/public'], mode: 'block' });
+        for (const path of ['/healthy', '/api/public-admin']) {
+          mockNext.mockClear();
+          mockRes.status.mockClear();
+          mockReq = { path, method: 'POST', body: { cmd: 'ls; rm -rf /' }, query: {}, params: {}, headers: {}, ip: '1', get: () => '' };
+          middleware(mockReq, mockRes, mockNext);
+          expect(mockRes.status).toHaveBeenCalledWith(400);
+        }
+      });
+
       it('should not skip non-matching paths', () => {
         const middleware = createExpressMiddleware({
           skipPaths: ['/health'],

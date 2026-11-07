@@ -70,7 +70,7 @@ const DEFAULT_CONFIG = {
 
   // Performance options
   skipHealthChecks: true,
-  skipStaticFiles: true,
+  skipStaticFiles: false, // GHSA-3vch-r42j-xc2g: opt-in; skips only GET/HEAD without query or body
   skipPaths: [], // Array of paths (strings or RegExp) to skip sanitization
 
   // Sanitizer configuration
@@ -153,7 +153,7 @@ function shouldSkipRequestOptimized (ctx, skipMatcher, healthPaths, staticExtens
   }
 
   // Priority 2: Skip health check endpoints - O(1) Set lookup
-  if (healthPaths) {
+  if (healthPaths && isPlainRequest(ctx)) {
     if (healthPaths.has(ctx.path)) {
       return true;
     }
@@ -166,7 +166,8 @@ function shouldSkipRequestOptimized (ctx, skipMatcher, healthPaths, staticExtens
   }
 
   // Priority 3: Skip static file requests - O(1) extension lookup
-  if (staticExtensions) {
+  // GHSA-3vch-r42j-xc2g FIX: health/static skips never apply to requests that carry input
+  if (staticExtensions && isPlainRequest(ctx)) {
     const lastDotIndex = ctx.path.lastIndexOf('.');
     if (lastDotIndex !== -1) {
       const extension = ctx.path.substring(lastDotIndex);
@@ -177,6 +178,15 @@ function shouldSkipRequestOptimized (ctx, skipMatcher, healthPaths, staticExtens
   }
 
   return false;
+}
+
+/** GET/HEAD request with no query parameters and no body. */
+function isPlainRequest (ctx) {
+  const method = String(ctx.method || '').toUpperCase();
+  const body = ctx.request && ctx.request.body;
+  return (method === 'GET' || method === 'HEAD') &&
+    Object.keys(ctx.query || {}).length === 0 &&
+    (body == null || body === '' || (typeof body === 'object' && Object.keys(body).length === 0));
 }
 
 // Helper functions removed - functionality moved to optimized shouldSkipRequestOptimized function

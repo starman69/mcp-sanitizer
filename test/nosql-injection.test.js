@@ -498,3 +498,48 @@ expect.extend({
     }
   }
 });
+
+describe('GHSA-fqrp-x74j-x4r8: NoSQL operator and JSON-gate bypass', () => {
+  const MCPSanitizer = require('../src/sanitizer/mcp-sanitizer');
+  const sanitizer = new MCPSanitizer();
+  const blocked = (q) => sanitizer.sanitize(q, { type: 'nosql' }).blocked;
+
+  it.each(['$function', '$accumulator', '$merge', '$out', '$lookup', '$graphLookup', '$unionWith'])(
+    'detects %s in string context', (op) => {
+      expect(detectNoSQLInjection(`${op}: 1`).detected).toBe(true);
+    });
+
+  it('detects any $-prefixed key in string context', () => {
+    expect(detectNoSQLInjection('{"$someNewOperator": 1} x').detected).toBe(true);
+    expect(detectNoSQLInjection("{'$custom': 1}").detected).toBe(true);
+  });
+
+  it.each([
+    '{"x":{"$function":"return 1"}} //comment',
+    '{"x":{"$out":"evil"}} //c',
+    ' {"x":{"$lookup":{}}}a',
+    '[{"$merge":"c"}];',
+    '{"x":{"$accumulator":{}}}',
+    '$out: "evil"',
+    'x {"a":{"$unknownOp":1}} y',
+    '{"$set"//\n:{"role":"admin"}}', // comment between key and ':'
+    '{"pass":{"$bitsAllClear"//\n:0}}',
+    '{"$set"' + ' '.repeat(17) + ':{"role":"admin"}} //}',
+    '{"$set" /* x */ :{}} y'
+  ])('sanitize({type:nosql}) blocks %s', (q) => {
+    expect(blocked(q)).toBe(true);
+  });
+
+  it('blocks the auto-routed query field in a tool call', () => {
+    expect(sanitizer.sanitize({ query: '{"x":{"$function":"return 1"}} //c' }).blocked).toBe(true);
+  });
+
+  it.each([
+    '{"name":"alice"}',
+    '[1,2,3]',
+    'price $outstanding balance',
+    '{"note":"pay $5 now"} x'
+  ])('allows benign %s', (q) => {
+    expect(blocked(q)).toBe(false);
+  });
+});

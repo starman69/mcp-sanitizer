@@ -12,6 +12,7 @@ const path = require('path');
 const net = require('net');
 const dns = require('dns');
 const { URL } = require('url');
+const { testRegex } = require('./redos-safe-patterns');
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified } = require('./unified-parser');
 
@@ -155,7 +156,10 @@ function validateFilePath (filePath) {
 
   // Use path-is-inside to check if the path tries to escape a safe directory
   // Define safe root directories
-  const safeRoots = ['/tmp', '/var/tmp', './uploads', './data', process.cwd()];
+  // GHSA-rc4x-x73r-6v9w FIX: cwd=/ would make every absolute path safe
+  const cwd = process.cwd();
+  const safeRoots = ['/tmp', '/var/tmp', './uploads', './data'];
+  if (path.parse(cwd).root !== cwd) safeRoots.push(cwd);
 
   let isInSafeLocation = false;
   for (const safeRoot of safeRoots) {
@@ -208,6 +212,61 @@ function validateFilePath (filePath) {
   return safePath;
 }
 
+/**
+ * GHSA-rc4x-x73r-6v9w FIX: enforce contextSettings.filePath confinement options.
+ * @param {string} normalizedPath - Path already normalized by the unified parser
+ * @param {Object} [config] - { allowAbsolutePaths, allowedDirectories, blockedDirectories }
+ */
+function assertPathConfinement (normalizedPath, config = {}) {
+  const { allowAbsolutePaths, allowedDirectories = [], blockedDirectories = [] } = config;
+  const insideAny = (dirs, foldCase) => dirs.some(dir => isInsideDirectory(normalizedPath, dir, foldCase));
+  // '*' allows any path, or blocks any path with a directory part.
+  const hasDirectory = /[\\/]/.test(path.normalize(normalizedPath));
+
+  if ((blockedDirectories.includes('*') && hasDirectory) || insideAny(blockedDirectories, true)) {
+    throw new Error('Path is inside a blocked directory');
+  }
+  if (allowedDirectories.length > 0 && !allowedDirectories.includes('*') && !insideAny(allowedDirectories, false)) {
+    throw new Error('Path is outside the allowed directories');
+  }
+  if (allowAbsolutePaths === false && path.isAbsolute(normalizedPath) && allowedDirectories.length === 0) {
+    throw new Error('Absolute paths are not allowed');
+  }
+  if (!path.isAbsolute(normalizedPath)) {
+    // A relative path is only as safe as the cwd it resolves against
+    const resolved = path.resolve(normalizedPath);
+    if (SYSTEM_DIRECTORIES.some(dir => isInsideDirectory(resolved, dir, true))) {
+      throw new Error('Path resolves into a system directory');
+    }
+    const cwd = process.cwd();
+    const explicitlyAllowed = allowedDirectories.filter(dir => dir !== '*');
+    if (path.parse(cwd).root === cwd &&
+        ![...SCRATCH_DIRECTORIES, ...explicitlyAllowed].some(dir => isInsideDirectory(resolved, dir, false))) {
+      throw new Error('Relative path is outside a safe directory (cwd is the filesystem root)');
+    }
+  }
+}
+
+const SYSTEM_DIRECTORIES = ['/etc', '/proc', '/sys', '/dev', '/root', '/boot', '/usr/bin', '/sbin'];
+const SCRATCH_DIRECTORIES = ['/tmp', '/var/tmp'];
+
+function isInsideDirectory (filePath, dir, foldCase) {
+  const norm = (p) => {
+    const s = trimTrailing(path.resolve(p).replace(/\\/g, '/'), '/');
+    return foldCase ? s.toLowerCase() : s;
+  };
+  const target = norm(filePath);
+  const base = norm(dir);
+  return target === base || target.startsWith(base + '/');
+}
+
+/** Remove trailing characters in `chars` without a regex (avoids polynomial backtracking). */
+function trimTrailing (str, chars) {
+  let end = str.length;
+  while (end > 0 && chars.includes(str[end - 1])) end--;
+  return str.slice(0, end);
+}
+
 // Directory or file names that hold credentials; `.env.*` is matched separately.
 const SENSITIVE_PATH_SEGMENTS = new Set([
   '.ssh', '.aws', '.gnupg', '.kube', '.config', '.docker',
@@ -227,7 +286,7 @@ const SENSITIVE_PATH_SEGMENTS = new Set([
 function assertNotSensitivePath (normalizedPath) {
   const segments = normalizedPath.toLowerCase().split(/[\\/]+/)
     // Windows ignores trailing dots/spaces and `:stream` suffixes (`.env.`, `.env::$DATA`).
-    .map(s => s.replace(/:.*$/, '').replace(/[. ]+$/, ''));
+    .map(s => trimTrailing(s.split(':')[0], '. '));
   if (segments.some(s => SENSITIVE_PATH_SEGMENTS.has(s) || /^\.env\./.test(s))) {
     throw new Error('Access to sensitive configuration path not allowed');
   }
@@ -337,12 +396,26 @@ const INTERNAL_NAME_SUFFIXES = [
 const INTERNAL_NAMES = new Set(['metadata', 'instance-data']);
 
 /**
+ * Canonicalize a host as WHATWG does for http (numeric IPv4 forms, %-decoding).
+ * @param {string} hostname - Lowercased host without brackets
+ * @returns {(string|null)} Canonical hostname, or null if invalid
+ */
+function canonicalizeSpecialHost (hostname) {
+  if (!hostname || /[/?#@\\\s]/.test(hostname)) return null;
+  try {
+    return new URL(`http://${hostname}/`).hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * Classify a URL hostname as a restricted location. Shared by every URL entry
  * point (GHSA-v25x-53wq-6r99 FIX: validators/url.js had its own weaker copy).
  * @param {string} rawHostname - `URL.hostname` (brackets allowed)
  * @returns {{hostname: string, category: (string|null)}} - 'localhost',
  *   'loopback', 'unspecified', 'private', 'link-local', 'reserved',
- *   'internal-name', or null
+ *   'internal-name', 'invalid', or null
  */
 function classifyHost (rawHostname) {
   // Normalize: strip IPv6 brackets and a trailing dot (FQDN root) before checks.
@@ -357,6 +430,18 @@ function classifyHost (rawHostname) {
   }
 
   const ipVersion = net.isIP(hostname);
+
+  // GHSA-f8hw-8j7g-r466 FIX: non-special schemes (mcp://) leave hosts like
+  // 2852039166 or 0x7f000001 uncanonicalized; classify the http form too.
+  if (ipVersion === 0) {
+    const canonical = canonicalizeSpecialHost(hostname);
+    // Not a valid host (e.g. `%00`): a consumer could decode it to a restricted address
+    if (hostname && !canonical) return { hostname, category: 'invalid' };
+    if (canonical !== hostname) {
+      const result = classifyHost(canonical);
+      if (result.category) return result;
+    }
+  }
 
   // IPv4 literal — classify directly.
   if (ipVersion === 4) {
@@ -512,6 +597,9 @@ function validateURLLocation (url, options = {}) {
   if (category === 'internal-name') {
     throw new Error(`URL points to internal hostname: ${hostname}`);
   }
+  if (category === 'invalid') {
+    throw new Error(`URL has an invalid hostname: ${hostname}`);
+  }
   if (category) {
     throw new Error(`URL points to private IP range: ${hostname}`);
   }
@@ -600,7 +688,7 @@ function validateCommand (command) {
         ];
 
         for (const pattern of dangerousCommands) {
-          if (pattern.test(token.trim())) {
+          if (testRegex(pattern, token.trim())) {
             throw new Error(`Dangerous command detected: ${token}`);
           }
         }
@@ -720,6 +808,7 @@ module.exports = {
   validateRegExp,
   validateFilePath,
   assertNotSensitivePath,
+  assertPathConfinement,
   validateFileExtension,
   validateURL,
   validateURLLocation,

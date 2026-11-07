@@ -28,7 +28,7 @@
 
 // const { validationUtils, stringUtils } = require('../../utils') // Unused - commented to fix ESLint
 const { sqlInjection, detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
-const { safeBatchTest } = require('../../utils/redos-safe-patterns');
+const { safeBatchTest, testRegex } = require('../../utils/redos-safe-patterns');
 const sqlstring = require('sqlstring');
 const {
   detectPostgresDollarQuotes,
@@ -88,7 +88,7 @@ const DEFAULT_CONFIG = {
  * SQL injection patterns specific to this validator
  */
 const SQL_INJECTION_PATTERNS = [
-  /('|(\\))|(\s*(or|and)\s+[\w\s]*[=<>]+)/i, // Basic SQL injection
+  /'|\\|(?:or|and)\s[\w\s]{0,1000}[=<>]/i, // Basic SQL injection (bounded)
   /union\s+select/i, // Union-based injection
   /;\s*(drop|delete|update|insert)/i, // Stacked queries
   /\/\*(?:[^*]|\*(?!\/))*\*\//g, // Block comments (optimized - no backtracking)
@@ -501,7 +501,7 @@ class SQLValidator {
 
     // Check custom patterns from configuration
     for (const pattern of this.config.customPatterns) {
-      if (pattern.test && pattern.test(query)) {
+      if (pattern.test && testRegex(pattern, query)) {
         result.warnings.push(`Custom SQL pattern detected: ${pattern.source || pattern}`);
         result.severity = this._getHigherSeverity(result.severity, SEVERITY.MEDIUM);
       }
@@ -527,7 +527,7 @@ class SQLValidator {
     // Check for blocked keywords
     for (const keyword of this.config.blockedKeywords) {
       const pattern = new RegExp(`\\b${keyword}\\b`, 'i');
-      if (pattern.test(query)) {
+      if (testRegex(pattern, query)) {
         result.isValid = false;
         result.warnings.push(`Blocked SQL keyword detected: ${keyword}`);
         result.severity = SEVERITY.CRITICAL;
@@ -595,7 +595,7 @@ class SQLValidator {
     // Check for blocked functions
     for (const func of this.config.blockedFunctions) {
       const pattern = new RegExp(`\\b${func}\\s*\\(`, 'i');
-      if (pattern.test(query)) {
+      if (testRegex(pattern, query)) {
         result.isValid = false;
         result.warnings.push(`Blocked SQL function detected: ${func}`);
         result.severity = SEVERITY.CRITICAL;
@@ -604,7 +604,7 @@ class SQLValidator {
     }
 
     // If allowedFunctions is specified, check against it
-    if (this.config.allowedFunctions.length > 0) {
+    if ((this.config.allowedFunctions || []).length > 0) {
       const functionMatches = query.match(/\b\w+\s*\(/g);
       if (functionMatches) {
         for (const match of functionMatches) {
@@ -640,8 +640,8 @@ class SQLValidator {
       // Check for various comment types
       const commentPatterns = [
         /\/\*(?:[^*]|\*(?!\/))*\*\//g, // Block comments (optimized - no backtracking)
-        /--.*$/gm, // SQL line comments
-        /#.*$/gm // MySQL comments
+        /--/, // SQL line comments
+        /#/ // MySQL comments
       ];
 
       // Use safeBatchTest to prevent ReDoS attacks
@@ -745,7 +745,7 @@ class SQLValidator {
     const patterns = DATABASE_SPECIFIC_PATTERNS[this.config.databaseType];
     if (patterns) {
       for (const pattern of patterns) {
-        if (pattern.test(query)) {
+        if (testRegex(pattern, query)) {
           result.isValid = false;
           result.warnings.push(`Database-specific dangerous pattern detected for ${this.config.databaseType}: ${pattern.source}`);
           result.severity = SEVERITY.CRITICAL;

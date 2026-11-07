@@ -14,6 +14,8 @@
  * Security priority: Zero false positives on legitimate input
  */
 
+const { testRegex } = require('./redos-safe-patterns');
+
 // Timing attack prevention removed - not needed for middleware sanitization
 
 /**
@@ -119,7 +121,7 @@ function detectDirectionalOverrides (input) {
   const rtlPattern = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
   const ltrPattern = /[A-Za-z]/;
 
-  if (rtlPattern.test(sanitized) && ltrPattern.test(sanitized)) {
+  if (testRegex(rtlPattern, sanitized) && testRegex(ltrPattern, sanitized)) {
     warnings.push({
       type: 'MIXED_DIRECTIONAL_TEXT',
       message: 'Mixed RTL and LTR text detected. Verify visual representation matches intended content.',
@@ -140,7 +142,7 @@ function detectDirectionalOverrides (input) {
       cleanedLength,
       charactersRemoved: originalLength - cleanedLength,
       foundOverrides,
-      hasMixedDirectionalText: rtlPattern.test(sanitized) && ltrPattern.test(sanitized)
+      hasMixedDirectionalText: testRegex(rtlPattern, sanitized) && testRegex(ltrPattern, sanitized)
     }
   };
 }
@@ -282,7 +284,7 @@ function detectMultipleUrlEncoding (input, maxDepth = 4) {
   ];
 
   for (const { pattern, name } of suspiciousPatterns) {
-    if (pattern.test(decoded) && !pattern.test(input)) {
+    if (testRegex(pattern, decoded) && !testRegex(pattern, input)) {
       warnings.push({
         type: 'ENCODING_REVEALED_SUSPICIOUS_CONTENT',
         message: `URL decoding revealed ${name} that were hidden by encoding.`,
@@ -386,7 +388,7 @@ function detectPostgresDollarQuotes (input) {
     // Additional warning for SQL keywords within dollar quotes
     if (hasPairedQuotes) {
       const sqlKeywords = /\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|DECLARE)\b/gi;
-      if (sqlKeywords.test(input)) {
+      if (testRegex(sqlKeywords, input)) {
         warnings.push({
           type: 'SQL_IN_DOLLAR_QUOTES',
           message: 'SQL keywords detected within text containing dollar quotes. This may indicate SQL injection.',

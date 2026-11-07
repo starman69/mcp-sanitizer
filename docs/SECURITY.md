@@ -161,7 +161,7 @@ Production-ready validation with minimal overhead:
 - 12 validation layers checking 42+ attack patterns
 - ReDoS-protected patterns with timeout guards
 - All operations complete in sub-millisecond timeframes
-- Use `skipPaths` middleware option for performance-critical routes
+- Use `skipPaths` middleware option for performance-critical routes (an entry matches its own path and sub-paths only)
 
 ## Responsible Disclosure
 

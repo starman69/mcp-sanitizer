@@ -8,7 +8,7 @@
  * common SQL injection vectors, and database-specific attack patterns.
  */
 
-const { safeBatchTest } = require('../utils/redos-safe-patterns');
+const { safeBatchTest, testRegex } = require('../utils/redos-safe-patterns');
 
 const SEVERITY_LEVELS = {
   CRITICAL: 'critical',
@@ -40,7 +40,7 @@ const SQL_KEYWORDS = [
 const INJECTION_PATTERNS = [
   // Union-based attacks
   /\bUNION\s+(ALL\s+)?SELECT\b/gi,
-  /\bUNION\s+.*\bFROM\b/gi,
+  /\bUNION\s[\s\S]{0,1000}?\bFROM\b/gi, // bounded (ReDoS)
 
   // Boolean-based blind injection
   /\b(AND|OR)\s+\d+\s*[=<>!]+\s*\d+/gi,
@@ -235,7 +235,7 @@ function checkSQLKeywords (input) {
   const detected = [];
 
   for (const pattern of SQL_KEYWORDS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`sql_keyword:${pattern.source}`);
     }
   }
@@ -273,7 +273,7 @@ function checkCommentPatterns (input) {
   const detected = [];
 
   for (const pattern of COMMENT_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`comment_pattern:${pattern.source}`);
     }
   }
@@ -293,7 +293,7 @@ function checkDatabaseSpecificPatterns (input) {
 
   for (const [db, patterns] of Object.entries(DATABASE_SPECIFIC_PATTERNS)) {
     for (const pattern of patterns) {
-      if (pattern.test(input)) {
+      if (testRegex(pattern, input)) {
         detected.push(`${db}_specific:${pattern.source}`);
       }
     }
@@ -313,7 +313,7 @@ function checkEncodedPatterns (input) {
   const detected = [];
 
   for (const pattern of ENCODED_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`encoded_pattern:${pattern.source}`);
     }
   }
@@ -332,7 +332,7 @@ function checkBypassPatterns (input) {
   const detected = [];
 
   for (const pattern of BYPASS_PATTERNS) {
-    if (pattern.test(input)) {
+    if (testRegex(pattern, input)) {
       detected.push(`bypass_pattern:${pattern.source}`);
     }
   }

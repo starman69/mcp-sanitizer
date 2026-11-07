@@ -98,7 +98,7 @@ describe('middleware/koa.js', () => {
   describe('skip paths', () => {
     it('should skip health check paths', async () => {
       const mw = createKoaMiddleware({ logWarnings: false, skipHealthChecks: true });
-      const ctx = mockCtx({ path: '/health' });
+      const ctx = mockCtx({ path: '/health', method: 'GET' });
       let nextCalled = false;
       await mw(ctx, async () => { nextCalled = true; });
       expect(nextCalled).toBe(true);
@@ -107,7 +107,7 @@ describe('middleware/koa.js', () => {
 
     it('should skip health sub-paths', async () => {
       const mw = createKoaMiddleware({ logWarnings: false, skipHealthChecks: true });
-      const ctx = mockCtx({ path: '/ping/detailed' });
+      const ctx = mockCtx({ path: '/ping/detailed', method: 'GET' });
       let nextCalled = false;
       await mw(ctx, async () => { nextCalled = true; });
       expect(nextCalled).toBe(true);
@@ -116,11 +116,21 @@ describe('middleware/koa.js', () => {
 
     it('should skip static file paths', async () => {
       const mw = createKoaMiddleware({ logWarnings: false, skipStaticFiles: true });
-      const ctx = mockCtx({ path: '/static/bundle.js' });
+      const ctx = mockCtx({ path: '/static/bundle.js', method: 'GET' });
       let nextCalled = false;
       await mw(ctx, async () => { nextCalled = true; });
       expect(nextCalled).toBe(true);
       expect(ctx.sanitizationResults).toBeUndefined();
+    });
+
+    it('does not skip a static-looking POST (GHSA-3vch-r42j-xc2g)', async () => {
+      for (const options of [{ skipStaticFiles: true }, {}]) {
+        const mw = createKoaMiddleware({ ...options, logWarnings: false });
+        const ctx = mockCtx({ path: '/api/users/a.js', method: 'POST' });
+        ctx.request.body = { x: 'safe' };
+        await mw(ctx, noopNext);
+        expect(ctx.sanitizationResults).toBeDefined();
+      }
     });
 
     it('should skip paths without file extensions', async () => {
@@ -149,7 +159,7 @@ describe('middleware/koa.js', () => {
         skipHealthChecks: false,
         skipStaticFiles: false
       });
-      const ctx = mockCtx({ path: '/health' });
+      const ctx = mockCtx({ path: '/health', method: 'GET' });
       ctx.request.body = { x: 'safe' };
       await mw(ctx, noopNext);
       // Should process the request

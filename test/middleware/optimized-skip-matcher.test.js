@@ -370,3 +370,20 @@ describe('OptimizedSkipMatcher', () => {
     });
   });
 });
+
+describe('GHSA-3vch-r42j-xc2g: skip entries match at a segment boundary', () => {
+  const matcher = createOptimizedMatcher(['/assets', '/public/', '/api', '/health']);
+
+  test.each(['/assets', '/assets/x.css', '/public', '/public/x', '/api/v1', '/health'])('skips %s', (p) => {
+    expect(matcher.shouldSkip(p)).toBe(true);
+  });
+
+  test.each(['/assets-secret/keys', '/assetsXYZ', '/publicXsecret', '/apiv2/internal', '/healthy', '/other'])(
+    'does not skip sibling %s', (p) => {
+      expect(matcher.shouldSkip(p)).toBe(false);
+    });
+
+  test('a / entry still skips everything', () => {
+    expect(createOptimizedMatcher(['/']).shouldSkip('/anything')).toBe(true);
+  });
+});

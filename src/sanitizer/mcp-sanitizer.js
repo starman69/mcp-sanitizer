@@ -74,7 +74,7 @@ class MCPSanitizer {
     // Initialize validator manager with configuration
     this.validatorManager = createValidatorManager({
       filePath: this.options.contextSettings?.filePath || {},
-      url: this.options.contextSettings?.url || {},
+      url: { allowedProtocols: this.options.allowedProtocols, ...this.options.contextSettings?.url },
       command: this.options.contextSettings?.command || {},
       sql: this.options.contextSettings?.sql || {}
     });
@@ -180,26 +180,33 @@ class MCPSanitizer {
   }
 
   /**
+   * GHSA-rc4x-x73r-6v9w FIX: fall back to legacy only if the validator crashes;
+   * a rejection is final.
+   * @private
+   */
+  async _runValidator (validate, legacy) {
+    let result;
+    try {
+      result = await validate();
+    } catch (error) {
+      return legacy();
+    }
+    if (!result.isValid) {
+      const error = new Error(result.warnings.join('; '));
+      error.severity = result.severity;
+      throw error;
+    }
+    return result.sanitized;
+  }
+
+  /**
    * Sanitize file paths using the modular file path validator
    * @param {string} filePath - File path to sanitize
    * @param {Object} options - Additional options
    * @returns {Promise<string>} Sanitized file path
    */
   async sanitizeFilePath (filePath, options = {}) {
-    try {
-      const result = await this.validatorManager.sanitizeFilePath(filePath, options);
-
-      if (!result.isValid) {
-        const error = new Error(result.warnings.join('; '));
-        error.severity = result.severity;
-        throw error;
-      }
-
-      return result.sanitized;
-    } catch (error) {
-      // Fallback to legacy validation for backward compatibility
-      return this._legacySanitizeFilePath(filePath);
-    }
+    return this._runValidator(() => this.validatorManager.sanitizeFilePath(filePath, options), () => this._legacySanitizeFilePath(filePath));
   }
 
   /**
@@ -209,20 +216,7 @@ class MCPSanitizer {
    * @returns {Promise<string>} Sanitized URL
    */
   async sanitizeURL (url, options = {}) {
-    try {
-      const result = await this.validatorManager.sanitizeURL(url, options);
-
-      if (!result.isValid) {
-        const error = new Error(result.warnings.join('; '));
-        error.severity = result.severity;
-        throw error;
-      }
-
-      return result.sanitized;
-    } catch (error) {
-      // Fallback to legacy validation for backward compatibility
-      return this._legacySanitizeURL(url);
-    }
+    return this._runValidator(() => this.validatorManager.sanitizeURL(url, options), () => this._legacySanitizeURL(url));
   }
 
   /**
@@ -232,20 +226,7 @@ class MCPSanitizer {
    * @returns {Promise<string>} Sanitized command
    */
   async sanitizeCommand (command, options = {}) {
-    try {
-      const result = await this.validatorManager.sanitizeCommand(command, options);
-
-      if (!result.isValid) {
-        const error = new Error(result.warnings.join('; '));
-        error.severity = result.severity;
-        throw error;
-      }
-
-      return result.sanitized;
-    } catch (error) {
-      // Fallback to legacy validation for backward compatibility
-      return this._legacySanitizeCommand(command);
-    }
+    return this._runValidator(() => this.validatorManager.sanitizeCommand(command, options), () => this._legacySanitizeCommand(command));
   }
 
   /**
@@ -255,20 +236,7 @@ class MCPSanitizer {
    * @returns {Promise<string>} Sanitized SQL query
    */
   async sanitizeSQL (query, options = {}) {
-    try {
-      const result = await this.validatorManager.sanitizeSQL(query, options);
-
-      if (!result.isValid) {
-        const error = new Error(result.warnings.join('; '));
-        error.severity = result.severity;
-        throw error;
-      }
-
-      return result.sanitized;
-    } catch (error) {
-      // Fallback to legacy validation for backward compatibility
-      return this._legacySanitizeSQL(query);
-    }
+    return this._runValidator(() => this.validatorManager.sanitizeSQL(query, options), () => this._legacySanitizeSQL(query));
   }
 
   /**
@@ -395,7 +363,7 @@ class MCPSanitizer {
     // Recreate validator manager with new configuration
     this.validatorManager = createValidatorManager({
       filePath: this.options.contextSettings?.filePath || {},
-      url: this.options.contextSettings?.url || {},
+      url: { allowedProtocols: this.options.allowedProtocols, ...this.options.contextSettings?.url },
       command: this.options.contextSettings?.command || {},
       sql: this.options.contextSettings?.sql || {}
     });
@@ -683,6 +651,7 @@ class MCPSanitizer {
   _secureSanitizeFilePath (filePath) {
     // filePath is already decoded by _sanitizeString
     const normalizedPath = validationUtils.validateFilePath(filePath);
+    validationUtils.assertPathConfinement(normalizedPath, this.options.contextSettings?.filePath);
     validationUtils.validateFileExtension(normalizedPath, this.options.allowedFileExtensions);
     return normalizedPath;
   }
@@ -749,19 +718,20 @@ class MCPSanitizer {
     // Import NoSQL injection detection
     const { detectNoSQLInjection } = require('../patterns/nosql-injection');
 
-    // Try to parse as JSON if it looks like JSON
-    let queryToCheck = query;
-    if ((query.trim().startsWith('{') && query.trim().endsWith('}')) ||
-        (query.trim().startsWith('[') && query.trim().endsWith(']'))) {
-      try {
-        queryToCheck = JSON.parse(query);
-      } catch (e) {
-        // If JSON parsing fails, check as string
-      }
+    // GHSA-fqrp-x74j-x4r8 FIX: trailing text must not skip the object-key check,
+    // so also check any embedded {...} / [...] span.
+    const checks = [];
+    const parsedWhole = this._tryParseJSON(query.trim());
+    if (parsedWhole.ok) {
+      checks.push(parsedWhole.value);
+    } else {
+      checks.push(query);
+      const embedded = this._tryParseEmbeddedJSON(query);
+      if (embedded.ok) checks.push(embedded.value);
     }
 
     // Check for NoSQL injection patterns
-    const nosqlCheck = detectNoSQLInjection(queryToCheck);
+    const nosqlCheck = checks.map(c => detectNoSQLInjection(c)).find(r => r.detected) || { detected: false };
     if (nosqlCheck.detected) {
       // Create detailed error message based on vulnerabilities found
       const vulnerabilityMessages = nosqlCheck.vulnerabilities.map(vuln => {
@@ -782,6 +752,30 @@ class MCPSanitizer {
     return stringUtils.safeTrim(query);
   }
 
+  /** Parse a JSON object/array without throwing. @private */
+  _tryParseJSON (text) {
+    if (!/^[[{]/.test(text)) return { ok: false };
+    try {
+      const value = JSON.parse(text);
+      return value !== null && typeof value === 'object' ? { ok: true, value } : { ok: false };
+    } catch (e) {
+      return { ok: false };
+    }
+  }
+
+  /** Parse the outermost {...} or [...] span inside a string. @private */
+  _tryParseEmbeddedJSON (text) {
+    for (const [open, close] of [['{', '}'], ['[', ']']]) {
+      const start = text.indexOf(open);
+      const end = text.lastIndexOf(close);
+      if (start !== -1 && end > start) {
+        const parsed = this._tryParseJSON(text.slice(start, end + 1));
+        if (parsed.ok) return parsed;
+      }
+    }
+    return { ok: false };
+  }
+
   /**
    * Legacy file path sanitization (DEPRECATED - kept for fallback only)
    * @param {string} filePath - File path to sanitize
@@ -792,6 +786,7 @@ class MCPSanitizer {
   _legacySanitizeFilePath (filePath) {
     // Legacy path sanitization - security decoder is now integrated
     const normalizedPath = validationUtils.validateFilePath(filePath);
+    validationUtils.assertPathConfinement(normalizedPath, this.options.contextSettings?.filePath);
     validationUtils.validateFileExtension(normalizedPath, this.options.allowedFileExtensions);
     return normalizedPath;
   }
