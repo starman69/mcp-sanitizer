@@ -55,7 +55,7 @@ try {
 }
 
 const MCPSanitizer = require('../index');
-const { sanitizedOrWithheld } = require('./request-utils');
+const { sanitizedOrWithheld, setRequestProperty } = require('./request-utils');
 const { createOptimizedMatcher } = require('./optimized-skip-matcher');
 
 /**
@@ -312,7 +312,8 @@ async function processFastifyRequest (request, reply, sanitizer, config) {
     allWarnings.push(...result.warnings);
 
     // Audit FIX: a blocked part is withheld, never passed through raw.
-    request[type] = sanitizedOrWithheld(result, request[type]);
+    // Fastify's request.headers setter merges instead of replacing, so define the value.
+    setRequestProperty(request, type, sanitizedOrWithheld(result, request[type]));
   }
 
   // Handle blocking mode

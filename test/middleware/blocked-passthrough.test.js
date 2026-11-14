@@ -93,5 +93,17 @@ describe('middleware withholds blocked input in sanitize mode', () => {
     const reply = { code () { return reply; }, send () { return reply; } };
     await hooks.preHandler[0](request, reply);
     expect(request.body).toEqual({});
+
+    // Fastify's headers setter merges into the raw headers instead of replacing them.
+    const raw = { 'x-evil': '../../etc/passwd' };
+    const proto = {
+      get headers () { return { ...raw, ...this.additionalHeaders }; },
+      set headers (h) { this.additionalHeaders = h; }
+    };
+    const withHeaders = Object.assign(Object.create(proto), { url: '/api', method: 'GET', body: {}, params: {}, query: {}, log: instance.log });
+    const headerInstance = { ...instance, addHook (name, fn) { if (name === 'preHandler') hooks.headers = fn; } };
+    await fastifyPlugin.mcpSanitizerPlugin(headerInstance, { logWarnings: false, sanitizeHeaders: true });
+    await hooks.headers(withHeaders, reply);
+    expect(withHeaders.headers['x-evil']).toBeUndefined();
   });
 });
