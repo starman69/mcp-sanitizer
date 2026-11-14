@@ -155,6 +155,12 @@ describe('oversized strings are rejected before normalization', () => {
     expect(Date.now() - start).toBeLessThan(100);
   });
 
+  it('rejects an oversized top-level string on length, before the homograph scan', () => {
+    const result = new MCPSanitizer().sanitize('\u0430'.repeat(4e6));
+    expect(result.blocked).toBe(true);
+    expect(result.warnings.join(' ')).toMatch(/before normalization/);
+  });
+
   it('still accepts encoded input that normalizes under the limit', () => {
     expect(new MCPSanitizer().sanitize('%41'.repeat(3000)).blocked).toBe(false);
   });

@@ -160,6 +160,7 @@ class MCPSanitizer {
     try {
       // First, apply enterprise security checks
       if (typeof input === 'string') {
+        this._assertRawLength(input);
         const securityChecks = enterpriseSecurity.performSecurityChecks(input, {
           checkDirectional: true,
           checkNullBytes: true,
@@ -462,6 +463,17 @@ class MCPSanitizer {
   }
 
   /**
+   * Audit FIX (DoS): bound work before any scan or normalization; no escape expands past 10:1.
+   * @param {string} str - Raw string
+   * @private
+   */
+  _assertRawLength (str) {
+    if (this.options.maxStringLength && str.length > this.options.maxStringLength * 10) {
+      throw new Error(`String length ${str.length} exceeds maximum allowed before normalization`);
+    }
+  }
+
+  /**
    * CVE-TBD-001 FIX: Secure string sanitization with unified parsing
    * This method now uses unified parsing to prevent parser differential attacks
    * @param {string} str - String to sanitize
@@ -470,10 +482,7 @@ class MCPSanitizer {
    * @private
    */
   _sanitizeString (str, context) {
-    // Audit FIX (DoS): bound work before normalization; no escape expands past 10:1.
-    if (this.options.maxStringLength && str.length > this.options.maxStringLength * 10) {
-      throw new Error(`String length ${str.length} exceeds maximum allowed before normalization`);
-    }
+    this._assertRawLength(str);
 
     // Audit FIX: nested values and keys get the same checks as a top-level string.
     const securityChecks = enterpriseSecurity.performSecurityChecks(str, {
