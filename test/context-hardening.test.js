@@ -64,3 +64,16 @@ describe('object keys are checked like values', () => {
     expect(blocked({ 'Content-Type': 'x', user_name: 'a', 'first name': 'b', émoji: 'c' }, {})).toBe(false);
   });
 });
+
+describe('nested strings and keys get the top-level security checks', () => {
+  it.each([
+    [{ a: 'a‮b' }],
+    [{ a: 'a\u0000b' }],
+    [['x‮y']],
+    [{ a: { b: '%2561' } }], // double encoding
+    [{ 'a‮b': 1 }],
+    [{ 'a\u0000b': 1 }]
+  ])('%j is blocked', (input) => {
+    expect(blocked(input, {})).toBe(true);
+  });
+});

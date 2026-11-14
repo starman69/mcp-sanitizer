@@ -456,6 +456,17 @@ class MCPSanitizer {
    * @private
    */
   _sanitizeString (str, context) {
+    // Audit FIX: nested values and keys get the same checks as a top-level string.
+    const securityChecks = enterpriseSecurity.performSecurityChecks(str, {
+      checkDirectional: true,
+      checkNullBytes: true,
+      checkDoubleEncoding: true,
+      checkHomographs: true
+    });
+    if (securityChecks.blocked) {
+      throw new Error(securityChecks.warnings.join('; '));
+    }
+
     // CVE-TBD-001 FIX: Use unified parser for consistent normalization
     const normalizedStr = parseUnified(str, {
       type: context.type || 'generic',
