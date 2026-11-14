@@ -96,6 +96,30 @@ describe('SSRF: internal names and reserved ranges (GHSA-qvp2-8q5w-gcfp)', () =>
   });
 });
 
+describe('SSRF: translated, NAT64 local-use, Teredo and reserved IPv4 (GHSA-3pp5-crfq-6grr)', () => {
+  it.each([
+    'https://[::ffff:0:127.0.0.1]/', // IPv4-translated loopback
+    'https://[0:0:0:0:ffff:0:a00:1]/', // IPv4-translated 10.0.0.1
+    'https://[::ffff:0:a9fe:a9fe]/', // IPv4-translated 169.254.169.254
+    'https://[64:ff9b:1::a00:1]/', // NAT64 local-use
+    'https://[2001::1]/', // Teredo
+    'https://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/', // Teredo
+    'https://168.63.129.16/', // Azure WireServer
+    'https://192.88.99.1/' // 6to4 relay anycast
+  ])('blocks %s', (url) => {
+    expect(isBlocked(url)).toBe(true);
+  });
+
+  it.each([
+    'https://[::ffff:0:8.8.8.8]/', // translated public address
+    'https://[2001:4860:4860::8888]/', // public 2001:: space outside Teredo
+    'https://168.63.129.17/',
+    'https://192.88.98.1/'
+  ])('allows %s', (url) => {
+    expect(isBlocked(url)).toBe(false);
+  });
+});
+
 describe('SSRF: blockedDomains / allowedDomains are enforced', () => {
   const withDomains = (url) => new MCPSanitizer({
     contextSettings: { url: { blockedDomains: ['evil.com'], allowedDomains: ['example.com', 'evil.com'] } }

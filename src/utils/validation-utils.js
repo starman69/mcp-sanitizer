@@ -476,9 +476,16 @@ function classifyHost (rawHostname) {
     // (2002:aabb:ccdd::) carries it in groups 1–2. Node re-encodes the IPv4 as
     // hex, so recover it from the canonical form and apply the IPv4 checks.
     const zeros = (from, to) => groups.slice(from, to).every(g => g === '0000');
+    // GHSA-3pp5-crfq-6grr FIX: also IPv4-translated ::ffff:0:a.b.c.d (RFC 2765).
     if ((zeros(0, 5) && (groups[5] === 'ffff' || groups[5] === '0000')) ||
+        (zeros(0, 4) && groups[4] === 'ffff' && groups[5] === '0000') ||
         (groups[0] === '0064' && groups[1] === 'ff9b' && zeros(2, 6))) {
       return { hostname, category: classifyEmbeddedIPv4(groups[6], groups[7]) };
+    }
+    // NAT64 local-use 64:ff9b:1::/48 and Teredo 2001::/32 can reach internal IPv4.
+    if ((groups[0] === '0064' && groups[1] === 'ff9b' && groups[2] === '0001') ||
+        (groups[0] === '2001' && groups[1] === '0000')) {
+      return { hostname, category: 'reserved' };
     }
     if (groups[0] === '2002') {
       return { hostname, category: classifyEmbeddedIPv4(groups[1], groups[2]) };
@@ -527,7 +534,10 @@ function classifyIPv4 (o) {
   if (o[0] === 169 && o[1] === 254) return 'link-local';
   // IETF protocol assignments 192.0.0.0/24, benchmarking 198.18.0.0/15,
   // multicast 224.0.0.0/4 and reserved/broadcast 240.0.0.0/4.
+  // GHSA-3pp5-crfq-6grr FIX: 6to4 relay anycast 192.88.99.0/24, Azure WireServer 168.63.129.16.
   if ((o[0] === 192 && o[1] === 0 && o[2] === 0) ||
+      (o[0] === 192 && o[1] === 88 && o[2] === 99) ||
+      (o[0] === 168 && o[1] === 63 && o[2] === 129 && o[3] === 16) ||
       (o[0] === 198 && (o[1] === 18 || o[1] === 19)) ||
       o[0] >= 224) {
     return 'reserved';
