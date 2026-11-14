@@ -4,7 +4,7 @@ A comprehensive security sanitization library for Model Context Protocol (MCP) s
 
 [![npm version](https://badge.fury.io/js/mcp-sanitizer.svg)](https://badge.fury.io/js/mcp-sanitizer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Security Tests](https://img.shields.io/badge/Security%20Tests-1587%2B-brightgreen)](./test)
+[![Security Tests](https://img.shields.io/badge/Security%20Tests-1973%2B-brightgreen)](./test)
 
 ## 🔒 Security Features
 
@@ -17,7 +17,7 @@ MCP Sanitizer provides comprehensive, defense-in-depth protection:
 - ✅ **Framework Integration**: Express, Fastify, and Koa middleware with `skipPaths` support
 - ✅ **Security Policies**: Pre-configured policies (STRICT, MODERATE, PERMISSIVE, DEVELOPMENT, PRODUCTION)
 - ✅ **Comprehensive Validation**: Checking 42+ attack vectors across 12 validation layers in <1ms
-- ✅ **Comprehensive Testing**: 1587 tests with 93% code coverage, sub-millisecond performance
+- ✅ **Comprehensive Testing**: 1973 tests with 93% code coverage, sub-millisecond performance
 
 ### Security Philosophy
 While we maintain rigorous security standards and comprehensive test coverage, we acknowledge that:
@@ -102,7 +102,7 @@ app.use(createExpressMiddleware());
 // Or specify configuration
 app.use(createExpressMiddleware({
   policy: 'PRODUCTION',
-  mode: 'sanitize', // or 'block'
+  mode: 'sanitize', // or 'block'; blocked parts reach the handler empty ({}), never raw
   skipPaths: ['/health', '/metrics']  // Skips /health and /health/*, not /healthy
 }));
 
@@ -179,9 +179,9 @@ const sanitizer = new MCPSanitizer({
   
   // Patterns
   blockedPatterns: [
-    /\$\{.*?\}/g,     // Template injection
-    /__proto__/gi,    // Prototype pollution
-    /require\s*\(/gi  // Code execution
+    /\$\{[\s\S]*?\}/,  // Template injection (spans newlines)
+    /__proto__/i,     // Prototype pollution
+    /require\s*\(/i   // Code execution (no /g: global regexes are stateful)
   ],
   
   // Context-specific settings
@@ -244,6 +244,10 @@ Sanitizes input data and returns a result object.
 - `url`: Apply URL validation  
 - `command`: Apply command validation
 - `sql`: Apply SQL query validation
+- `nosql`: Apply NoSQL query validation
+
+Object keys are checked like values, and query operator keys such as `$ne` or
+`$where` are blocked in every context.
 
 ### Specialized Methods
 
@@ -457,7 +461,7 @@ node benchmark/skip-paths-performance.js
 
 ## Security Reporting
 
-If you discover a security vulnerability, please email me instead of using the public issue tracker. We follow responsible disclosure practices and will credit researchers.
+If you discover a security vulnerability, please report it privately via [GitHub Security Advisories](https://github.com/starman69/mcp-sanitizer/security/advisories/new) instead of the public issue tracker. We follow responsible disclosure practices and will credit researchers.
 
 ## License
 
@@ -465,7 +469,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Related Projects
 
-- [Model Context Protocol](https://github.com/anthropics/model-context-protocol)
+- [Model Context Protocol](https://github.com/modelcontextprotocol)
 - [OWASP Input Validation](https://owasp.org/www-project-proactive-controls/v3/en/c5-validate-inputs)
 - [Express Security Best Practices](https://expressjs.com/en/advanced/best-practice-security.html)
 

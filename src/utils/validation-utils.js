@@ -12,7 +12,6 @@ const path = require('path');
 const net = require('net');
 const dns = require('dns');
 const { URL } = require('url');
-const { testRegex } = require('./redos-safe-patterns');
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified } = require('./unified-parser');
 
@@ -152,6 +151,7 @@ function validateFilePath (filePath) {
     }
   }
 
+  assertNotWindowsSystemPath(safePath);
   assertNotSensitivePath(normalizedPath);
 
   // Use path-is-inside to check if the path tries to escape a safe directory
@@ -268,10 +268,40 @@ function trimTrailing (str, chars) {
 }
 
 // Directory or file names that hold credentials; `.env.*` is matched separately.
+// Audit FIX: added .git (hooks run code), shell history, key files and more credential stores.
 const SENSITIVE_PATH_SEGMENTS = new Set([
   '.ssh', '.aws', '.gnupg', '.kube', '.config', '.docker',
-  '.npmrc', '.netrc', '.env', '.git-credentials'
+  '.npmrc', '.netrc', '.env', '.git-credentials',
+  '.git', '.azure', '.terraform.d', '.envrc', '.pgpass', '.my.cnf',
+  '.htpasswd', '.vault-token', '.pypirc', '.s3cfg', '.boto',
+  '.bash_history', '.zsh_history', '.psql_history', '.mysql_history',
+  'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519'
 ]);
+
+// Windows system directories (first segment after the drive), incl. 8.3 short names.
+const WINDOWS_SYSTEM_DIRS = new Set([
+  'windows', 'system32', 'program files', 'program files (x86)', 'programdata'
+]);
+
+/**
+ * Audit FIX: block Windows system directories on any drive, including 8.3 short
+ * names (WINDOW~1) and trailing dots/spaces, and drive-relative paths (C:foo).
+ * @param {string} safePath - Path already normalized by the unified parser
+ * @throws {Error} - If the path targets a Windows system directory or is drive-relative
+ */
+function assertNotWindowsSystemPath (safePath) {
+  if (!/^[a-z]:/i.test(safePath)) return;
+  if (!/^[a-z]:[\\/]/i.test(safePath)) {
+    throw new Error('Drive-relative Windows paths are not allowed');
+  }
+  // Resolve `.`/`..` and skip segments Windows reduces to nothing (`D:\.\Windows`, `E:\ \Windows`).
+  const first = path.win32.normalize(safePath).slice(2).split(/[\\/]/)
+    .map(s => trimTrailing(s.split(':')[0], '. ').toLowerCase())
+    .find(Boolean) || '';
+  if (WINDOWS_SYSTEM_DIRS.has(first) || /^(window|progra)~\d+$/.test(first)) {
+    throw new Error(`Access to system directory not allowed: ${first}`);
+  }
+}
 
 /**
  * GHSA-7w82-6f9j-v9jp FIX: Block sensitive config files/dirs (SSH keys, cloud
@@ -309,6 +339,9 @@ function validateFileExtension (filePath, allowedExtensions) {
   }
 }
 
+// Schemes whose URLs legitimately have no host.
+const HOSTLESS_PROTOCOLS = new Set(['file', 'mailto', 'tel', 'urn', 'data']);
+
 /**
  * CVE-TBD-001 FIX: Validate URL using unified parsing
  * @param {string} url - The URL to validate (will be normalized)
@@ -336,6 +369,15 @@ function validateURL (url, allowedProtocols = ['http', 'https']) {
   const protocol = parsedUrl.protocol.slice(0, -1); // Remove trailing colon
   if (!allowedProtocols.includes(protocol)) {
     throw new Error(`Protocol ${protocol} not allowed. Allowed protocols: ${allowedProtocols.join(', ')}`);
+  }
+
+  // Audit FIX: a hostless URL (mcp:\\127.0.0.1/, mcp:@169.254.169.254) skips the
+  // location check but a lenient consumer may still find a host in it.
+  if (!parsedUrl.hostname && !HOSTLESS_PROTOCOLS.has(protocol)) {
+    throw new Error('URL has no host');
+  }
+  if (parsedUrl.username || parsedUrl.password) {
+    throw new Error('Credentials in URL are not allowed');
   }
 
   // Check for suspicious patterns in URL path
@@ -477,9 +519,16 @@ function classifyHost (rawHostname) {
     // (2002:aabb:ccdd::) carries it in groups 1–2. Node re-encodes the IPv4 as
     // hex, so recover it from the canonical form and apply the IPv4 checks.
     const zeros = (from, to) => groups.slice(from, to).every(g => g === '0000');
+    // GHSA-3pp5-crfq-6grr FIX: also IPv4-translated ::ffff:0:a.b.c.d (RFC 2765).
     if ((zeros(0, 5) && (groups[5] === 'ffff' || groups[5] === '0000')) ||
+        (zeros(0, 4) && groups[4] === 'ffff' && groups[5] === '0000') ||
         (groups[0] === '0064' && groups[1] === 'ff9b' && zeros(2, 6))) {
       return { hostname, category: classifyEmbeddedIPv4(groups[6], groups[7]) };
+    }
+    // NAT64 local-use 64:ff9b:1::/48 and Teredo 2001::/32 can reach internal IPv4.
+    if ((groups[0] === '0064' && groups[1] === 'ff9b' && groups[2] === '0001') ||
+        (groups[0] === '2001' && groups[1] === '0000')) {
+      return { hostname, category: 'reserved' };
     }
     if (groups[0] === '2002') {
       return { hostname, category: classifyEmbeddedIPv4(groups[1], groups[2]) };
@@ -528,7 +577,10 @@ function classifyIPv4 (o) {
   if (o[0] === 169 && o[1] === 254) return 'link-local';
   // IETF protocol assignments 192.0.0.0/24, benchmarking 198.18.0.0/15,
   // multicast 224.0.0.0/4 and reserved/broadcast 240.0.0.0/4.
+  // GHSA-3pp5-crfq-6grr FIX: 6to4 relay anycast 192.88.99.0/24, Azure WireServer 168.63.129.16.
   if ((o[0] === 192 && o[1] === 0 && o[2] === 0) ||
+      (o[0] === 192 && o[1] === 88 && o[2] === 99) ||
+      (o[0] === 168 && o[1] === 63 && o[2] === 129 && o[3] === 16) ||
       (o[0] === 198 && (o[1] === 18 || o[1] === 19)) ||
       o[0] >= 224) {
     return 'reserved';
@@ -651,6 +703,79 @@ async function resolveAndValidateURL (url, options = {}) {
   return { url: parsedUrl, address: resolved[0].address, family: resolved[0].family };
 }
 
+// GHSA-vwjq-wx58-g4qr FIX: one list for every command entry point, matched on
+// the normalized basename so `/bin/rm`, `RM.EXE` and `python3.11` are caught.
+const DANGEROUS_COMMANDS = new Set([
+  'rm', 'del', 'format', 'mkfs', 'dd',
+  'nc', 'ncat', 'netcat', 'socat', 'telnet', 'ssh',
+  'curl', 'wget',
+  'sh', 'bash', 'dash', 'zsh', 'ksh', 'csh', 'tcsh', 'ash', 'fish', 'busybox',
+  'cmd', 'powershell', 'pwsh',
+  'python', 'node', 'perl', 'ruby', 'php', 'lua',
+  'nodejs', 'deno', 'bun', 'pythonw', 'ipython', 'pypy', 'jython', 'irb', 'tclsh', 'wish', 'expect',
+  'rbash', 'mksh', 'wsl', 'osascript', 'cscript', 'wscript', 'mshta',
+  'sudo', 'su', 'doas', 'chmod', 'chown'
+]);
+
+// Commands that run their arguments as another command.
+const COMMAND_WRAPPERS = new Set([
+  'env', 'exec', 'xargs', 'nohup', 'timeout', 'nice', 'ionice', 'stdbuf',
+  'time', 'command', 'builtin', 'setsid', 'chroot', 'strace', 'sudo', 'doas'
+]);
+
+/**
+ * Normalize a command token to the program name a shell would run.
+ * @param {string} token - Command token (may include a path, quotes or extension)
+ * @returns {string} - Lowercase basename without a Windows executable extension
+ */
+function commandBaseName (token) {
+  // Trailing quotes are stripped with a loop: /["']+$/ is polynomial on many quotes.
+  const base = String(token).trim().replace(/^["']+/, '').split(/[\\/]/).pop();
+  return trimTrailing(base, '"\'')
+    .toLowerCase()
+    .replace(/\.(exe|com|bat|cmd|ps1)$/, '');
+}
+
+/**
+ * Whether a command token names a program in `DANGEROUS_COMMANDS`, ignoring
+ * path, case, executable extension and version suffix.
+ * @param {string} token - Command token
+ * @param {Iterable<string>} [list] - Names to match (defaults to `DANGEROUS_COMMANDS`)
+ * @returns {boolean}
+ */
+function isDangerousCommand (token, list = DANGEROUS_COMMANDS) {
+  const name = commandBaseName(token);
+  if (!name) return false;
+  const names = list instanceof Set ? list : new Set(Array.from(list, n => String(n).toLowerCase()));
+  let end = name.length; // strip a version suffix (python3.11 -> python) without a backtracking regex
+  while (end > 0 && '0123456789._-'.includes(name[end - 1])) end--;
+  const bare = name.slice(0, end);
+  return names.has(name) || (bare !== '' && names.has(bare)) ||
+    (names.has('mkfs') && /^mkfs(\.|$)/.test(name));
+}
+
+/**
+ * First dangerous word in a command. The program (and whatever a wrapper such as
+ * `env` or `timeout 5` runs) is matched by basename; other words only by bare name,
+ * so `rm` as an argument is caught but a path like `/home/user/node` is not.
+ * @param {string[]} words - Command words, program first
+ * @returns {string|undefined}
+ */
+function findDangerousWord (words) {
+  let commandPosition = true;
+  for (const word of words) {
+    const isPath = /[\\/]/.test(word);
+    if (commandPosition) {
+      if (isDangerousCommand(word)) return word;
+      if (/^-|^\d+$|=/.test(word)) continue; // wrapper options: -i, 5, VAR=1
+      commandPosition = COMMAND_WRAPPERS.has(commandBaseName(word));
+    } else if (!isPath && isDangerousCommand(word)) {
+      return word;
+    }
+  }
+  return undefined;
+}
+
 /**
  * CVE-TBD-001 FIX: Validate command using unified parsing
  * @param {string} command - The command string to validate (will be normalized)
@@ -670,6 +795,13 @@ function validateCommand (command) {
   try {
     // Parse the NORMALIZED command to detect injection attempts
     const parsed = shellQuote.parse(safeCommand);
+    // shell-quote drops unquoted backslashes, so also check the raw words (C:\...\cmd.exe).
+    const rawWords = safeCommand.split(/\s+/).filter(Boolean);
+    const dangerous = findDangerousWord(rawWords) ||
+      findDangerousWord(parsed.filter(t => typeof t === 'string'));
+    if (dangerous) {
+      throw new Error(`Dangerous command detected: ${dangerous}`);
+    }
 
     // Check for command injection by examining parsed tokens
     for (const token of parsed) {
@@ -679,20 +811,6 @@ function validateCommand (command) {
       }
 
       if (typeof token === 'string') {
-        // Check each command token against dangerous patterns
-        const dangerousCommands = [
-          /^(rm|del|format|mkfs[\w.]*|dd)$/i,
-          /^(nc|netcat|telnet|ssh)$/i,
-          /^(curl|wget|python|node|bash|sh|powershell|cmd)$/i,
-          /^(sudo|su|chmod|chown)$/i
-        ];
-
-        for (const pattern of dangerousCommands) {
-          if (testRegex(pattern, token.trim())) {
-            throw new Error(`Dangerous command detected: ${token}`);
-          }
-        }
-
         // Check for sensitive file access
         if (token.includes('/etc/') || token.includes('/proc/') || token.includes('/sys/') ||
             token.toLowerCase().includes('c:\\windows\\') || token.includes('.ssh') ||
@@ -808,6 +926,7 @@ module.exports = {
   validateRegExp,
   validateFilePath,
   assertNotSensitivePath,
+  assertNotWindowsSystemPath,
   assertPathConfinement,
   validateFileExtension,
   validateURL,
@@ -817,6 +936,10 @@ module.exports = {
   resolveHost,
   resolveAndValidateURL,
   validateCommand,
+  isDangerousCommand,
+  commandBaseName,
+  DANGEROUS_COMMANDS,
+  COMMAND_WRAPPERS,
   validateOptions,
   validateRange,
   validateArrayOfType,

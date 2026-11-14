@@ -36,10 +36,11 @@ const STRICT_POLICY = {
   // These patterns provide fast heuristic detection as part of defense-in-depth.
   blockedPatterns: [
     // All template injection patterns
-    /\$\{.*?\}|\{\{.*?\}\}|<%.*?%>|\[\[.*?\]\]/,
+    // Audit FIX: match across newlines and cover Jinja {% %} / #{ } and spaced/bracketed prototype access.
+    /\$\{[\s\S]*?\}|\{\{[\s\S]*?\}\}|<%[\s\S]*?%>|\{%[\s\S]*?%\}|#\{[\s\S]*?\}|\[\[[\s\S]*?\]\]/,
 
     // All prototype pollution patterns
-    /__proto__|constructor\.prototype|prototype\.constructor|prototype\[|constructor\[/i,
+    /__proto__|constructor\s*[.[]\s*(?:["'`]\s*)?prototype|prototype\s*[.[]\s*(?:["'`]\s*)?constructor|\bObject\s*\.\s*prototype\b|prototype\[|constructor\[/i,
 
     // All code execution patterns
     /require\s*\(|import\s*\(|eval\s*\(|Function\s*\(|setTimeout\s*\(|setInterval\s*\(/i,
@@ -149,8 +150,9 @@ const MODERATE_POLICY = {
 
   // Core security patterns
   blockedPatterns: [
-    /\$\{.*?\}|\{\{.*?\}\}|<%.*?%>/,
-    /__proto__|constructor\.prototype|prototype\.constructor/i,
+    // Audit FIX: match across newlines and cover Jinja {% %} / #{ } and spaced/bracketed prototype access.
+    /\$\{[\s\S]*?\}|\{\{[\s\S]*?\}\}|<%[\s\S]*?%>|\{%[\s\S]*?%\}|#\{[\s\S]*?\}/,
+    /__proto__|constructor\s*[.[]\s*(?:["'`]\s*)?prototype|prototype\s*[.[]\s*(?:["'`]\s*)?constructor|\bObject\s*\.\s*prototype\b/i,
     /require\s*\(|import\s*\(|eval\s*\(|Function\s*\(/i,
     // XSS patterns (heuristic detection)
     /<!--[\s\S]*?-->/i, // HTML comments

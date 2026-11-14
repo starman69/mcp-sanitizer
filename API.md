@@ -552,7 +552,7 @@ Create Express.js middleware.
 ```typescript
 {
   policy?: string;
-  mode?: 'sanitize' | 'block';
+  mode?: 'sanitize' | 'block';    // 'sanitize': a blocked body/query/params is replaced with {}
   skipPaths?: (string | RegExp)[]; // '/api' skips /api and /api/*, not /apiv2
   skipHealthChecks?: boolean;      // default true; only GET/HEAD without query or body
   skipStaticFiles?: boolean;       // default false; only GET/HEAD without query or body

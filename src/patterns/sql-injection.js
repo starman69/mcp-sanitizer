@@ -46,6 +46,10 @@ const INJECTION_PATTERNS = [
   /\b(AND|OR)\s+\d+\s*[=<>!]+\s*\d+/gi,
   /\b(AND|OR)\s+['"]?\w+['"]?\s*[=<>!]+\s*['"]?\w+['"]?/gi,
   /\b(AND|OR)\s+\d+\s*BETWEEN\s+\d+\s+AND\s+\d+/gi,
+  // Audit FIX: tautologies without a space or with a boolean literal (OR(1=1), OR true, ' OR ''=')
+  /\b(AND|OR)\s*\(\s*['"]?\w+['"]?\s*[=<>!]+\s*['"]?\w+['"]?\s*\)/gi,
+  /\b(AND|OR)\s+(NOT\s+)?(TRUE|FALSE)\b/gi,
+  /['"]\s*(AND|OR)\s*['"]{2}\s*[=<>!]+\s*['"]/gi,
 
   // Time-based blind injection
   /\bWAITFOR\s+DELAY\s+['"]\d+:\d+:\d+['"]/gi,

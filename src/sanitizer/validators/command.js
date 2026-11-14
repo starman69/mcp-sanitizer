@@ -33,6 +33,7 @@ const { safeBatchTest } = require('../../utils/redos-safe-patterns');
 // const { securityDecode } = require('../../utils/security-decoder') // Unused
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified } = require('../../utils/unified-parser');
+const { isDangerousCommand, commandBaseName, DANGEROUS_COMMANDS, COMMAND_WRAPPERS } = require('../../utils/validation-utils');
 
 /**
  * Command validation severity levels
@@ -47,17 +48,23 @@ const SEVERITY = {
 /**
  * Default configuration for command validation
  */
+// Blocked by default before 1.4.4; an allowlist entry cannot override these.
+const LEGACY_BLOCKED_COMMANDS = [
+  'rm', 'del', 'format', 'mkfs', 'dd', 'fdisk',
+  'nc', 'netcat', 'telnet', 'ssh', 'ftp',
+  'wget', 'curl', 'lynx', 'links',
+  'eval', 'exec', 'system', 'popen',
+  'sudo', 'su', 'passwd', 'chmod', 'chown',
+  'mount', 'umount', 'kill', 'killall',
+  'reboot', 'shutdown', 'halt', 'init'
+];
+
 const DEFAULT_CONFIG = {
   allowedCommands: [], // Empty array means all commands allowed (use with caution)
   blockedCommands: [
-    'rm', 'del', 'format', 'mkfs', 'dd', 'fdisk',
-    'nc', 'netcat', 'telnet', 'ssh', 'ftp',
-    'wget', 'curl', 'lynx', 'links',
-    'eval', 'exec', 'system', 'popen',
-    'sudo', 'su', 'passwd', 'chmod', 'chown',
-    'mount', 'umount', 'kill', 'killall',
-    'reboot', 'shutdown', 'halt', 'init'
-  ],
+    ...LEGACY_BLOCKED_COMMANDS,
+    ...DANGEROUS_COMMANDS // GHSA-vwjq-wx58-g4qr FIX: shared with the sync validator
+  ].filter((name, i, all) => all.indexOf(name) === i),
   allowShellMetacharacters: false,
   allowRedirection: false,
   allowPipes: false,
@@ -170,7 +177,9 @@ class CommandValidator {
 
       // Check command length
       if (command.length > this.config.maxCommandLength) {
-        result.warnings.push(`Command exceeds maximum length of ${this.config.maxCommandLength} characters`);
+        result.warnings.push(this.config.maxCommandLength === 0
+          ? 'Commands are disabled by this policy (maxCommandLength: 0)'
+          : `Command exceeds maximum length of ${this.config.maxCommandLength} characters`);
         result.severity = SEVERITY.MEDIUM;
         return result;
       }
@@ -250,7 +259,7 @@ class CommandValidator {
       }
 
       // Validate command name against whitelist/blacklist
-      const commandResult = this._validateCommandName(parseResult.parsed.command);
+      const commandResult = this._validateCommandName(parseResult.parsed.command, parseResult.parsed.arguments);
       if (!commandResult.isValid) {
         result.warnings.push(...commandResult.warnings);
         result.severity = this._getHigherSeverity(result.severity, commandResult.severity);
@@ -424,8 +433,14 @@ class CommandValidator {
     };
 
     try {
-      // Simple parsing - split by whitespace
-      const parts = command.trim().split(/\s+/);
+      // GHSA-vwjq-wx58-g4qr FIX: tokenize like a shell so quoting ('rm') cannot hide the name.
+      let parts;
+      try {
+        parts = shellQuote.parse(command, key => `$${key}`).filter(t => typeof t === 'string');
+      } catch (e) {
+        parts = [];
+      }
+      if (parts.length === 0) parts = command.trim().split(/\s+/);
 
       if (parts.length === 0) {
         result.isValid = false;
@@ -574,7 +589,7 @@ class CommandValidator {
    * @returns {Object} Validation result
    * @private
    */
-  _validateCommandName (commandName) {
+  _validateCommandName (commandName, args = []) {
     const result = {
       isValid: true,
       warnings: [],
@@ -590,10 +605,20 @@ class CommandValidator {
 
     const lowerCommand = commandName.toLowerCase();
 
-    // Check blacklist first (higher priority)
-    if (this.config.blockedCommands.includes(lowerCommand)) {
+    // Check blacklist first (higher priority). GHSA-vwjq-wx58-g4qr FIX: match by
+    // basename/version and check the command a wrapper (env, sudo, ...) runs.
+    const blocked = new Set(this.config.blockedCommands.map(c => String(c).toLowerCase()));
+    if (this.config.blockedCommands === DEFAULT_CONFIG.blockedCommands) {
+      // Interpreters added to the default list in 1.4.4 stay allowed when explicitly allowlisted.
+      for (const name of this.config.allowedCommands) {
+        if (!LEGACY_BLOCKED_COMMANDS.includes(name)) blocked.delete(String(name).toLowerCase());
+      }
+    }
+    const candidates = COMMAND_WRAPPERS.has(commandBaseName(commandName)) ? [commandName, ...args] : [commandName];
+    const hit = candidates.find(c => isDangerousCommand(c, blocked));
+    if (hit) {
       result.isValid = false;
-      result.warnings.push(`Command '${commandName}' is blocked for security reasons`);
+      result.warnings.push(`Command '${hit}' is blocked for security reasons`);
       result.severity = SEVERITY.CRITICAL;
       return result;
     }
@@ -677,8 +702,7 @@ class CommandValidator {
 
     // Check platform-specific blocked commands
     if (platformConfig.blockedCommands) {
-      const lowerCommand = parsed.command.toLowerCase();
-      if (platformConfig.blockedCommands.includes(lowerCommand)) {
+      if (isDangerousCommand(parsed.command, platformConfig.blockedCommands)) {
         result.isValid = false;
         result.warnings.push(`Command '${parsed.command}' is blocked on ${this.platform} platform`);
         result.severity = SEVERITY.CRITICAL;

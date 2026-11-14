@@ -48,6 +48,36 @@ const {
 // Import pattern detection
 const { analyzeSecurityPatterns } = require('../patterns'); // detectAllPatterns unused
 
+// Context types a field name must not override (see _getFieldContext).
+const SPECIFIC_CONTEXT_TYPES = new Set(['file_path', 'url', 'command', 'sql', 'nosql']);
+
+// $-prefixed keys that are JSON Schema keywords, not query operators.
+const JSON_SCHEMA_KEYS = new Set(['$schema', '$id', '$ref', '$defs', '$anchor', '$dynamicRef', '$dynamicAnchor', '$vocabulary', '$comment']);
+
+// Query/update operators blocked as keys in every context. `$type` is left out:
+// it is also a common polymorphism key (.NET, JSON-LD) and cannot bypass a filter alone.
+const { MONGODB_OPERATORS, COUCHDB_OPERATORS } = require('../patterns/nosql-injection');
+const OPERATOR_KEYS = new Set([
+  ...Object.values(MONGODB_OPERATORS).flat(), ...COUCHDB_OPERATORS, '$function', '$accumulator'
+].filter(k => k !== '$type'));
+
+// Template syntax in a key (values are covered by blockedPatterns).
+const KEY_TEMPLATE_SYNTAX = /\$\{|\{\{|\{%|<%|#\{/;
+
+const { safeBatchTest } = require('../utils/redos-safe-patterns');
+
+// High-confidence SQL injection signatures for sanitize(type: 'sql'), which accepts
+// whole queries: literal-only tautologies, time delays, file writes, UNION, quote+comment.
+const SQL_INJECTION_SIGNATURES = [
+  /\b(AND|OR)\s*(?:\(\s*)?(\d+|'[^']*'|"[^"]*")\s*(=|<>|!=|<=?|>=?|\bLIKE\b)\s*(\d+|'[^']*'?|"[^"]*"?)/i,
+  /\b(AND|OR)\s+(NOT\s+)?(TRUE|FALSE)\b/i,
+  /\b(SLEEP|BENCHMARK|PG_SLEEP)\s*\(/i,
+  /\bWAITFOR\s+(DELAY|TIME)\b/i,
+  /\bINTO\s+(OUT|DUMP)FILE\b/i,
+  /\bUNION\s+(ALL\s+)?SELECT\b/i,
+  /['"]\s*(#|--|\/\*)[^'"]*$/ // a comment that eats the rest, not a literal like '#fff'
+];
+
 /**
  * MCP Sanitizer Class
  * Main orchestrator for input validation and sanitization
@@ -140,6 +170,7 @@ class MCPSanitizer {
     try {
       // First, apply enterprise security checks
       if (typeof input === 'string') {
+        this._assertRawLength(input);
         const securityChecks = enterpriseSecurity.performSecurityChecks(input, {
           checkDirectional: true,
           checkNullBytes: true,
@@ -442,6 +473,17 @@ class MCPSanitizer {
   }
 
   /**
+   * Audit FIX (DoS): bound work before any scan or normalization; no escape expands past 10:1.
+   * @param {string} str - Raw string
+   * @private
+   */
+  _assertRawLength (str) {
+    if (this.options.maxStringLength && str.length > this.options.maxStringLength * 10) {
+      throw new Error(`String length ${str.length} exceeds maximum allowed before normalization`);
+    }
+  }
+
+  /**
    * CVE-TBD-001 FIX: Secure string sanitization with unified parsing
    * This method now uses unified parsing to prevent parser differential attacks
    * @param {string} str - String to sanitize
@@ -450,6 +492,19 @@ class MCPSanitizer {
    * @private
    */
   _sanitizeString (str, context) {
+    this._assertRawLength(str);
+
+    // Audit FIX: nested values and keys get the same checks as a top-level string.
+    const securityChecks = enterpriseSecurity.performSecurityChecks(str, {
+      checkDirectional: true,
+      checkNullBytes: true,
+      checkDoubleEncoding: true,
+      checkHomographs: true
+    });
+    if (securityChecks.blocked) {
+      throw new Error(securityChecks.warnings.join('; '));
+    }
+
     // CVE-TBD-001 FIX: Use unified parser for consistent normalization
     const normalizedStr = parseUnified(str, {
       type: context.type || 'generic',
@@ -482,6 +537,11 @@ class MCPSanitizer {
 
     // Validate string length on normalized content ONLY
     stringUtils.validateStringLength(safeStr, this.options.maxStringLength);
+
+    // Keys are checked in _sanitizeObject; value patterns (`--`, `;`) would reject ordinary names.
+    if (context.type === 'object_key') {
+      return safeStr;
+    }
 
     // Check for blocked patterns on normalized content ONLY
     stringUtils.validateAgainstBlockedPatterns(safeStr, this.options.blockedPatterns, context);
@@ -576,6 +636,19 @@ class MCPSanitizer {
       // Check for dangerous object keys
       objectUtils.validateObjectKey(key);
 
+      // Audit FIX: keys are normalized like values; every key check sees only that form.
+      const safeKey = this._sanitizeString(key, { type: 'object_key' }).normalize('NFKC').trim();
+      objectUtils.validateObjectKey(safeKey);
+
+      // Audit FIX: operator keys ({ $ne: null }) reach a database in any context, not just nosql.
+      const strictOperators = context.type === 'nosql' || context.type === 'query';
+      if (safeKey.startsWith('$') && (OPERATOR_KEYS.has(safeKey) || (strictOperators && !JSON_SCHEMA_KEYS.has(safeKey)))) {
+        throw new Error(`NoSQL operator key detected: ${key}`);
+      }
+      if (/[<>]/.test(safeKey) || KEY_TEMPLATE_SYNTAX.test(safeKey)) {
+        throw new Error('Object key contains markup or template syntax');
+      }
+
       // Determine context for this field
       const fieldContext = this._getFieldContext(key, context);
 
@@ -639,6 +712,8 @@ class MCPSanitizer {
       sql: { type: 'sql' }
     };
 
+    // Audit FIX: a field name may refine a generic context, never replace an explicit one.
+    if (parentContext && SPECIFIC_CONTEXT_TYPES.has(parentContext.type)) return parentContext;
     return contextMap[fieldName.toLowerCase()] || parentContext || {};
   }
 
@@ -694,6 +769,12 @@ class MCPSanitizer {
     const dollarQuoteCheck = enterpriseSecurity.detectPostgreSQLDollarQuoting(query);
     if (dollarQuoteCheck.detected) {
       throw new Error(dollarQuoteCheck.warnings.join('; '));
+    }
+
+    // Audit FIX: the keyword list alone missed tautologies and time-based payloads.
+    const signatureCheck = safeBatchTest(SQL_INJECTION_SIGNATURES, query, 100);
+    if (signatureCheck.matched.length > 0 || signatureCheck.timeExceeded) {
+      throw new Error(`SQL injection pattern detected: ${signatureCheck.matched.map(r => r.source).join(', ')}`);
     }
 
     // Filter out safe SQL keywords for legacy compatibility
