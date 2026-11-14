@@ -47,3 +47,20 @@ describe('NoSQL operator keys are blocked in every context', () => {
     expect(blocked(input, {})).toBe(false);
   });
 });
+
+describe('object keys are checked like values', () => {
+  it.each([
+    [{ '<img src=x onerror=alert(1)>': 1 }],
+    [{ '{{7*7}}': 1 }],
+    [{ '__proto__.isAdmin': true }],
+    [{ 'constructor[prototype][isAdmin]': true }],
+    [{ a: { 'x.prototype.y': 1 } }],
+    [{ ['k'.repeat(20000)]: 1 }]
+  ])('%j is blocked', (input) => {
+    expect(blocked(input, {})).toBe(true);
+  });
+
+  it('allows ordinary keys', () => {
+    expect(blocked({ 'Content-Type': 'x', user_name: 'a', 'first name': 'b', émoji: 'c' }, {})).toBe(false);
+  });
+});

@@ -26,7 +26,8 @@ function isDangerousKey (key) {
     throw new Error('Key must be a string');
   }
 
-  return DANGEROUS_KEYS.includes(key);
+  // Audit FIX: also catch dangerous segments of dot/bracket paths (`__proto__.isAdmin`).
+  return key.normalize('NFKC').split(/[.[\]'"\s]+/).some(segment => DANGEROUS_KEYS.includes(segment));
 }
 
 /**

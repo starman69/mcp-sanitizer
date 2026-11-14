@@ -588,6 +588,12 @@ class MCPSanitizer {
         throw new Error(`NoSQL operator key detected: ${key}`);
       }
 
+      // Audit FIX: keys get the same normalization and pattern checks as values.
+      this._sanitizeString(key, { type: 'object_key' });
+      if (/[<>]/.test(foldedKey)) {
+        throw new Error('Object key contains markup characters');
+      }
+
       // Determine context for this field
       const fieldContext = this._getFieldContext(key, context);
 
