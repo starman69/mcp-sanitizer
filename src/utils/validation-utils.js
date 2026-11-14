@@ -308,6 +308,9 @@ function validateFileExtension (filePath, allowedExtensions) {
   }
 }
 
+// Schemes whose URLs legitimately have no host.
+const HOSTLESS_PROTOCOLS = new Set(['file', 'mailto', 'tel', 'urn', 'data']);
+
 /**
  * CVE-TBD-001 FIX: Validate URL using unified parsing
  * @param {string} url - The URL to validate (will be normalized)
@@ -335,6 +338,15 @@ function validateURL (url, allowedProtocols = ['http', 'https']) {
   const protocol = parsedUrl.protocol.slice(0, -1); // Remove trailing colon
   if (!allowedProtocols.includes(protocol)) {
     throw new Error(`Protocol ${protocol} not allowed. Allowed protocols: ${allowedProtocols.join(', ')}`);
+  }
+
+  // Audit FIX: a hostless URL (mcp:\\127.0.0.1/, mcp:@169.254.169.254) skips the
+  // location check but a lenient consumer may still find a host in it.
+  if (!parsedUrl.hostname && !HOSTLESS_PROTOCOLS.has(protocol)) {
+    throw new Error('URL has no host');
+  }
+  if (parsedUrl.username || parsedUrl.password) {
+    throw new Error('Credentials in URL are not allowed');
   }
 
   // Check for suspicious patterns in URL path

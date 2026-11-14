@@ -209,3 +209,20 @@ describe('SSRF: DNS resolution checks (GHSA-qvp2-8q5w-gcfp)', () => {
     });
   });
 });
+
+describe('SSRF: hostless URLs and credentials are rejected', () => {
+  it.each([
+    'mcp:\\\\127.0.0.1:6379/',
+    'mcp:/\\169.254.169.254/',
+    'mcp:127.0.0.1:6379',
+    'mcp:@169.254.169.254',
+    'https://user:pass@example.com/',
+    'https://user@example.com/'
+  ])('blocks %s', (url) => {
+    expect(isBlocked(url)).toBe(true);
+  });
+
+  it.each(['mcp://server/resource', 'https://example.com/a?b=1'])('allows %s', (url) => {
+    expect(isBlocked(url)).toBe(false);
+  });
+});
