@@ -34,7 +34,10 @@ describe('NoSQL operator keys are blocked in every context', () => {
     [{ password: { $regex: '.*' } }, {}],
     [[{ $where: 'sleep(5000)' }], {}],
     [{ a: { '＄ne': 1 } }, {}], // fullwidth dollar
-    [{ filter: { $function: { body: 'x' } } }, { type: 'request_query' }]
+    [{ filter: { $function: { body: 'x' } } }, { type: 'request_query' }],
+    [{ '%24ne': 1 }, {}], // keys are checked after decoding
+    [{ '\\u0024ne': 1 }, {}],
+    [{ $price: 1 }, { type: 'query' }] // any $ key in a query context
   ])('%j is blocked', (input, context) => {
     expect(blocked(input, context)).toBe(true);
   });
@@ -42,7 +45,10 @@ describe('NoSQL operator keys are blocked in every context', () => {
   it.each([
     [{ $schema: 'http://json-schema.org/draft-07/schema#', type: 'object' }],
     [{ properties: { a: { $ref: '#/$defs/a' } } }],
-    [{ price: '$5' }]
+    [{ price: '$5' }],
+    [{ $type: 'Shop.Order' }], // .NET / JSON-LD polymorphism
+    [{ _id: { $oid: '5f1d' } }], // MongoDB Extended JSON
+    [{ a: { $price: 3 } }]
   ])('%j is allowed', (input) => {
     expect(blocked(input, {})).toBe(false);
   });
@@ -62,6 +68,14 @@ describe('object keys are checked like values', () => {
 
   it('allows ordinary keys', () => {
     expect(blocked({ 'Content-Type': 'x', user_name: 'a', 'first name': 'b', émoji: 'c' }, {})).toBe(false);
+  });
+
+  it('does not apply value patterns (SQL comment, shell) to keys', () => {
+    expect(blocked({ '--main-color': 'red', 'card--active': 1, 'a;b': 1 }, {})).toBe(false);
+  });
+
+  it('checks keys after decoding', () => {
+    expect(blocked({ '%3Cimg%3E': 1 }, {})).toBe(true);
   });
 });
 

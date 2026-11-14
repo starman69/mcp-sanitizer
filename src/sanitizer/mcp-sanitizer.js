@@ -54,6 +54,16 @@ const SPECIFIC_CONTEXT_TYPES = new Set(['file_path', 'url', 'command', 'sql', 'n
 // $-prefixed keys that are JSON Schema keywords, not query operators.
 const JSON_SCHEMA_KEYS = new Set(['$schema', '$id', '$ref', '$defs', '$anchor', '$dynamicRef', '$dynamicAnchor', '$vocabulary', '$comment']);
 
+// Query/update operators blocked as keys in every context. `$type` is left out:
+// it is also a common polymorphism key (.NET, JSON-LD) and cannot bypass a filter alone.
+const { MONGODB_OPERATORS, COUCHDB_OPERATORS } = require('../patterns/nosql-injection');
+const OPERATOR_KEYS = new Set([
+  ...Object.values(MONGODB_OPERATORS).flat(), ...COUCHDB_OPERATORS, '$function', '$accumulator'
+].filter(k => k !== '$type'));
+
+// Template syntax in a key (values are covered by blockedPatterns).
+const KEY_TEMPLATE_SYNTAX = /\$\{|\{\{|\{%|<%|#\{/;
+
 const { safeBatchTest } = require('../utils/redos-safe-patterns');
 
 // High-confidence SQL injection signatures for sanitize(type: 'sql'), which accepts
@@ -528,6 +538,11 @@ class MCPSanitizer {
     // Validate string length on normalized content ONLY
     stringUtils.validateStringLength(safeStr, this.options.maxStringLength);
 
+    // Keys are checked in _sanitizeObject; value patterns (`--`, `;`) would reject ordinary names.
+    if (context.type === 'object_key') {
+      return safeStr;
+    }
+
     // Check for blocked patterns on normalized content ONLY
     stringUtils.validateAgainstBlockedPatterns(safeStr, this.options.blockedPatterns, context);
 
@@ -621,16 +636,17 @@ class MCPSanitizer {
       // Check for dangerous object keys
       objectUtils.validateObjectKey(key);
 
+      // Audit FIX: keys are normalized like values; every key check sees only that form.
+      const safeKey = this._sanitizeString(key, { type: 'object_key' }).normalize('NFKC').trim();
+      objectUtils.validateObjectKey(safeKey);
+
       // Audit FIX: operator keys ({ $ne: null }) reach a database in any context, not just nosql.
-      const foldedKey = key.normalize('NFKC').trim();
-      if (foldedKey.startsWith('$') && !JSON_SCHEMA_KEYS.has(foldedKey)) {
+      const strictOperators = context.type === 'nosql' || context.type === 'query';
+      if (safeKey.startsWith('$') && (OPERATOR_KEYS.has(safeKey) || (strictOperators && !JSON_SCHEMA_KEYS.has(safeKey)))) {
         throw new Error(`NoSQL operator key detected: ${key}`);
       }
-
-      // Audit FIX: keys get the same normalization and pattern checks as values.
-      this._sanitizeString(key, { type: 'object_key' });
-      if (/[<>]/.test(foldedKey)) {
-        throw new Error('Object key contains markup characters');
+      if (/[<>]/.test(safeKey) || KEY_TEMPLATE_SYNTAX.test(safeKey)) {
+        throw new Error('Object key contains markup or template syntax');
       }
 
       // Determine context for this field
