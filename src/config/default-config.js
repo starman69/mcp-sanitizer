@@ -41,10 +41,11 @@ const DEFAULT_CONFIG = {
   // Blocked Content Patterns
   blockedPatterns: [
     // Template injection patterns (Server-Side Template Injection)
-    /\$\{.*?\}|\{\{.*?\}\}|<%.*?%>/,
+    // Audit FIX: match across newlines and cover Jinja {% %} / #{ } and spaced/bracketed prototype access.
+    /\$\{[\s\S]*?\}|\{\{[\s\S]*?\}\}|<%[\s\S]*?%>|\{%[\s\S]*?%\}|#\{[\s\S]*?\}/,
 
     // Prototype pollution patterns
-    /__proto__|constructor\.prototype|prototype\.constructor/i,
+    /__proto__|constructor\s*[.[]\s*["'`]?\s*prototype|prototype\s*[.[]\s*["'`]?\s*constructor|\bObject\s*\.\s*prototype\b/i,
 
     // Code execution patterns
     /require\s*\(|import\s*\(|eval\s*\(|Function\s*\(/i,

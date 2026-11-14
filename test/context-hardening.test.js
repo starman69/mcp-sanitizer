@@ -77,3 +77,26 @@ describe('nested strings and keys get the top-level security checks', () => {
     expect(blocked(input, {})).toBe(true);
   });
 });
+
+describe('template and prototype patterns', () => {
+  const payloads = [
+    '{{7*\n7}}',
+    '{{\r7*7}}',
+    '{{\u2028config.items()}}',
+    '{% for x in ().__class__.__base__.__subclasses__() %}',
+    '#{7*7}',
+    '${\n7*7}', // eslint-disable-line no-template-curly-in-string
+    'x.constructor .prototype',
+    'Object.prototype.polluted',
+    'constructor["prototype"]'
+  ];
+  describe.each(['PRODUCTION', 'STRICT', undefined])('policy %s', (policy) => {
+    const s = policy ? new MCPSanitizer(policy) : new MCPSanitizer();
+    it.each(payloads)('blocks %j', (p) => {
+      expect(s.sanitize(p).blocked).toBe(true);
+    });
+    it.each(['hello world', 'price is $5 {ok}', 'a#b{c', 'the constructor of prototypes'])('allows %j', (p) => {
+      expect(s.sanitize(p).blocked).toBe(false);
+    });
+  });
+});
