@@ -712,6 +712,8 @@ const DANGEROUS_COMMANDS = new Set([
   'sh', 'bash', 'dash', 'zsh', 'ksh', 'csh', 'tcsh', 'ash', 'fish', 'busybox',
   'cmd', 'powershell', 'pwsh',
   'python', 'node', 'perl', 'ruby', 'php', 'lua',
+  'nodejs', 'deno', 'bun', 'pythonw', 'ipython', 'pypy', 'jython', 'irb', 'tclsh', 'wish', 'expect',
+  'rbash', 'mksh', 'wsl', 'osascript', 'cscript', 'wscript', 'mshta',
   'sudo', 'su', 'doas', 'chmod', 'chown'
 ]);
 
