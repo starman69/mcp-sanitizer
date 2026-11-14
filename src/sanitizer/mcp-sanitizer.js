@@ -48,6 +48,9 @@ const {
 // Import pattern detection
 const { analyzeSecurityPatterns } = require('../patterns'); // detectAllPatterns unused
 
+// Context types a field name must not override (see _getFieldContext).
+const SPECIFIC_CONTEXT_TYPES = new Set(['file_path', 'url', 'command', 'sql', 'nosql']);
+
 /**
  * MCP Sanitizer Class
  * Main orchestrator for input validation and sanitization
@@ -639,6 +642,8 @@ class MCPSanitizer {
       sql: { type: 'sql' }
     };
 
+    // Audit FIX: a field name may refine a generic context, never replace an explicit one.
+    if (parentContext && SPECIFIC_CONTEXT_TYPES.has(parentContext.type)) return parentContext;
     return contextMap[fieldName.toLowerCase()] || parentContext || {};
   }
 
