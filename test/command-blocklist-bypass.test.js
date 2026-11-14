@@ -92,3 +92,11 @@ describe('Command blocklist bypass (GHSA-vwjq-wx58-g4qr)', () => {
     });
   });
 });
+
+describe('policies that disable commands say so', () => {
+  it('reports maxCommandLength 0 clearly', async () => {
+    const result = await new lib.CommandValidator({ maxCommandLength: 0 }).validate('ls -la');
+    expect(result.isValid).toBe(false);
+    expect(result.warnings[0]).toMatch(/disabled by this policy/);
+  });
+});

@@ -172,7 +172,9 @@ class CommandValidator {
 
       // Check command length
       if (command.length > this.config.maxCommandLength) {
-        result.warnings.push(`Command exceeds maximum length of ${this.config.maxCommandLength} characters`);
+        result.warnings.push(this.config.maxCommandLength === 0
+          ? 'Commands are disabled by this policy (maxCommandLength: 0)'
+          : `Command exceeds maximum length of ${this.config.maxCommandLength} characters`);
         result.severity = SEVERITY.MEDIUM;
         return result;
       }
