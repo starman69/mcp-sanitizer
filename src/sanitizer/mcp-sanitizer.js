@@ -75,7 +75,7 @@ const SQL_INJECTION_SIGNATURES = [
   /\bWAITFOR\s+(DELAY|TIME)\b/i,
   /\bINTO\s+(OUT|DUMP)FILE\b/i,
   /\bUNION\s+(ALL\s+)?SELECT\b/i,
-  /['"]\s*(#|--|\/\*)/
+  /['"]\s*(#|--|\/\*)[^'"]*$/ // a comment that eats the rest, not a literal like '#fff'
 ];
 
 /**

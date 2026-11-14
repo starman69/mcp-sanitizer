@@ -126,7 +126,9 @@ describe('sanitize(type: sql) catches injection payloads, not just keywords', ()
     "1 INTO OUTFILE '/tmp/x'",
     '1 OR(1=1)',
     '1 OR true',
-    "' OR 1=1#"
+    "' OR 1=1#",
+    "admin'-- ",
+    "x' /* c */ UNION/**/SELECT 1"
   ];
   describe.each(['PRODUCTION', 'MODERATE', undefined])('policy %s', (policy) => {
     const s = policy ? new MCPSanitizer(policy) : new MCPSanitizer();
@@ -138,7 +140,9 @@ describe('sanitize(type: sql) catches injection payloads, not just keywords', ()
       'SELECT a FROM t WHERE b = 1 AND c = 2',
       "SELECT a FROM t WHERE status = 'a' OR status = 'b'",
       "O'Brien",
-      '42'
+      '42',
+      "SELECT * FROM t WHERE color = '#fff'",
+      "SELECT * FROM t WHERE tag = '#urgent' AND n = 2"
     ])('allows %j', (q) => {
       expect(s.sanitize(q, { type: 'sql' }).blocked).toBe(false);
     });
