@@ -151,6 +151,7 @@ function validateFilePath (filePath) {
     }
   }
 
+  assertNotWindowsSystemPath(safePath);
   assertNotSensitivePath(normalizedPath);
 
   // Use path-is-inside to check if the path tries to escape a safe directory
@@ -267,10 +268,39 @@ function trimTrailing (str, chars) {
 }
 
 // Directory or file names that hold credentials; `.env.*` is matched separately.
+// Audit FIX: added .git (hooks run code), shell history, key files and more credential stores.
 const SENSITIVE_PATH_SEGMENTS = new Set([
   '.ssh', '.aws', '.gnupg', '.kube', '.config', '.docker',
-  '.npmrc', '.netrc', '.env', '.git-credentials'
+  '.npmrc', '.netrc', '.env', '.git-credentials',
+  '.git', '.azure', '.terraform.d', '.envrc', '.pgpass', '.my.cnf',
+  '.htpasswd', '.vault-token', '.pypirc', '.s3cfg', '.boto',
+  '.bash_history', '.zsh_history', '.psql_history', '.mysql_history',
+  'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519'
 ]);
+
+// Windows system directories (first segment after the drive), incl. 8.3 short names.
+const WINDOWS_SYSTEM_DIRS = new Set([
+  'windows', 'system32', 'program files', 'program files (x86)', 'programdata'
+]);
+
+/**
+ * Audit FIX: block Windows system directories on any drive, including 8.3 short
+ * names (WINDOW~1) and trailing dots/spaces, and drive-relative paths (C:foo).
+ * @param {string} safePath - Path already normalized by the unified parser
+ * @throws {Error} - If the path targets a Windows system directory or is drive-relative
+ */
+function assertNotWindowsSystemPath (safePath) {
+  const p = safePath.replace(/\\/g, '/');
+  if (!/^[a-z]:/i.test(p)) return;
+  const rest = p.slice(2);
+  if (!rest.startsWith('/')) {
+    throw new Error('Drive-relative Windows paths are not allowed');
+  }
+  const first = trimTrailing((rest.split('/').filter(Boolean)[0] || '').split(':')[0], '. ').toLowerCase();
+  if (WINDOWS_SYSTEM_DIRS.has(first) || /^(window|progra)~\d+$/.test(first)) {
+    throw new Error(`Access to system directory not allowed: ${first}`);
+  }
+}
 
 /**
  * GHSA-7w82-6f9j-v9jp FIX: Block sensitive config files/dirs (SSH keys, cloud
@@ -878,6 +908,7 @@ module.exports = {
   validateRegExp,
   validateFilePath,
   assertNotSensitivePath,
+  assertNotWindowsSystemPath,
   assertPathConfinement,
   validateFileExtension,
   validateURL,

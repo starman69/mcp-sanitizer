@@ -101,3 +101,33 @@ describe('Sensitive path as first segment (GHSA-6xj4-4chr-656w)', () => {
     });
   });
 });
+
+describe('Windows system paths and more credential files', () => {
+  const blockedEverywhere = [
+    'C:Users/bob/Documents/x.txt', // drive-relative
+    'C:\\ProgramData\\secret.txt',
+    'C:\\WINDOW~1\\system.ini', // 8.3 short name
+    'C:\\Windows.\\win.ini', // trailing dot
+    'D:\\Windows\\win.ini',
+    'c:/program files (x86)/x.txt',
+    '.git/config',
+    '.git/hooks/pre-commit',
+    'id_rsa',
+    'home/.bash_history',
+    '.pgpass',
+    '.vault-token',
+    'project/.envrc'
+  ];
+
+  it.each(blockedEverywhere)('sanitize() blocks %s', (p) => {
+    expect(sanitizer.sanitize(p, { type: 'file_path' }).blocked).toBe(true);
+  });
+
+  it.each(blockedEverywhere)('validateFilePath() rejects %s', async (p) => {
+    expect((await MCPSanitizer.validateFilePath(p)).isValid).toBe(false);
+  });
+
+  it.each(['docs/readme.md', 'data/github/x.txt', 'my.git.txt'])('allows %s', (p) => {
+    expect(sanitizer.sanitize(p, { type: 'file_path' }).blocked).toBe(false);
+  });
+});

@@ -26,7 +26,7 @@
  */
 
 const path = require('path');
-const { assertNotSensitivePath, assertPathConfinement } = require('../../utils/validation-utils');
+const { assertNotSensitivePath, assertNotWindowsSystemPath, assertPathConfinement } = require('../../utils/validation-utils');
 const { detectAllPatterns, SEVERITY_LEVELS } = require('../../patterns');
 const sanitizeFilename = require('sanitize-filename');
 const pathIsInside = require('path-is-inside');
@@ -223,6 +223,7 @@ class FilePathValidator {
 
       // GHSA-v25x-53wq-6r99 FIX: shared sensitive-path denylist.
       try {
+        assertNotWindowsSystemPath(normalizedPath);
         assertNotSensitivePath(normalizedPath);
         assertPathConfinement(normalizedPath, this.config);
       } catch (error) {
