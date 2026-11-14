@@ -46,6 +46,7 @@
  */
 
 const MCPSanitizer = require('../index');
+const { sanitizedOrWithheld } = require('./request-utils');
 const { createOptimizedMatcher } = require('./optimized-skip-matcher');
 
 /**
@@ -251,17 +252,16 @@ async function processKoaRequest (ctx, sanitizer, config) {
     if (result.blocked) hasBlocked = true;
     allWarnings.push(...result.warnings);
 
-    if (!result.blocked) {
-      // Update context with sanitized data
-      if (type === 'body') {
-        ctx.request.body = result.sanitized;
-      } else if (type === 'params') {
-        ctx.params = result.sanitized;
-      } else if (type === 'query') {
-        ctx.query = result.sanitized;
-      } else if (type === 'headers') {
-        ctx.headers = result.sanitized;
-      }
+    // Audit FIX: a blocked part is withheld, never passed through raw.
+    const value = sanitizedOrWithheld(result, result.metadata && result.metadata.originalInput);
+    if (type === 'body') {
+      ctx.request.body = value;
+    } else if (type === 'params') {
+      ctx.params = value;
+    } else if (type === 'query') {
+      ctx.query = value;
+    } else if (type === 'headers') {
+      ctx.headers = value;
     }
   }
 
@@ -526,9 +526,7 @@ async function applyToolSpecificSanitization (ctx, toolName, config) {
 
     if (result.blocked) hasBlocked = true;
     toolWarnings.push(...result.warnings);
-    if (!result.blocked) {
-      params[sanitizationConfig.field] = result.sanitized;
-    }
+    params[sanitizationConfig.field] = sanitizedOrWithheld(result, params[sanitizationConfig.field]);
   }
 
   // Handle tool-specific blocking

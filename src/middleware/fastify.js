@@ -55,6 +55,7 @@ try {
 }
 
 const MCPSanitizer = require('../index');
+const { sanitizedOrWithheld } = require('./request-utils');
 const { createOptimizedMatcher } = require('./optimized-skip-matcher');
 
 /**
@@ -310,9 +311,8 @@ async function processFastifyRequest (request, reply, sanitizer, config) {
     if (result.blocked) hasBlocked = true;
     allWarnings.push(...result.warnings);
 
-    if (!result.blocked) {
-      request[type] = result.sanitized;
-    }
+    // Audit FIX: a blocked part is withheld, never passed through raw.
+    request[type] = sanitizedOrWithheld(result, request[type]);
   }
 
   // Handle blocking mode
@@ -587,9 +587,7 @@ async function applyToolSpecificSanitization (request, toolName, sanitizer, conf
 
     if (result.blocked) hasBlocked = true;
     toolWarnings.push(...result.warnings);
-    if (!result.blocked) {
-      params[sanitizationConfig.field] = result.sanitized;
-    }
+    params[sanitizationConfig.field] = sanitizedOrWithheld(result, params[sanitizationConfig.field]);
   }
 
   // Handle tool-specific blocking

@@ -44,6 +44,7 @@
  */
 
 const MCPSanitizer = require('../index');
+const { sanitizedOrWithheld, setRequestProperty } = require('./request-utils');
 const { createOptimizedMatcher } = require('./optimized-skip-matcher');
 
 /**
@@ -205,9 +206,8 @@ function processRequestSync (req, res, next, sanitizer, config) {
       if (result.blocked) hasBlocked = true;
       allWarnings.push(...result.warnings);
 
-      if (!result.blocked) {
-        req.body = result.sanitized;
-      }
+      // Audit FIX: a blocked part is withheld, never passed through raw.
+      setRequestProperty(req, 'body', sanitizedOrWithheld(result, req.body));
     }
 
     // Sanitize request parameters
@@ -222,9 +222,8 @@ function processRequestSync (req, res, next, sanitizer, config) {
       if (result.blocked) hasBlocked = true;
       allWarnings.push(...result.warnings);
 
-      if (!result.blocked) {
-        req.params = result.sanitized;
-      }
+      // Audit FIX: a blocked part is withheld, never passed through raw.
+      setRequestProperty(req, 'params', sanitizedOrWithheld(result, req.params));
     }
 
     // Sanitize query parameters
@@ -239,9 +238,8 @@ function processRequestSync (req, res, next, sanitizer, config) {
       if (result.blocked) hasBlocked = true;
       allWarnings.push(...result.warnings);
 
-      if (!result.blocked) {
-        req.query = result.sanitized;
-      }
+      // Audit FIX: a blocked part is withheld, never passed through raw.
+      setRequestProperty(req, 'query', sanitizedOrWithheld(result, req.query));
     }
 
     // Sanitize headers if configured
@@ -256,9 +254,8 @@ function processRequestSync (req, res, next, sanitizer, config) {
       if (result.blocked) hasBlocked = true;
       allWarnings.push(...result.warnings);
 
-      if (!result.blocked) {
-        req.headers = result.sanitized;
-      }
+      // Audit FIX: a blocked part is withheld, never passed through raw.
+      setRequestProperty(req, 'headers', sanitizedOrWithheld(result, req.headers));
     }
 
     // Handle blocking mode
@@ -346,9 +343,7 @@ async function processRequestAsync (req, res, next, sanitizer, config) {
       if (result.blocked) hasBlocked = true;
       allWarnings.push(...result.warnings);
 
-      if (!result.blocked) {
-        req[type] = result.sanitized;
-      }
+      setRequestProperty(req, type, sanitizedOrWithheld(result, req[type]));
     }
 
     // Handle blocking mode
@@ -551,7 +546,7 @@ function applyToolSpecificSanitization (req, toolName, config) {
         const result = sanitizer.sanitize(params.file_path, { type: 'file_path' });
         if (result.blocked) hasBlocked = true;
         toolWarnings.push(...result.warnings);
-        if (!result.blocked) params.file_path = result.sanitized;
+        params.file_path = sanitizedOrWithheld(result, params.file_path);
       }
       break;
 
@@ -561,7 +556,7 @@ function applyToolSpecificSanitization (req, toolName, config) {
         const result = sanitizer.sanitize(params.url, { type: 'url' });
         if (result.blocked) hasBlocked = true;
         toolWarnings.push(...result.warnings);
-        if (!result.blocked) params.url = result.sanitized;
+        params.url = sanitizedOrWithheld(result, params.url);
       }
       break;
 
@@ -571,7 +566,7 @@ function applyToolSpecificSanitization (req, toolName, config) {
         const result = sanitizer.sanitize(params.command, { type: 'command' });
         if (result.blocked) hasBlocked = true;
         toolWarnings.push(...result.warnings);
-        if (!result.blocked) params.command = result.sanitized;
+        params.command = sanitizedOrWithheld(result, params.command);
       }
       break;
 
@@ -581,7 +576,7 @@ function applyToolSpecificSanitization (req, toolName, config) {
         const result = sanitizer.sanitize(params.query, { type: 'sql' });
         if (result.blocked) hasBlocked = true;
         toolWarnings.push(...result.warnings);
-        if (!result.blocked) params.query = result.sanitized;
+        params.query = sanitizedOrWithheld(result, params.query);
       }
       break;
   }
