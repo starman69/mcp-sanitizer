@@ -470,6 +470,11 @@ class MCPSanitizer {
    * @private
    */
   _sanitizeString (str, context) {
+    // Audit FIX (DoS): bound work before normalization; no escape expands past 10:1.
+    if (this.options.maxStringLength && str.length > this.options.maxStringLength * 10) {
+      throw new Error(`String length ${str.length} exceeds maximum allowed before normalization`);
+    }
+
     // Audit FIX: nested values and keys get the same checks as a top-level string.
     const securityChecks = enterpriseSecurity.performSecurityChecks(str, {
       checkDirectional: true,

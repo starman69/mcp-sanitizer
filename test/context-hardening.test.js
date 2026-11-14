@@ -147,3 +147,15 @@ describe('IIS %uXXXX encoding is decoded before validation', () => {
     expect(sanitizer.sanitize('100%useful', {}).sanitized).toBe('100%useful');
   });
 });
+
+describe('oversized strings are rejected before normalization', () => {
+  it('rejects a 1 MB nested string quickly', () => {
+    const start = Date.now();
+    expect(new MCPSanitizer().sanitize({ a: 'a'.repeat(1e6) }).blocked).toBe(true);
+    expect(Date.now() - start).toBeLessThan(100);
+  });
+
+  it('still accepts encoded input that normalizes under the limit', () => {
+    expect(new MCPSanitizer().sanitize('%41'.repeat(3000)).blocked).toBe(false);
+  });
+});
