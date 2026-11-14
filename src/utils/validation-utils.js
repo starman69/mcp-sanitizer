@@ -755,6 +755,28 @@ function isDangerousCommand (token, list = DANGEROUS_COMMANDS) {
 }
 
 /**
+ * First dangerous word in a command. The program (and whatever a wrapper such as
+ * `env` or `timeout 5` runs) is matched by basename; other words only by bare name,
+ * so `rm` as an argument is caught but a path like `/home/user/node` is not.
+ * @param {string[]} words - Command words, program first
+ * @returns {string|undefined}
+ */
+function findDangerousWord (words) {
+  let commandPosition = true;
+  for (const word of words) {
+    const isPath = /[\\/]/.test(word);
+    if (commandPosition) {
+      if (isDangerousCommand(word)) return word;
+      if (/^-|^\d+$|=/.test(word)) continue; // wrapper options: -i, 5, VAR=1
+      commandPosition = COMMAND_WRAPPERS.has(commandBaseName(word));
+    } else if (!isPath && isDangerousCommand(word)) {
+      return word;
+    }
+  }
+  return undefined;
+}
+
+/**
  * CVE-TBD-001 FIX: Validate command using unified parsing
  * @param {string} command - The command string to validate (will be normalized)
  * @returns {string} - Trimmed command string
@@ -775,11 +797,10 @@ function validateCommand (command) {
     const parsed = shellQuote.parse(safeCommand);
     // shell-quote drops unquoted backslashes, so also check the raw words (C:\...\cmd.exe).
     const rawWords = safeCommand.split(/\s+/).filter(Boolean);
-
-    for (const word of rawWords) {
-      if (isDangerousCommand(word)) {
-        throw new Error(`Dangerous command detected: ${word}`);
-      }
+    const dangerous = findDangerousWord(rawWords) ||
+      findDangerousWord(parsed.filter(t => typeof t === 'string'));
+    if (dangerous) {
+      throw new Error(`Dangerous command detected: ${dangerous}`);
     }
 
     // Check for command injection by examining parsed tokens
@@ -790,10 +811,6 @@ function validateCommand (command) {
       }
 
       if (typeof token === 'string') {
-        if (isDangerousCommand(token)) {
-          throw new Error(`Dangerous command detected: ${token}`);
-        }
-
         // Check for sensitive file access
         if (token.includes('/etc/') || token.includes('/proc/') || token.includes('/sys/') ||
             token.toLowerCase().includes('c:\\windows\\') || token.includes('.ssh') ||

@@ -42,11 +42,17 @@ const bypasses = [
   'C:\\Windows\\System32\\cmd.exe /c dir',
   'env python3 -c id',
   'nohup /bin/sh -c id',
+  'timeout 5 sh -c id',
+  'env -i X=1 /bin/sh',
   "'rm' -rf x",
   '"/bin/r"m -rf x'
 ];
 
-const safe = ['ls -la', 'git status', 'echo hello', 'cat README.md', 'grep -r foo src'];
+const safe = [
+  'ls -la', 'git status', 'echo hello', 'cat README.md', 'grep -r foo src',
+  // a path argument is not the program, even if its basename is a blocked name
+  'ls /home/user/node', 'cat logs/ssh', 'ls bin/sh'
+];
 
 describe('Command blocklist bypass (GHSA-vwjq-wx58-g4qr)', () => {
   describe.each(Object.entries(entryPoints))('%s', (_name, isBlocked) => {
