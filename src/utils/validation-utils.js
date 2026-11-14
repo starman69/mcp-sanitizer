@@ -12,7 +12,6 @@ const path = require('path');
 const net = require('net');
 const dns = require('dns');
 const { URL } = require('url');
-const { testRegex } = require('./redos-safe-patterns');
 // CVE-TBD-001 FIX: Import unified parser for consistent string normalization
 const { parseUnified } = require('./unified-parser');
 
@@ -651,6 +650,57 @@ async function resolveAndValidateURL (url, options = {}) {
   return { url: parsedUrl, address: resolved[0].address, family: resolved[0].family };
 }
 
+// GHSA-vwjq-wx58-g4qr FIX: one list for every command entry point, matched on
+// the normalized basename so `/bin/rm`, `RM.EXE` and `python3.11` are caught.
+const DANGEROUS_COMMANDS = new Set([
+  'rm', 'del', 'format', 'mkfs', 'dd',
+  'nc', 'ncat', 'netcat', 'socat', 'telnet', 'ssh',
+  'curl', 'wget',
+  'sh', 'bash', 'dash', 'zsh', 'ksh', 'csh', 'tcsh', 'ash', 'fish', 'busybox',
+  'cmd', 'powershell', 'pwsh',
+  'python', 'node', 'perl', 'ruby', 'php', 'lua',
+  'sudo', 'su', 'doas', 'chmod', 'chown'
+]);
+
+// Commands that run their arguments as another command.
+const COMMAND_WRAPPERS = new Set([
+  'env', 'exec', 'xargs', 'nohup', 'timeout', 'nice', 'ionice', 'stdbuf',
+  'time', 'command', 'builtin', 'setsid', 'chroot', 'strace', 'sudo', 'doas'
+]);
+
+/**
+ * Normalize a command token to the program name a shell would run.
+ * @param {string} token - Command token (may include a path, quotes or extension)
+ * @returns {string} - Lowercase basename without a Windows executable extension
+ */
+function commandBaseName (token) {
+  return String(token)
+    .trim()
+    .replace(/^["']+|["']+$/g, '')
+    .split(/[\\/]/)
+    .pop()
+    .toLowerCase()
+    .replace(/\.(exe|com|bat|cmd|ps1)$/, '');
+}
+
+/**
+ * Whether a command token names a program in `DANGEROUS_COMMANDS`, ignoring
+ * path, case, executable extension and version suffix.
+ * @param {string} token - Command token
+ * @param {Iterable<string>} [list] - Names to match (defaults to `DANGEROUS_COMMANDS`)
+ * @returns {boolean}
+ */
+function isDangerousCommand (token, list = DANGEROUS_COMMANDS) {
+  const name = commandBaseName(token);
+  if (!name) return false;
+  const names = list instanceof Set ? list : new Set(Array.from(list, n => String(n).toLowerCase()));
+  let end = name.length; // strip a version suffix (python3.11 -> python) without a backtracking regex
+  while (end > 0 && '0123456789._-'.includes(name[end - 1])) end--;
+  const bare = name.slice(0, end);
+  return names.has(name) || (bare !== '' && names.has(bare)) ||
+    (names.has('mkfs') && /^mkfs(\.|$)/.test(name));
+}
+
 /**
  * CVE-TBD-001 FIX: Validate command using unified parsing
  * @param {string} command - The command string to validate (will be normalized)
@@ -670,6 +720,14 @@ function validateCommand (command) {
   try {
     // Parse the NORMALIZED command to detect injection attempts
     const parsed = shellQuote.parse(safeCommand);
+    // shell-quote drops unquoted backslashes, so also check the raw words (C:\...\cmd.exe).
+    const rawWords = safeCommand.split(/\s+/).filter(Boolean);
+
+    for (const word of rawWords) {
+      if (isDangerousCommand(word)) {
+        throw new Error(`Dangerous command detected: ${word}`);
+      }
+    }
 
     // Check for command injection by examining parsed tokens
     for (const token of parsed) {
@@ -679,18 +737,8 @@ function validateCommand (command) {
       }
 
       if (typeof token === 'string') {
-        // Check each command token against dangerous patterns
-        const dangerousCommands = [
-          /^(rm|del|format|mkfs[\w.]*|dd)$/i,
-          /^(nc|netcat|telnet|ssh)$/i,
-          /^(curl|wget|python|node|bash|sh|powershell|cmd)$/i,
-          /^(sudo|su|chmod|chown)$/i
-        ];
-
-        for (const pattern of dangerousCommands) {
-          if (testRegex(pattern, token.trim())) {
-            throw new Error(`Dangerous command detected: ${token}`);
-          }
+        if (isDangerousCommand(token)) {
+          throw new Error(`Dangerous command detected: ${token}`);
         }
 
         // Check for sensitive file access
@@ -817,6 +865,10 @@ module.exports = {
   resolveHost,
   resolveAndValidateURL,
   validateCommand,
+  isDangerousCommand,
+  commandBaseName,
+  DANGEROUS_COMMANDS,
+  COMMAND_WRAPPERS,
   validateOptions,
   validateRange,
   validateArrayOfType,
