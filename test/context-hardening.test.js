@@ -100,3 +100,37 @@ describe('template and prototype patterns', () => {
     });
   });
 });
+
+describe('sanitize(type: sql) catches injection payloads, not just keywords', () => {
+  const payloads = [
+    "1' OR '1'='1",
+    "' OR ''='",
+    "admin'#",
+    '1 OR\t1=1',
+    '1 AND SLEEP(5)',
+    "1 WAITFOR DELAY '0:0:5'",
+    "1 INTO OUTFILE '/tmp/x'",
+    '1 OR(1=1)',
+    '1 OR true',
+    "' OR 1=1#"
+  ];
+  describe.each(['PRODUCTION', 'MODERATE', undefined])('policy %s', (policy) => {
+    const s = policy ? new MCPSanitizer(policy) : new MCPSanitizer();
+    it.each(payloads)('blocks %j', (q) => {
+      expect(s.sanitize(q, { type: 'sql' }).blocked).toBe(true);
+    });
+    it.each([
+      'SELECT name FROM users WHERE id = 5',
+      'SELECT a FROM t WHERE b = 1 AND c = 2',
+      "SELECT a FROM t WHERE status = 'a' OR status = 'b'",
+      "O'Brien",
+      '42'
+    ])('allows %j', (q) => {
+      expect(s.sanitize(q, { type: 'sql' }).blocked).toBe(false);
+    });
+  });
+
+  it.each(['1 OR(1=1)', '1 OR true'])('validateSQL rejects %j', async (q) => {
+    expect((await require('../src/index').validators.validateSQL(q)).isValid).toBe(false);
+  });
+});

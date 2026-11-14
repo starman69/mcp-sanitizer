@@ -54,6 +54,20 @@ const SPECIFIC_CONTEXT_TYPES = new Set(['file_path', 'url', 'command', 'sql', 'n
 // $-prefixed keys that are JSON Schema keywords, not query operators.
 const JSON_SCHEMA_KEYS = new Set(['$schema', '$id', '$ref', '$defs', '$anchor', '$dynamicRef', '$dynamicAnchor', '$vocabulary', '$comment']);
 
+const { safeBatchTest } = require('../utils/redos-safe-patterns');
+
+// High-confidence SQL injection signatures for sanitize(type: 'sql'), which accepts
+// whole queries: literal-only tautologies, time delays, file writes, UNION, quote+comment.
+const SQL_INJECTION_SIGNATURES = [
+  /\b(AND|OR)\s*\(?\s*(\d+|'[^']*'?|"[^"]*"?)\s*(=|<>|!=|<=?|>=?|\bLIKE\b)\s*(\d+|'[^']*'?|"[^"]*"?)/i,
+  /\b(AND|OR)\s+(NOT\s+)?(TRUE|FALSE)\b/i,
+  /\b(SLEEP|BENCHMARK|PG_SLEEP)\s*\(/i,
+  /\bWAITFOR\s+(DELAY|TIME)\b/i,
+  /\bINTO\s+(OUT|DUMP)FILE\b/i,
+  /\bUNION\s+(ALL\s+)?SELECT\b/i,
+  /['"]\s*(#|--|\/\*)/
+];
+
 /**
  * MCP Sanitizer Class
  * Main orchestrator for input validation and sanitization
@@ -725,6 +739,12 @@ class MCPSanitizer {
     const dollarQuoteCheck = enterpriseSecurity.detectPostgreSQLDollarQuoting(query);
     if (dollarQuoteCheck.detected) {
       throw new Error(dollarQuoteCheck.warnings.join('; '));
+    }
+
+    // Audit FIX: the keyword list alone missed tautologies and time-based payloads.
+    const signatureCheck = safeBatchTest(SQL_INJECTION_SIGNATURES, query, 100);
+    if (signatureCheck.matched.length > 0 || signatureCheck.timeExceeded) {
+      throw new Error(`SQL injection pattern detected: ${signatureCheck.matched.map(r => r.source).join(', ')}`);
     }
 
     // Filter out safe SQL keywords for legacy compatibility
