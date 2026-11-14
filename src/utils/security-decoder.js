@@ -107,6 +107,11 @@ function decodeUnicode (input) {
     return String.fromCharCode(parseInt(hex, 16));
   });
 
+  // Audit FIX: IIS %uXXXX (e.g. %u002e%u002e/ for ../)
+  decoded = decoded.replace(/%u([0-9a-fA-F]{4})/g, (match, hex) => {
+    return String.fromCharCode(parseInt(hex, 16));
+  });
+
   // Handle \UXXXXXXXX format (8-digit Unicode)
   decoded = decoded.replace(/\\U([0-9a-fA-F]{8})/g, (match, hex) => {
     const codePoint = parseInt(hex, 16);
@@ -341,6 +346,7 @@ function hasEncoding (input) {
   const encodingPatterns = [
     /%[0-9a-fA-F]{2}/, // URL encoding
     /\\u[0-9a-fA-F]{4}/, // Unicode \uXXXX
+    /%u[0-9a-fA-F]{4}/, // IIS %uXXXX
     /\\U[0-9a-fA-F]{8}/, // Unicode \UXXXXXXXX
     /\\x[0-9a-fA-F]{2}/, // Hex \xXX
     /&#x[0-9a-fA-F]+;/, // HTML hex entity

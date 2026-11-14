@@ -134,3 +134,16 @@ describe('sanitize(type: sql) catches injection payloads, not just keywords', ()
     expect((await require('../src/index').validators.validateSQL(q)).isValid).toBe(false);
   });
 });
+
+describe('IIS %uXXXX encoding is decoded before validation', () => {
+  it.each([
+    ['https://example.com/%u002e%u002e/admin', { type: 'url' }],
+    ['%u003cscript%u003ealert(1)', {}]
+  ])('%s is blocked', (input, context) => {
+    expect(blocked(input, context)).toBe(true);
+  });
+
+  it('leaves non-hex %u text alone', () => {
+    expect(sanitizer.sanitize('100%useful', {}).sanitized).toBe('100%useful');
+  });
+});
