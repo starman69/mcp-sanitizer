@@ -36,7 +36,7 @@ describe('NoSQL operator keys are blocked in every context', () => {
     [{ a: { '＄ne': 1 } }, {}], // fullwidth dollar
     [{ filter: { $function: { body: 'x' } } }, { type: 'request_query' }],
     [{ '%24ne': 1 }, {}], // keys are checked after decoding
-    [{ '\\u0024ne': 1 }, {}],
+    [{ '\\u0024ne': 1 }, {}], // eslint-disable-line quote-props
     [{ $price: 1 }, { type: 'query' }] // any $ key in a query context
   ])('%j is blocked', (input, context) => {
     expect(blocked(input, context)).toBe(true);
