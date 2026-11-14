@@ -51,6 +51,9 @@ const { analyzeSecurityPatterns } = require('../patterns'); // detectAllPatterns
 // Context types a field name must not override (see _getFieldContext).
 const SPECIFIC_CONTEXT_TYPES = new Set(['file_path', 'url', 'command', 'sql', 'nosql']);
 
+// $-prefixed keys that are JSON Schema keywords, not query operators.
+const JSON_SCHEMA_KEYS = new Set(['$schema', '$id', '$ref', '$defs', '$anchor', '$dynamicRef', '$dynamicAnchor', '$vocabulary', '$comment']);
+
 /**
  * MCP Sanitizer Class
  * Main orchestrator for input validation and sanitization
@@ -578,6 +581,12 @@ class MCPSanitizer {
     for (const [key, value] of Object.entries(obj)) {
       // Check for dangerous object keys
       objectUtils.validateObjectKey(key);
+
+      // Audit FIX: operator keys ({ $ne: null }) reach a database in any context, not just nosql.
+      const foldedKey = key.normalize('NFKC').trim();
+      if (foldedKey.startsWith('$') && !JSON_SCHEMA_KEYS.has(foldedKey)) {
+        throw new Error(`NoSQL operator key detected: ${key}`);
+      }
 
       // Determine context for this field
       const fieldContext = this._getFieldContext(key, context);

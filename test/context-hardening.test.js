@@ -27,3 +27,23 @@ describe('field names cannot override an explicit context', () => {
     expect(blocked({ url: 'https://169.254.169.254/' }, { type: 'request_body' })).toBe(true);
   });
 });
+
+describe('NoSQL operator keys are blocked in every context', () => {
+  it.each([
+    [{ username: 'admin', password: { $ne: null } }, { type: 'request_body' }],
+    [{ password: { $regex: '.*' } }, {}],
+    [[{ $where: 'sleep(5000)' }], {}],
+    [{ a: { '＄ne': 1 } }, {}], // fullwidth dollar
+    [{ filter: { $function: { body: 'x' } } }, { type: 'request_query' }]
+  ])('%j is blocked', (input, context) => {
+    expect(blocked(input, context)).toBe(true);
+  });
+
+  it.each([
+    [{ $schema: 'http://json-schema.org/draft-07/schema#', type: 'object' }],
+    [{ properties: { a: { $ref: '#/$defs/a' } } }],
+    [{ price: '$5' }]
+  ])('%j is allowed', (input) => {
+    expect(blocked(input, {})).toBe(false);
+  });
+});
