@@ -166,6 +166,26 @@ describe('IIS %uXXXX encoding is decoded before validation', () => {
   });
 });
 
+describe('new patterns run in linear time (CodeQL js/polynomial-redos)', () => {
+  const { DEFAULT_CONFIG } = require('../src/config/default-config');
+  const { SECURITY_POLICIES } = require('../src/config/security-policies');
+  const protoPatterns = [DEFAULT_CONFIG, SECURITY_POLICIES.STRICT, SECURITY_POLICIES.PRODUCTION]
+    .flatMap(c => c.blockedPatterns.filter(p => p.source.includes('prototype')));
+
+  it.each(protoPatterns.map(p => [p.source.slice(0, 40), p]))('prototype pattern %s', (_s, pattern) => {
+    const start = Date.now();
+    pattern.test('constructor.' + ' '.repeat(50000) + 'x');
+    expect(Date.now() - start).toBeLessThan(100);
+  });
+
+  it('SQL tautology signature', () => {
+    const s = new MCPSanitizer('PERMISSIVE');
+    const start = Date.now();
+    for (let i = 0; i < 5; i++) s.sanitize("1 OR '" + ' '.repeat(9900), { type: 'sql' });
+    expect(Date.now() - start).toBeLessThan(150);
+  });
+});
+
 describe('oversized strings are rejected before normalization', () => {
   it('rejects a 1 MB nested string quickly', () => {
     const start = Date.now();

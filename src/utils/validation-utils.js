@@ -729,11 +729,9 @@ const COMMAND_WRAPPERS = new Set([
  * @returns {string} - Lowercase basename without a Windows executable extension
  */
 function commandBaseName (token) {
-  return String(token)
-    .trim()
-    .replace(/^["']+|["']+$/g, '')
-    .split(/[\\/]/)
-    .pop()
+  // Trailing quotes are stripped with a loop: /["']+$/ is polynomial on many quotes.
+  const base = String(token).trim().replace(/^["']+/, '').split(/[\\/]/).pop();
+  return trimTrailing(base, '"\'')
     .toLowerCase()
     .replace(/\.(exe|com|bat|cmd|ps1)$/, '');
 }

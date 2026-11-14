@@ -100,6 +100,12 @@ describe('Command blocklist bypass (GHSA-vwjq-wx58-g4qr)', () => {
       expect(Date.now() - start).toBeLessThan(100);
     });
 
+    it('strips quotes in linear time', () => {
+      const start = Date.now();
+      commandBaseName('"'.repeat(50000) + 'x');
+      expect(Date.now() - start).toBeLessThan(100);
+    });
+
     it('accepts a custom list', () => {
       expect(isDangerousCommand('/sbin/reboot', ['reboot'])).toBe(true);
       expect(isDangerousCommand('/bin/rm', ['reboot'])).toBe(false);

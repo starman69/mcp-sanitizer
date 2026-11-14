@@ -69,7 +69,7 @@ const { safeBatchTest } = require('../utils/redos-safe-patterns');
 // High-confidence SQL injection signatures for sanitize(type: 'sql'), which accepts
 // whole queries: literal-only tautologies, time delays, file writes, UNION, quote+comment.
 const SQL_INJECTION_SIGNATURES = [
-  /\b(AND|OR)\s*\(?\s*(\d+|'[^']*'?|"[^"]*"?)\s*(=|<>|!=|<=?|>=?|\bLIKE\b)\s*(\d+|'[^']*'?|"[^"]*"?)/i,
+  /\b(AND|OR)\s*(?:\(\s*)?(\d+|'[^']*'|"[^"]*")\s*(=|<>|!=|<=?|>=?|\bLIKE\b)\s*(\d+|'[^']*'?|"[^"]*"?)/i,
   /\b(AND|OR)\s+(NOT\s+)?(TRUE|FALSE)\b/i,
   /\b(SLEEP|BENCHMARK|PG_SLEEP)\s*\(/i,
   /\bWAITFOR\s+(DELAY|TIME)\b/i,
