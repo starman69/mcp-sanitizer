@@ -99,6 +99,23 @@ describe('Command blocklist bypass (GHSA-vwjq-wx58-g4qr)', () => {
   });
 });
 
+describe('allowlists written before 1.4.4 keep working', () => {
+  it('allows an explicitly allowlisted interpreter', async () => {
+    const v = new lib.CommandValidator({ allowedCommands: ['php', 'git'] });
+    expect((await v.validate('php artisan migrate')).isValid).toBe(true);
+    expect((await v.validate('lua x.lua')).isValid).toBe(false);
+  });
+
+  it('does not let an allowlist override the original blocklist', async () => {
+    expect((await new lib.CommandValidator({ allowedCommands: ['rm'] }).validate('rm x')).isValid).toBe(false);
+  });
+
+  it('honours a custom blocklist over the allowlist', async () => {
+    const v = new lib.CommandValidator({ allowedCommands: ['php'], blockedCommands: ['php'] });
+    expect((await v.validate('php artisan')).isValid).toBe(false);
+  });
+});
+
 describe('policies that disable commands say so', () => {
   it('reports maxCommandLength 0 clearly', async () => {
     const result = await new lib.CommandValidator({ maxCommandLength: 0 }).validate('ls -la');

@@ -48,16 +48,21 @@ const SEVERITY = {
 /**
  * Default configuration for command validation
  */
+// Blocked by default before 1.4.4; an allowlist entry cannot override these.
+const LEGACY_BLOCKED_COMMANDS = [
+  'rm', 'del', 'format', 'mkfs', 'dd', 'fdisk',
+  'nc', 'netcat', 'telnet', 'ssh', 'ftp',
+  'wget', 'curl', 'lynx', 'links',
+  'eval', 'exec', 'system', 'popen',
+  'sudo', 'su', 'passwd', 'chmod', 'chown',
+  'mount', 'umount', 'kill', 'killall',
+  'reboot', 'shutdown', 'halt', 'init'
+];
+
 const DEFAULT_CONFIG = {
   allowedCommands: [], // Empty array means all commands allowed (use with caution)
   blockedCommands: [
-    'rm', 'del', 'format', 'mkfs', 'dd', 'fdisk',
-    'nc', 'netcat', 'telnet', 'ssh', 'ftp',
-    'wget', 'curl', 'lynx', 'links',
-    'eval', 'exec', 'system', 'popen',
-    'sudo', 'su', 'passwd', 'chmod', 'chown',
-    'mount', 'umount', 'kill', 'killall',
-    'reboot', 'shutdown', 'halt', 'init',
+    ...LEGACY_BLOCKED_COMMANDS,
     ...DANGEROUS_COMMANDS // GHSA-vwjq-wx58-g4qr FIX: shared with the sync validator
   ].filter((name, i, all) => all.indexOf(name) === i),
   allowShellMetacharacters: false,
@@ -603,6 +608,12 @@ class CommandValidator {
     // Check blacklist first (higher priority). GHSA-vwjq-wx58-g4qr FIX: match by
     // basename/version and check the command a wrapper (env, sudo, ...) runs.
     const blocked = new Set(this.config.blockedCommands.map(c => String(c).toLowerCase()));
+    if (this.config.blockedCommands === DEFAULT_CONFIG.blockedCommands) {
+      // Interpreters added to the default list in 1.4.4 stay allowed when explicitly allowlisted.
+      for (const name of this.config.allowedCommands) {
+        if (!LEGACY_BLOCKED_COMMANDS.includes(name)) blocked.delete(String(name).toLowerCase());
+      }
+    }
     const candidates = COMMAND_WRAPPERS.has(commandBaseName(commandName)) ? [commandName, ...args] : [commandName];
     const hit = candidates.find(c => isDangerousCommand(c, blocked));
     if (hit) {
