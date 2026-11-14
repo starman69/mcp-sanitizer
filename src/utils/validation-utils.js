@@ -290,13 +290,14 @@ const WINDOWS_SYSTEM_DIRS = new Set([
  * @throws {Error} - If the path targets a Windows system directory or is drive-relative
  */
 function assertNotWindowsSystemPath (safePath) {
-  const p = safePath.replace(/\\/g, '/');
-  if (!/^[a-z]:/i.test(p)) return;
-  const rest = p.slice(2);
-  if (!rest.startsWith('/')) {
+  if (!/^[a-z]:/i.test(safePath)) return;
+  if (!/^[a-z]:[\\/]/i.test(safePath)) {
     throw new Error('Drive-relative Windows paths are not allowed');
   }
-  const first = trimTrailing((rest.split('/').filter(Boolean)[0] || '').split(':')[0], '. ').toLowerCase();
+  // Resolve `.`/`..` and skip segments Windows reduces to nothing (`D:\.\Windows`, `E:\ \Windows`).
+  const first = path.win32.normalize(safePath).slice(2).split(/[\\/]/)
+    .map(s => trimTrailing(s.split(':')[0], '. ').toLowerCase())
+    .find(Boolean) || '';
   if (WINDOWS_SYSTEM_DIRS.has(first) || /^(window|progra)~\d+$/.test(first)) {
     throw new Error(`Access to system directory not allowed: ${first}`);
   }

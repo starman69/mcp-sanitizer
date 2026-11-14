@@ -109,6 +109,10 @@ describe('Windows system paths and more credential files', () => {
     'C:\\WINDOW~1\\system.ini', // 8.3 short name
     'C:\\Windows.\\win.ini', // trailing dot
     'D:\\Windows\\win.ini',
+    'D:\\.\\Windows\\System32\\x', // dot segment
+    'E:\\ \\Windows\\x', // space segment
+    'D:/./Program Files/x',
+    'D:\\foo\\..\\ProgramData\\x',
     'c:/program files (x86)/x.txt',
     '.git/config',
     '.git/hooks/pre-commit',
